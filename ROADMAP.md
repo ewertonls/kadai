@@ -1,0 +1,222 @@
+# Roadmap
+
+> **Planning document.** Tasks below are proposed and unchecked. No feature is implemented merely because it appears here.
+
+**Implementation:** Odin. **Current focus:** CLI only. **Source of truth:** project-local Markdown files with YAML frontmatter.
+
+## Scope and milestones
+
+| Milestone | Phases | Meaning |
+| --- | --- | --- |
+| **v0.1** | 0–6 | A usable local task CLI with safe Markdown editing, task relationships, and validation |
+| **v0.2** | 7 | Optional manually curated Markdown Kanban boards |
+| **v0.3** | 8 | Search, task context, custom metadata, and agent ergonomics |
+| **v1.0** | 9 | Stability, compatibility, performance, and distribution |
+
+**Time budget:** Aim for a narrow v0.1 after one focused week, not a guarantee. The YAML writer is the primary schedule risk. If time slips, keep safe file editing, basic CRUD, `list --json`, and validation first. Defer rich filtering, editor conveniences, and enhanced graph rendering; do not weaken data-safety checks to fit a date.
+
+**Out of current planning scope:** TUI and desktop app. They may be considered only after the CLI is reliable; no implementation tasks or technology choices for them are committed here.
+
+## Non-negotiable invariants
+
+- Markdown is authoritative. A cache is optional and rebuildable; it must never become the only copy of task state.
+- A task's stable ID is independent of its filename and directory. Folder nesting is not automatically parent/child nesting.
+- Parent/child hierarchy and `depends_on` are separate relationships. Readiness/blocking is derived from prerequisites.
+- Task bodies have no required sections. Custom YAML frontmatter fields remain intact after unrelated CLI edits.
+- Every supported write is non-destructive to unrelated content. Unsafe YAML edits fail with a diagnostic rather than silently serializing the entire header.
+- Manual edits take effect on the next CLI read. CLI writes use atomic replacement and conflict detection, acknowledging that external editors may not respect Kadai locks.
+- Boards reference task IDs. A board is a selection/view; task state remains in each task file.
+- The CLI provides deterministic text output, structured JSON, documented errors, and no required hosted service or MCP server.
+
+## Task backlog
+
+### 0. Product contract and scope
+
+**Milestone:** v0.1. **Goal:** Freeze the rules that cannot be changed casually once users have Markdown task files.
+
+**Depends on:** None. **Done when:** A written v0.1 specification and fixtures cover valid, invalid, and hand-edited tasks.
+
+- [ ] **KAD-001** Define the v0.1 boundary. _Acceptance:_ Document the minimum CLI workflow and explicitly defer boards, TUI, and desktop.
+- [ ] **KAD-002** Specify task frontmatter. _Acceptance:_ List reserved keys, defaults, optional keys, status values, and the policy for arbitrary custom metadata.
+- [ ] **KAD-003** Specify project configuration. _Acceptance:_ Document `.kadai.yaml`, configurable task root, optional board root, and project discovery rules.
+- [ ] **KAD-004** Specify task identity. _Acceptance:_ Choose an ID format, collision strategy, filename convention, and behavior after files are moved.
+- [ ] **KAD-005** Specify hierarchy and dependencies. _Acceptance:_ Define `parent` and `depends_on` separately, arrow direction, cycles, missing references, and deletion policy.
+- [ ] **KAD-006** Set YAML compatibility and mutation rules. _Acceptance:_ Decide supported YAML semantics, ambiguous cases, and when mutations must fail instead of reformatting.
+- [ ] **KAD-007** Build a fixture corpus. _Acceptance:_ Include valid tasks, custom fields, comments, CRLF, Unicode, nested directories, malformed YAML, and graph cycles.
+
+### 1. Odin foundation
+
+**Milestone:** v0.1. **Goal:** Get a reproducible, testable native CLI skeleton with clean package boundaries.
+
+**Depends on:** Phase 0. **Done when:** The command builds on a pinned Odin toolchain, prints help/version, and runs automated tests.
+
+- [ ] **KAD-008** Pin the Odin toolchain. _Acceptance:_ Record the compiler revision/release and provide setup instructions for contributors.
+- [ ] **KAD-009** Define package boundaries. _Acceptance:_ Separate CLI, project/filesystem, Markdown/YAML, task domain, and graph logic without a UI dependency.
+- [ ] **KAD-010** Add build and developer scripts. _Acceptance:_ Provide reproducible build, format/check, vet, and test commands for local development.
+- [ ] **KAD-011** Set up Odin tests and fixtures. _Acceptance:_ Use `core:testing` and a repeatable runner for unit and integration tests.
+- [ ] **KAD-012** Create the CLI entrypoint. _Acceptance:_ Implement `kadai --help`, `--version`, command dispatch, and a consistent error boundary.
+
+### 2. Markdown and YAML editing
+
+**Milestone:** v0.1. **Goal:** Treat the Markdown file as the authoritative document without silently rewriting unrelated content.
+
+**Depends on:** Phases 0-1. **Done when:** Changing one supported metadata field preserves the body and all unrelated bytes; unsafe edits report an error.
+
+- [ ] **KAD-013** Spike YAML implementation options. _Acceptance:_ Compare a maintained parser, including LibYAML via Odin/C FFI, with licensing and cross-platform linking costs. Do not write a YAML parser from scratch.
+- [ ] **KAD-014** Extract frontmatter boundaries. _Acceptance:_ Separate opening/closing delimiters and raw body; specify BOM, missing delimiters, and empty headers.
+- [ ] **KAD-015** Parse known YAML fields. _Acceptance:_ Decode supported scalar and sequence fields while preserving unrecognized keys for round-trip editing.
+- [ ] **KAD-016** Report useful YAML errors. _Acceptance:_ Include filename, line/column where available, field, and actionable diagnostics.
+- [ ] **KAD-017** Preserve arbitrary Markdown bodies. _Acceptance:_ Keep headings, code fences, links, whitespace, and final newline unchanged during metadata-only edits.
+- [ ] **KAD-018** Patch an existing top-level scalar. _Acceptance:_ Update fields such as `status` or `title` while preserving unrelated text, comments, and quoting where supported.
+- [ ] **KAD-019** Insert and remove top-level metadata keys. _Acceptance:_ Support a missing field or explicit unset without resaving the whole YAML document.
+- [ ] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts.
+- [ ] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits.
+- [ ] **KAD-022** Add byte-level golden tests. _Acceptance:_ Assert that metadata mutations change only intended spans; malformed or unsupported cases never produce destructive output.
+
+### 3. Project storage and filesystem
+
+**Milestone:** v0.1. **Goal:** Discover project-local tasks reliably and persist changes safely.
+
+**Depends on:** Phases 0 and 2. **Done when:** Tasks in arbitrary nested directories are discovered; safe file operations and conflict detection work without a DB.
+
+- [ ] **KAD-023** Implement `kadai init`. _Acceptance:_ Create project-local configuration and an optional default tasks directory without overwriting existing files.
+- [ ] **KAD-024** Implement project root resolution. _Acceptance:_ Find the nearest configured project from the working directory and support an explicit project path.
+- [ ] **KAD-025** Scan nested directories. _Acceptance:_ Walk task roots recursively, excluding configured board directories and irrelevant files.
+- [ ] **KAD-026** Define path and symlink safety. _Acceptance:_ Avoid root escape, accidental traversal outside the project, and symlink loops; handle platform path differences.
+- [ ] **KAD-027** Build a transient task index. _Acceptance:_ Index ID to path in memory and detect duplicate IDs without creating a required database.
+- [ ] **KAD-028** Handle creates, moves, and renames. _Acceptance:_ Preserve stable IDs while changing file paths and detect destination collisions.
+- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Write to a temporary file in the same directory and replace safely, considering fsync and permissions per OS.
+- [ ] **KAD-030** Detect concurrent edits. _Acceptance:_ Use optimistic version/hash checks and coordination between Kadai processes; never silently overwrite a changed file.
+
+### 4. Task domain and CRUD
+
+**Milestone:** v0.1. **Goal:** Make all basic task operations work through the domain core before wiring CLI output.
+
+**Depends on:** Phases 2-3. **Done when:** A task can be created, retrieved, updated, moved, and removed without losing unrelated Markdown.
+
+- [ ] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Write Markdown under a selected subdirectory with frontmatter defaults and safe collision handling.
+- [ ] **KAD-032** Get and list tasks. _Acceptance:_ Resolve a task by ID and return deterministic listing data, including path and parsed metadata.
+- [ ] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
+- [ ] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
+- [ ] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
+- [ ] **KAD-036** Move and rename tasks. _Acceptance:_ Keep ID-based references intact when the underlying Markdown file changes path.
+- [ ] **KAD-037** Remove tasks safely. _Acceptance:_ Require an explicit destructive action; warn or reject when dependent tasks or boards reference the ID.
+- [ ] **KAD-038** Test editor/CLI equivalence. _Acceptance:_ Manually edit a task between commands and verify subsequent reads reflect the changed source file.
+
+### 5. Hierarchy, dependencies, and validation
+
+**Milestone:** v0.1. **Goal:** Provide logical hierarchy and dependency analysis independent of filesystem folders.
+
+**Depends on:** Phase 4. **Done when:** Parent trees, prerequisite edges, ready/blocked results, and integrity diagnostics are correct.
+
+- [ ] **KAD-039** Add and remove parent links. _Acceptance:_ Manage one logical parent per task, independent of file location.
+- [ ] **KAD-040** Add and remove dependency links. _Acceptance:_ Persist `depends_on` references and define A → B to mean B depends on A.
+- [ ] **KAD-041** Detect cycles across relationships. _Acceptance:_ Reject parent cycles and dependency cycles on CLI mutations.
+- [ ] **KAD-042** Detect invalid references and IDs. _Acceptance:_ Report missing parents, missing dependencies, self-links, and duplicate task IDs.
+- [ ] **KAD-043** Build a task tree view. _Acceptance:_ Display indented parent/child hierarchy with stable ordering and task IDs.
+- [ ] **KAD-044** Build a dependency view. _Acceptance:_ Show immediate prerequisites and reverse dependents with explicit arrow direction.
+- [ ] **KAD-045** Derive ready and blocked tasks. _Acceptance:_ Compute readiness from incomplete prerequisites without storing a redundant `blocked` status.
+- [ ] **KAD-046** Implement project validation. _Acceptance:_ Report all detectable integrity issues; validation itself never modifies files.
+
+### 6. CLI UX, tests, and first release
+
+**Milestone:** v0.1. **Goal:** Ship a useful CLI that works equally well for people and coding agents.
+
+**Depends on:** Phases 1-5. **Done when:** The documented commands pass CLI-to-file integration tests on macOS, Linux, and Windows; a tagged pre-release exists.
+
+- [ ] **KAD-047** Implement core command grammar. _Acceptance:_ Expose init, add, list, show, set/status, edit, move, remove, parent, dep, tree, ready, and validate.
+- [ ] **KAD-048** Add list filters and ordering. _Acceptance:_ Filter by status, directory, tags, and parent; define stable sort behavior.
+- [ ] **KAD-049** Make readable terminal output. _Acceptance:_ Show compact task lists, trees, dependency arrows, and clear validation messages.
+- [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Provide machine-readable results for queries and mutations, with stable ID/path/status fields.
+- [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
+- [ ] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use.
+- [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ Create, hand-edit, update, move, relate, validate, and read the same tasks via CLI.
+- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Cover path separators, encoding, file replacement, and permission issues on macOS, Linux, and Windows.
+- [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
+
+### 7. Manual Markdown Kanban boards
+
+**Milestone:** v0.2. **Goal:** Provide optional, manually curated boards without duplicating task state.
+
+**Depends on:** Phase 6. **Done when:** Multiple boards can select, order, and display task IDs; removing a card never deletes its task.
+
+- [ ] **KAD-056** Finalize the board document schema. _Acceptance:_ Define board identity, column-to-status mapping, membership list, and order as Markdown frontmatter.
+- [ ] **KAD-057** Add board file discovery. _Acceptance:_ Find boards in configurable project-local folders without mistaking them for tasks.
+- [ ] **KAD-058** Create, list, show, and remove boards. _Acceptance:_ Manage board Markdown files through dedicated CLI commands.
+- [ ] **KAD-059** Add and remove board membership. _Acceptance:_ Reference tasks by stable ID; reject duplicates without editing the task's own metadata.
+- [ ] **KAD-060** Group and order cards. _Acceptance:_ Render cards by current task status and persist manual card order in the board file.
+- [ ] **KAD-061** Move cards between status columns. _Acceptance:_ Update the task's `status` in its Markdown file, not a duplicated status in the board.
+- [ ] **KAD-062** Validate board references. _Acceptance:_ Detect missing task IDs, unknown status columns, and malformed board definitions.
+- [ ] **KAD-063** Test multi-board consistency. _Acceptance:_ Verify that manual task edits update every board's view and board removal never deletes a task.
+
+### 8. Agent workflows and CLI ergonomics
+
+**Milestone:** v0.3. **Goal:** Make sessions of human and AI work easier to resume without imposing Markdown body sections.
+
+**Depends on:** Phases 6-7. **Done when:** Agents can query context, modify supported metadata, and append progress with stable CLI/JSON contracts.
+
+- [ ] **KAD-064** Add text search. _Acceptance:_ Search titles, metadata, paths, and Markdown bodies with predictable CLI filters.
+- [ ] **KAD-065** Add generic metadata inspection. _Acceptance:_ Read arbitrary YAML frontmatter fields without discarding custom keys.
+- [ ] **KAD-066** Add safe custom metadata updates. _Acceptance:_ Set and remove custom keys where the YAML patcher can preserve source formatting.
+- [ ] **KAD-067** Support progress notes. _Acceptance:_ Append Markdown notes or update an explicitly requested section without imposing a template.
+- [ ] **KAD-068** Provide compact context commands. _Acceptance:_ Offer a concise task view with parents, prerequisites, dependents, and recent progress where available.
+- [ ] **KAD-069** Improve piped and scripted input. _Acceptance:_ Support stdin for task bodies and documented JSON input/output where useful.
+- [ ] **KAD-070** Add preview and bulk safety. _Acceptance:_ Provide dry-run/diff for mutations and require explicit confirmation or flags for bulk destructive changes.
+- [ ] **KAD-071** Publish agent integration guidance. _Acceptance:_ Document safe command recipes and optional agent instruction files; keep MCP optional.
+
+### 9. Hardening and CLI v1.0
+
+**Milestone:** v1.0. **Goal:** Stabilize data compatibility, correctness, performance, packaging, and documentation.
+
+**Depends on:** Phases 0-8. **Done when:** The CLI has versioned on-disk contracts, reproducible releases, bounded performance, and verified recovery behavior.
+
+- [ ] **KAD-072** Stress-test concurrent writers. _Acceptance:_ Simulate multiple Kadai processes and external editor changes; verify conflict behavior and no silent loss.
+- [ ] **KAD-073** Fuzz parsers and path handling. _Acceptance:_ Test malformed input, large values, odd Unicode, symlinks, and hostile YAML within documented limits.
+- [ ] **KAD-074** Benchmark larger projects. _Acceptance:_ Measure scans, filtering, and dependency queries with 1k–10k tasks and track regressions.
+- [ ] **KAD-075** Evaluate optional caching. _Acceptance:_ Introduce a rebuildable project-local index only if benchmarked performance warrants it.
+- [ ] **KAD-076** Document schema evolution. _Acceptance:_ Define forward/backward compatibility and explicit, backup-aware migrations for future format changes.
+- [ ] **KAD-077** Add release distribution. _Acceptance:_ Package checksummed macOS/Linux/Windows binaries and optional package-manager installation.
+- [ ] **KAD-078** Improve diagnostics and repair tooling. _Acceptance:_ Offer non-destructive suggestions and explicitly opted-in fixes for invalid files or stale references.
+- [ ] **KAD-079** Freeze v1 CLI and document compatibility. _Acceptance:_ Publish command and JSON contracts, usage guides, contributing docs, changelog, and release checks.
+
+## Suggested first-week critical path
+
+| Day | Focus |
+| --- | --- |
+| 1 | Phase 0 and Odin skeleton; test YAML parser viability early |
+| 2–3 | Safe frontmatter extraction, patching, golden tests |
+| 4 | Project scanning, index, atomic writes, conflict detection |
+| 5 | Task CRUD and status changes; direct `.md` edits reflected in reads |
+| 6 | Parent/dependency relations, validation, basic human/JSON CLI |
+| 7 | End-to-end tests, CLI documentation, initial pre-release if ready |
+
+This schedule is a planning target, not a promised delivery. Manual boards begin **after** v0.1. If the YAML round-trip behavior is not trustworthy, do not ship mutating commands.
+
+## Release acceptance checklist
+
+- [ ] A task created or edited by hand appears on the next CLI read.
+- [ ] CLI status updates leave the Markdown body unchanged and preserve unrelated YAML content.
+- [ ] Moving a file keeps its ID, parent links, and dependency links valid.
+- [ ] Invalid/ambiguous YAML and conflicting writes fail without corrupting the source file.
+- [ ] `kadai validate` reports duplicate IDs, broken references, and cycles.
+- [ ] `--json` output is parseable and does not mix in log messages.
+- [ ] CI exercises builds/tests for macOS, Linux, and Windows.
+- [ ] Real commands, installation steps, and any known limitations are documented before release.
+
+## Technical decisions pending
+
+- **YAML parser:** Validate a library such as [LibYAML](https://github.com/yaml/libyaml) via Odin/C FFI; decide static vs dynamic linkage and bundle/licensing approach before locking it in. Parsing YAML and preserving original formatting during edits are distinct tasks.
+- **ID generation:** Pick a collision-resistant format and document how user-defined IDs work.
+- **Deletion:** Specify whether v0.1 removes files outright, moves them to a project-local trash directory, or requires explicit `--force`.
+- **YAML patch scope:** Explicitly document complex YAML constructs that may be read but not safely edited.
+- **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
+
+## Future ideas, not scheduled
+
+Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI. These are not part of the current CLI milestones.
+
+## References
+
+- [Odin documentation](https://odin-lang.org/docs/)
+- [Odin test runner](https://odin-lang.org/docs/testing/)
+- [LibYAML](https://github.com/yaml/libyaml)
