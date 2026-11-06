@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Planning document.** Tasks below are proposed and unchecked. No feature is implemented merely because it appears here.
+> **Planning document.** Checked planning tasks indicate completed specifications, not implemented features. Implementation tasks remain unchecked until their functionality is built and verified.
 
 **Implementation:** Odin. **Current focus:** CLI only. **Source of truth:** project-local Markdown files with YAML frontmatter.
 
@@ -9,11 +9,12 @@
 | Milestone | Phases | Meaning |
 | --- | --- | --- |
 | **v0.1** | 0–6 | A usable local task CLI with safe Markdown editing, task relationships, and validation |
+| **v0.1.x** | 6a | Scheduled follow-up TODOs for richer CLI UX and explicit Markdown import, before boards |
 | **v0.2** | 7 | Optional manually curated Markdown Kanban boards |
 | **v0.3** | 8 | Search, task context, custom metadata, and agent ergonomics |
 | **v1.0** | 9 | Stability, compatibility, performance, and distribution |
 
-**Time budget:** Aim for a narrow v0.1 after one focused week, not a guarantee. The YAML writer is the primary schedule risk. If time slips, keep safe file editing, basic CRUD, `list --json`, and validation first. Defer rich filtering, editor conveniences, and enhanced graph rendering; do not weaken data-safety checks to fit a date.
+**Time budget:** Aim for a focused v0.1 after one week, not a guarantee. KAD-001 [defines the non-deferrable v0.1 contract](docs/specs/KAD-001-v0.1-scope.md); rich filtering, custom sorting, richer dependency views, and extra CLI conveniences are scheduled TODOs for v0.1.x. Do not sacrifice core functionality, safe file editing, integrity checks, or JSON contracts to meet a date. The YAML writer remains the primary schedule risk.
 
 **Out of current planning scope:** TUI and desktop app. They may be considered only after the CLI is reliable; no implementation tasks or technology choices for them are committed here.
 
@@ -36,7 +37,7 @@
 
 **Depends on:** None. **Done when:** A written v0.1 specification and fixtures cover valid, invalid, and hand-edited tasks.
 
-- [ ] **KAD-001** Define the v0.1 boundary. _Acceptance:_ Document the minimum CLI workflow and explicitly defer boards, TUI, and desktop.
+- [x] **KAD-001** Define the v0.1 boundary. _Acceptance:_ Document the minimum CLI workflow and explicitly defer boards, TUI, and desktop. _Specification:_ [KAD-001 v0.1 scope](docs/specs/KAD-001-v0.1-scope.md).
 - [ ] **KAD-002** Specify task frontmatter. _Acceptance:_ List reserved keys, defaults, optional keys, status values, and the policy for arbitrary custom metadata.
 - [ ] **KAD-003** Specify project configuration. _Acceptance:_ Document `.kadai.yaml`, configurable task root, optional board root, and project discovery rules.
 - [ ] **KAD-004** Specify task identity. _Acceptance:_ Choose an ID format, collision strategy, filename convention, and behavior after files are moved.
@@ -79,9 +80,9 @@
 
 **Depends on:** Phases 0 and 2. **Done when:** Tasks in arbitrary nested directories are discovered; safe file operations and conflict detection work without a DB.
 
-- [ ] **KAD-023** Implement `kadai init`. _Acceptance:_ Create project-local configuration and an optional default tasks directory without overwriting existing files.
-- [ ] **KAD-024** Implement project root resolution. _Acceptance:_ Find the nearest configured project from the working directory and support an explicit project path.
-- [ ] **KAD-025** Scan nested directories. _Acceptance:_ Walk task roots recursively, excluding configured board directories and irrelevant files.
+- [ ] **KAD-023** Implement optional `kadai init`. _Acceptance:_ Create project-local configuration only on explicit invocation, optionally create a default tasks directory, and never overwrite existing files.
+- [ ] **KAD-024** Implement project root resolution. _Acceptance:_ Support `--project`; without config, resolve to the Git repository root or CWD when Git is absent; apply the precedence specified in KAD-003.
+- [ ] **KAD-025** Scan nested directories. _Acceptance:_ Walk task roots recursively, recognize only Markdown with valid task frontmatter, and exclude board directories and ordinary documents; report malformed task candidates per KAD-002/KAD-006.
 - [ ] **KAD-026** Define path and symlink safety. _Acceptance:_ Avoid root escape, accidental traversal outside the project, and symlink loops; handle platform path differences.
 - [ ] **KAD-027** Build a transient task index. _Acceptance:_ Index ID to path in memory and detect duplicate IDs without creating a required database.
 - [ ] **KAD-028** Handle creates, moves, and renames. _Acceptance:_ Preserve stable IDs while changing file paths and detect destination collisions.
@@ -94,7 +95,7 @@
 
 **Depends on:** Phases 2-3. **Done when:** A task can be created, retrieved, updated, moved, and removed without losing unrelated Markdown.
 
-- [ ] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Write Markdown under a selected subdirectory with frontmatter defaults and safe collision handling.
+- [ ] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Create Markdown under a selected subdirectory, with frontmatter defaults, unique IDs, an empty body for title-only creation, or a supplied Markdown body via `--body-file` or `--stdin`.
 - [ ] **KAD-032** Get and list tasks. _Acceptance:_ Resolve a task by ID and return deterministic listing data, including path and parsed metadata.
 - [ ] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
 - [ ] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
@@ -124,15 +125,27 @@
 
 **Depends on:** Phases 1-5. **Done when:** The documented commands pass CLI-to-file integration tests on macOS, Linux, and Windows; a tagged pre-release exists.
 
-- [ ] **KAD-047** Implement core command grammar. _Acceptance:_ Expose init, add, list, show, set/status, edit, move, remove, parent, dep, tree, ready, and validate.
-- [ ] **KAD-048** Add list filters and ordering. _Acceptance:_ Filter by status, directory, tags, and parent; define stable sort behavior.
+- [ ] **KAD-047** Implement core command grammar. _Acceptance:_ Expose optional init; add with `--body-file`/`--stdin`; list, show, set/status, edit, move, remove, parent, dep, tree, ready, validate; and `--project`.
+- [ ] **KAD-048** Add basic list filters and deterministic ordering. _Acceptance:_ Filter by status, directory, tags, and parent with stable default ordering; advanced predicates and custom sort modes are KAD-080/KAD-081 (v0.1.x).
 - [ ] **KAD-049** Make readable terminal output. _Acceptance:_ Show compact task lists, trees, dependency arrows, and clear validation messages.
 - [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Provide machine-readable results for queries and mutations, with stable ID/path/status fields.
 - [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
 - [ ] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use.
-- [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ Create, hand-edit, update, move, relate, validate, and read the same tasks via CLI.
+- [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI.
 - [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Cover path separators, encoding, file replacement, and permission issues on macOS, Linux, and Windows.
 - [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
+
+### 6a. v0.1.x follow-ups (scheduled TODOs)
+
+**Milestone:** v0.1.x, after the safe v0.1 core and before v0.2 boards. **Goal:** Complete non-essential CLI enhancements and explicit import without weakening the v0.1 release boundary.
+
+**Depends on:** Phase 6. **Done when:** Every task below is implemented and tested. These tasks are postponed, not cancelled.
+
+- [ ] **KAD-080** Add advanced task filtering. _Acceptance:_ Support documented multi-criteria and advanced filter expressions beyond the baseline status/directory/tag/parent filters, with predictable text/JSON behavior and tests.
+- [ ] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON.
+- [ ] **KAD-082** Add richer dependency visualizations. _Acceptance:_ Provide expanded graph or transitive dependency views beyond the v0.1 immediate prerequisites/dependents, without changing dependency semantics or task files.
+- [ ] **KAD-083** Add CLI convenience features. _Acceptance:_ Document and implement post-v0.1 ergonomic improvements (such as richer terminal presentation and editor shortcuts), preserving script-safe defaults and existing command contracts.
+- [ ] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently.
 
 ### 7. Manual Markdown Kanban boards
 
@@ -160,7 +173,7 @@
 - [ ] **KAD-066** Add safe custom metadata updates. _Acceptance:_ Set and remove custom keys where the YAML patcher can preserve source formatting.
 - [ ] **KAD-067** Support progress notes. _Acceptance:_ Append Markdown notes or update an explicitly requested section without imposing a template.
 - [ ] **KAD-068** Provide compact context commands. _Acceptance:_ Offer a concise task view with parents, prerequisites, dependents, and recent progress where available.
-- [ ] **KAD-069** Improve piped and scripted input. _Acceptance:_ Support stdin for task bodies and documented JSON input/output where useful.
+- [ ] **KAD-069** Improve piped and scripted input. _Acceptance:_ Extend the v0.1 `add --stdin` body input with documented structured JSON input and richer scripted operations where useful.
 - [ ] **KAD-070** Add preview and bulk safety. _Acceptance:_ Provide dry-run/diff for mutations and require explicit confirmation or flags for bulk destructive changes.
 - [ ] **KAD-071** Publish agent integration guidance. _Acceptance:_ Document safe command recipes and optional agent instruction files; keep MCP optional.
 
@@ -213,7 +226,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 
 ## Future ideas, not scheduled
 
-Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI. These are not part of the current CLI milestones.
+Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI. These are not part of the current CLI milestones; the v0.1.x enhancements and `kadai import` above are explicitly scheduled, not unscheduled ideas.
 
 ## References
 
