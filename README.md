@@ -4,13 +4,15 @@ Local-first, Markdown-native task and issue tracking for developers and AI agent
 
 > **Status:** Early development. Kadai is being designed; there is no usable release yet. The examples below describe the intended format and behavior, not an implemented CLI.
 
-Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be managed as plain text or, eventually, through a CLI, TUI, and desktop app.
+Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
+
+**Kadai is being built in [Odin](https://odin-lang.org/), with the CLI as the sole development focus for now.** Additional interfaces may be explored later, but are not part of the current roadmap.
 
 ## Design goals
 
 - **Markdown is the source of truth.** Each task is a `.md` file with YAML frontmatter. Its body and sections are entirely up to the author.
 - **Folders are yours to organize.** Tasks can live in nested directories under a configurable project-local root.
-- **One state across every interface.** Editing a task in a text editor, CLI, TUI, or future desktop app changes the same Markdown file.
+- **Plain text and CLI stay in sync.** Editing a task manually or through the CLI changes the same Markdown file. There is no separate authoritative database.
 - **Hierarchy and dependencies are separate.** A task can have a parent and depend on other tasks independently of where its file lives.
 - **Kanban is optional.** Create multiple boards, include only selected tasks, and remove cards without deleting their tasks. Boards are Markdown files too.
 - **Built for agents.** A scriptable CLI with machine-readable output will let AI coding agents discover, create, update, and relate tasks without needing an MCP server.
@@ -100,29 +102,38 @@ A board references tasks by ID. It does not own or duplicate their status: movin
 
 The precise configuration and schema are not finalized.
 
-## Planned interfaces
+## CLI-first workflow
 
-| Interface | Purpose |
-| --- | --- |
-| CLI | Scriptable task operations, filters, dependency inspection, and JSON output for agents |
-| TUI | Interactive task tree, details, search, and board views in the terminal |
-| Desktop | Visual task hierarchy, dependency graph, and boards (planned for a later phase) |
-| Plain Markdown | Direct editing with any text editor, without running Kadai |
+The CLI is the primary interface for both developers and coding agents. Direct Markdown editing is always supported.
 
-The intended implementation language is Go. The TUI is expected to use Bubble Tea; a future desktop interface may use Wails.
+The following commands are **proposed examples**, not an available or finalized CLI:
+
+```sh
+kadai init
+kadai add "Implement syntax highlighting" --dir editor
+kadai list --json
+kadai status T-003 in-progress
+kadai dep add T-003 T-002
+kadai tree
+kadai ready --json
+kadai validate
+```
+
+The goal is to provide predictable commands, machine-readable output, and useful exit codes without requiring a daemon, a hosted backend, or an MCP server.
 
 ## Initial roadmap
 
-- [ ] Define and validate the Markdown/frontmatter schema and project configuration
-- [ ] Discover tasks recursively and preserve content when updating metadata
-- [ ] Implement core CLI operations and structured output
-- [ ] Support parent/child relationships, dependencies, and cycle detection
-- [ ] Support manually curated Markdown Kanban boards
-- [ ] Build the first TUI
-- [ ] Add tests for external edits, concurrent writes, and file moves
-- [ ] Publish the first pre-release
+- [ ] Define the Markdown/frontmatter schema, project configuration, and test fixtures
+- [ ] Set up the Odin project structure and test workflow
+- [ ] Discover tasks recursively, including in nested directories
+- [ ] Parse frontmatter and update individual fields while preserving unrelated Markdown content
+- [ ] Implement safe writes and detect external edits or concurrent changes
+- [ ] Implement task CRUD, stable IDs, hierarchy, and dependency validation
+- [ ] Implement CLI commands, filters, JSON output, and structured errors
+- [ ] Support manually curated Markdown Kanban boards through the CLI
+- [ ] Test cross-platform filesystem behavior and release the first CLI pre-release
 
-Possible later additions include configurable filtered boards, historical board snapshots, a desktop app, and an optional local index for larger projects.
+Ideas for later, without a committed schedule: filtered boards, historical snapshots, a rebuildable local index, TUI, and desktop UI.
 
 ## Contributing
 
