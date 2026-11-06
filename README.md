@@ -121,19 +121,11 @@ kadai validate
 
 The goal is to provide predictable commands, machine-readable output, and useful exit codes without requiring a daemon, a hosted backend, or an MCP server.
 
-## Initial roadmap
+## Roadmap
 
-- [ ] Define the Markdown/frontmatter schema, project configuration, and test fixtures
-- [ ] Set up the Odin project structure and test workflow
-- [ ] Discover tasks recursively, including in nested directories
-- [ ] Parse frontmatter and update individual fields while preserving unrelated Markdown content
-- [ ] Implement safe writes and detect external edits or concurrent changes
-- [ ] Implement task CRUD, stable IDs, hierarchy, and dependency validation
-- [ ] Implement CLI commands, filters, JSON output, and structured errors
-- [ ] Support manually curated Markdown Kanban boards through the CLI
-- [ ] Test cross-platform filesystem behavior and release the first CLI pre-release
+The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md).
 
-Ideas for later, without a committed schedule: filtered boards, historical snapshots, a rebuildable local index, TUI, and desktop UI.
+The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Optional manual Kanban boards follow in v0.2; agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
 
 ## Contributing
 
