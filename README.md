@@ -37,7 +37,7 @@ my-project/
         └── editor-refactor.md
 ```
 
-`tasks/` is a proposed default, not a required folder name. Directory placement organizes files; it does not define task hierarchy, status, or dependencies.
+`tasks/` is a proposed default, not a required folder name. Directory placement organizes files; it does not define task hierarchy, status, or dependencies. The project configuration file is optional: without `kadai init`, commands read and write in the Git repository root (or CWD if Git is absent). `--project <path>` selects a different project. Only Markdown files with valid task frontmatter are considered tasks; ordinary `.md` documents are ignored.
 
 ### Task example
 
@@ -104,13 +104,15 @@ The precise configuration and schema are not finalized.
 
 ## CLI-first workflow
 
-The CLI is the primary interface for both developers and coding agents. Direct Markdown editing is always supported.
+The CLI is the primary interface for both developers and coding agents. Direct Markdown editing is always supported. `kadai init` is **optional**, and even unconfigured projects support reading and writing tasks.
 
 The following commands are **proposed examples**, not an available or finalized CLI:
 
 ```sh
-kadai init
+kadai init # optional, creates project configuration explicitly
 kadai add "Implement syntax highlighting" --dir editor
+kadai add "Write tests" --body-file ./tests.md
+cat ./notes.md | kadai add "Investigate" --stdin
 kadai list --json
 kadai status T-003 in-progress
 kadai dep add T-003 T-002
@@ -123,9 +125,9 @@ The goal is to provide predictable commands, machine-readable output, and useful
 
 ## Roadmap
 
-The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md).
+The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). The accepted v0.1 boundary and minimum CLI workflow are documented in [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md).
 
-The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Optional manual Kanban boards follow in v0.2; agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
+The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Advanced CLI enhancements and explicit `kadai import` are scheduled for **v0.1.x**, before optional manual Kanban boards in v0.2. Agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
 
 ## Contributing
 
