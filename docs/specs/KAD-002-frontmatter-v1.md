@@ -94,7 +94,7 @@ Any Markdown text may follow the closing delimiter. The empty Markdown body in t
 
 - `depends_on` is an ordered sequence of IDs. Duplicates, including differently cased spellings, are schema errors.
 - Missing targets, ambiguous ID targets, self-links, and dependency cycles generate integrity diagnostics. Manual malformed references stay visible for repair; the CLI must not create new invalid edges.
-- The direction of a prerequisite edge and parent/dependency independence belong to KAD-005. See ``5`` for derived readiness rules already decided in KAD-002.
+- The direction of a prerequisite edge and parent/dependency independence belong to KAD-005. See §5 for derived readiness rules already decided in KAD-002.
 
 ### Deadline
 
