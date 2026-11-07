@@ -7,7 +7,7 @@
 
 ## 1. Principles and recognition
 
-- A task is a project-local `.md` file whose initial YAML frontmatter contains the exact discriminator `kadai: task`. The body is unrestricted Markdown, including an empty body. The file path never determines task identity or logical hierarchy.
+- A task is a `.md` file within the effective task collection whose initial YAML frontmatter contains the exact discriminator `kadai: task`. The body is unrestricted Markdown, including an empty body. The file path never determines task identity or logical hierarchy.
 - The frontmatter must start on the first line, except for an optional UTF-8 BOM. Opening and closing delimiter lines are `---`. Only LF and CRLF are supported. A missing closing delimiter is an error.
 - Input is strict UTF-8. Invalid byte sequences fail with a diagnostic; they are not replaced or silently repaired. Preserve BOM, line endings, and all unrelated bytes.
 - The frontmatter document's root must be a YAML mapping with string keys. A valid YAML file without `kadai: task`, or with another `kadai` value, is not a task. It must not be imported implicitly.
@@ -35,7 +35,7 @@ Keys are case-sensitive and live at the top level unless stated otherwise.
 
 The four primary required fields are `kadai`, `id`, `title`, and `status`. No required field may be YAML null.
 
-**`parent` is an optional reserved v1 field**, with type project-local ID or null. It is not custom metadata. KAD-005 owns target validation, self-links, cycles, moves and deletion. Path nesting does not imply parenthood.
+**`parent` is an optional reserved v1 field**, with type collection-local ID or null. It is not custom metadata. KAD-005 owns target validation, self-links, cycles, moves and deletion. Path nesting does not imply parenthood.
 
 All other unknown top-level keys are schema errors, not warnings. Preserve their source text and report them; suggest a likely spelling when practical. Custom properties belong under `custom` only.
 
@@ -95,7 +95,7 @@ Any Markdown text may follow the closing delimiter. The empty Markdown body in t
 ### Dependencies
 
 - `depends_on` is an ordered sequence of IDs. Duplicates, including differently cased spellings, are schema errors.
-- Missing targets, ambiguous ID targets, self-links, and dependency cycles generate integrity diagnostics. Manual malformed references stay visible for repair; the CLI must not create new invalid edges.
+- Missing targets, ambiguous ID targets, self-links, and dependency cycles within the effective collection generate integrity diagnostics. Manual malformed references stay visible for repair; the CLI must not create new invalid edges.
 - The direction of a prerequisite edge and parent/dependency independence belong to KAD-005. See Section 5 for derived readiness rules already decided in KAD-002.
 
 ### Deadline
@@ -164,10 +164,10 @@ Persist the author's declared `status` unchanged. Prerequisites produce a **deri
 The following decisions are accepted but belong primarily to KAD-004 and KAD-030:
 
 - Manual IDs remain flexible. Automatic IDs are sequential, with optional project prefix, and at least four digits: `JOOJ-0001` or `0001`. The numeric field grows past `9999` as needed.
-- For each prefix, allocate above the highest numeric suffix in live files **and durable used-ID history**. No numeric counter is needed, but a small project-local used-ID/tombstone record (IDs only, not authoritative task state) is required even without `.kadai.yaml`. Record each allocation durably before task creation; gaps are allowed. CLI-issued IDs **must never be reused** after deletion.
+- For each prefix within an effective collection, allocate above the highest numeric suffix in live files **and durable used-ID history**. No numeric counter is needed, but a small collection-local used-ID/tombstone record (IDs only, not authoritative task state) is required even without `.kadai.yaml`. Record each allocation durably before task creation; gaps are allowed. CLI-issued IDs **must never be reused** after deletion.
 - Prefixes have independent sequences. Check all live/manual IDs case-insensitively. Independent Git branches, worktrees and clones can allocate the same sequential ID: locks do not span them. Following a merge, quarantine all colliding files and require explicit reference-aware re-ID/repair; never silently select a winner.
-- All Kadai writes share a project-scoped native exclusive OS lock (e.g. `flock` on macOS/Linux, `LockFileEx` on Windows). Hold it across scan, durable ID reservation and task creation. External editors and independent clones still need conflict/duplicate validation.
-- Lock, recovery, used-ID record locations (including Git tracking/exclusion), timeout and crash recovery belong to KAD-003/KAD-004/KAD-029/KAD-030. CLI deletion retains ID history. A manually created and deleted ID that Kadai never observed cannot be inferred; non-reuse is guaranteed only for recorded IDs.
+- All Kadai writes within an effective task collection share a native exclusive OS lock (e.g. `flock` on macOS/Linux, `LockFileEx` on Windows). Hold it across scan, durable ID reservation and task creation. Writers from overlapping collections additionally coordinate modifications to the same physical file (KAD-003/KAD-030). External editors and independent clones still need conflict/duplicate validation.
+- KAD-003 fixes lock, recovery and used-ID history placement under `<effective-tasks-root>/.kadai/`; record formats, timeouts and crash recovery belong to KAD-004/KAD-029/KAD-030. No Git tracking or `.gitignore` management is required. CLI deletion retains ID history. A manually created and deleted ID that Kadai never observed cannot be inferred; non-reuse is guaranteed only for recorded IDs.
 
 ## 8. Examples for fixtures and diagnostics
 
@@ -216,7 +216,7 @@ Byte-for-byte mutation tests, complex YAML edge cases, project-scoped discovery,
 - [x] Reference integrity, dependency readiness, and override policy recorded.
 - [x] UTF-8, frontmatter boundaries, and conservative-write invariants recorded.
 - [x] Valid/invalid fixture expectations identified for KAD-007.
-- [ ] **KAD-003:** Config syntax, status/priority extensions, time zone, task root, lock file location.
+- [x] **KAD-003:** [Project configuration v1](KAD-003-project-config-v1.md): status/priority extensions, time zone, independent task roots and internal-state placement.
 - [ ] **KAD-004:** Durable used-ID record, non-reuse, Git-merge collision repair and filename rules.
 - [ ] **KAD-005:** Parent graph semantics (scalar type fixed here), dependencies and deletion.
 - [ ] **KAD-006:** YAML grammar, parser resource limits and mutation failure rules.
