@@ -49,7 +49,7 @@ The file is a UTF-8 YAML mapping. Its complete set of recognized top-level keys 
 | `priorities` | Sequence of strings | `[low, medium, high, critical]` | Complete replacement list, sorted low to high. |
 | `timezone` | IANA time-zone string | Local system time zone | Applies to date-only due dates (KAD-002). |
 
-A missing mapping is the same as a `null` mapping. **Every explicit YAML `null`, including a nested field, means "not specified"** and takes that field's default. This is distinct from an empty, non-null list or mapping: `tasks.exclude: []` clears exclusions; `statuses: {}` declares no extensions. `priorities: []` is invalid because there must be at least one priority.
+A missing mapping is the same as a `null` mapping. **An explicit YAML `null` on a configuration field, including a nested field, means "not specified"** and takes that field's default. In a user-defined `statuses` mapping, a null entry means that extension is omitted; array elements themselves must have the declared element type, so `[null]` is not a valid priorities or exclusions list. This is distinct from an empty, non-null list or mapping: `tasks.exclude: []` clears exclusions; `statuses: {}` declares no extensions. `priorities: []` is invalid because there must be at least one priority.
 
 ### Status and priority rules
 
@@ -72,7 +72,7 @@ An omitted or null `timezone` uses the local system time zone. A configured valu
 
 ### Strictness
 
-- The top-level document and non-null nested objects must be mappings with string keys. Unknown keys at **any** configuration level are errors. No `extensions` or arbitrary custom keys in v1.
+- The top-level document and non-null nested objects must be mappings with string keys. Unknown schema keys at **any fixed-schema configuration level** are errors. The only variable key space is `statuses`, whose entries must satisfy the name/category rules above. No `extensions` or arbitrary custom keys in v1.
 - Invalid YAML, invalid UTF-8, duplicate mapping keys, malformed shapes, unknown `schema_version`, and unsupported YAML constructs fail closed. No "first key wins", partial config loading or silent migration. KAD-006 owns the exact parser subset and resource limits; it may only narrow unsafe YAML representations, not silently change these semantics.
 - The `schema_version` key is optional; `kadai init` writes `schema_version: 1`. A future version is not interpreted using v1 rules.
 - Task frontmatter `schema_version` and project configuration `schema_version` are separate versioned contracts.
@@ -89,10 +89,10 @@ tasks:
 ```
 
 - `init` is optional. Without configuration, reads scan `<CWD>/tasks/` by default, and `kadai add` can create a collection and necessary internal state on demand without writing `.kadai.yaml`.
-- On first initialization, `init` persists accepted configuration flags (for example a custom `--tasks-root` or `--id-prefix`) instead of only using them for that invocation. Other default/absent fields are omitted.
+- On first initialization, `init` persists accepted configuration flags (for example a custom `--tasks-root` or `--id-prefix`) instead of only using them for that invocation. Absolute CLI path overrides are converted into project-relative (`tasks.root`) or task-root-relative (`boards.root`) portable YAML paths before saving; absolute paths must never be written into configuration. Other default/absent fields are omitted.
 - `init` creates `tasks.root` (unless the directory already exists); it does **not** create `boards.root` in v0.1, nor empty lock/history/recovery files solely for initialization.
 - If `.kadai.yaml` already exists, `init` validates it and may create an absent effective tasks directory. It never overwrites or reformats existing configuration, task files, or used-ID history. An explicitly supplied initialization option that conflicts with existing persisted config must fail rather than be silently ignored or saved elsewhere.
-- If a collection directory is absent, read commands treat it as an empty collection and create nothing. Commands that need to create a task may create the required directories and state securely. A missing collection directory is **not** by itself an invalid configuration.
+- If a collection directory is absent, read commands treat it as an empty collection and create nothing. An existing collection path that is a non-directory, inaccessible, or otherwise unscannable is an error, not an empty collection. Commands that need to create a task may create the required directories and state securely. A missing collection directory is **not** by itself an invalid configuration.
 - Failures must not silently overwrite existing files. Atomic creation, interruption and safe filesystem behavior belong to KAD-029/KAD-030.
 
 `kadai init --project nonexistent` fails if the selected project directory does not exist. `--project` selects a project, not a `mkdir -p` operation.
@@ -187,7 +187,7 @@ Kadai does not require, control, configure or modify Git tracking. A collection 
 
 - A parent collection's recursive scan may also discover files in a nested collection. Do not claim that a nested override automatically isolates those files from its parent scan.
 - IDs, parent references and dependencies are resolved against the **effective collection's** index. There is no cross-collection identity or shared sequence, even if paths overlap.
-- Two different collection locks alone cannot serialize modifications of a shared file. Kadai writers **must** also coordinate writes targeting the same physical file across overlapping collections, including replacement/rename races. KAD-030 owns the concrete cross-collection locking strategy, safe lock ordering, identity checks and tests; KAD-026 owns path identity and link safety.
+- Two different collection locks alone cannot serialize modifications of a shared file. Kadai writers **must** also coordinate writes targeting the same physical file across overlapping collections, including replacement/rename races. Locking only an inode before atomic replacement is insufficient because replacement can change the inode; the strategy must account for stable path identity and file identity across renames. KAD-030 owns the concrete cross-collection locking strategy, safe lock ordering, identity checks and tests; KAD-026 owns path identity and link safety.
 - The guarantee applies to cooperating Kadai writers. External editors ignoring locks retain KAD-002's documented last-check/atomic-rename race; pre-write recovery copies remain mandatory.
 
 These overlaps are intentional and not configuration errors. Callers who need physically separate collections should choose nonoverlapping roots or explicit exclusions.
@@ -208,10 +208,10 @@ KAD-007/KAD-023–KAD-026/KAD-030 must cover at least:
 | `--project` selects an existing relative or absolute directory | Exact selection, resolved physically. |
 | `--project` selects a nonexistent directory | Error, including for `init`. |
 | Project has no `.kadai.yaml` or `tasks/` | Read is empty and side-effect-free; `add` may create the collection without writing config. |
-| First `init` with and without flags | Minimal persisted v1 config; selected tasks directory created, boards and operational files not pre-created. |
+| First `init` with and without flags | Minimal persisted v1 config; absolute CLI root paths saved in relative form; selected tasks directory created, boards and operational files not pre-created. |
 | Repeated `init` with valid config | Non-destructive; creates missing tasks directory only; conflicting new init flags fail. |
 | Unknown or duplicate config key, malformed YAML, invalid UTF-8, unknown schema | Error; no silent fallback. |
-| Any optional `null` value | Field-specific default; nested null mappings behave as absent. |
+| Any optional `null` field, null status extension, or null list element | Fields use defaults, null status extension is omitted; null list elements are invalid. |
 | Invalid config leaf replaced by CLI flag | Skip invalid replaced leaf; reject any remaining invalid effective field or malformed structure. |
 | Root equals `.`; board root equals `.` | Task root valid, board root invalid. |
 | Override to nested/overlapping collection | Allowed, separate histories/locks; shared files may appear in both scans. |
