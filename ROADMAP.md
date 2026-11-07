@@ -38,7 +38,7 @@
 **Depends on:** None. **Done when:** A written v0.1 specification and fixtures cover valid, invalid, and hand-edited tasks.
 
 - [x] **KAD-001** Define the v0.1 boundary. _Acceptance:_ Document the minimum CLI workflow and explicitly defer boards, TUI, and desktop. _Specification:_ [KAD-001 v0.1 scope](docs/specs/KAD-001-v0.1-scope.md).
-- [ ] **KAD-002** Specify task frontmatter. _Acceptance:_ List reserved keys, defaults, optional keys, status values, and the policy for arbitrary custom metadata.
+- [x] **KAD-002** Specify task frontmatter. _Acceptance:_ List reserved keys, defaults, optional keys, status values, and the policy for arbitrary custom metadata. _Specification:_ [KAD-002 task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md).
 - [ ] **KAD-003** Specify project configuration. _Acceptance:_ Document `.kadai.yaml`, configurable task root, optional board root, and project discovery rules.
 - [ ] **KAD-004** Specify task identity. _Acceptance:_ Choose an ID format, collision strategy, filename convention, and behavior after files are moved.
 - [ ] **KAD-005** Specify hierarchy and dependencies. _Acceptance:_ Define `parent` and `depends_on` separately, arrow direction, cycles, missing references, and deletion policy.
@@ -219,7 +219,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 ## Technical decisions pending
 
 - **YAML parser:** Validate a library such as [LibYAML](https://github.com/yaml/libyaml) via Odin/C FFI; decide static vs dynamic linkage and bundle/licensing approach before locking it in. Parsing YAML and preserving original formatting during edits are distinct tasks.
-- **ID generation:** Pick a collision-resistant format and document how user-defined IDs work.
+- **ID generation:** KAD-002 fixes project-local case-insensitive IDs and sequential CLI-generated IDs with optional prefix; KAD-004 still owns final allocation, collision, and filename behavior.
 - **Deletion:** Specify whether v0.1 removes files outright, moves them to a project-local trash directory, or requires explicit `--force`.
 - **YAML patch scope:** Explicitly document complex YAML constructs that may be read but not safely edited.
 - **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
