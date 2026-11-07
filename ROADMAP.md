@@ -20,12 +20,12 @@
 
 ## Non-negotiable invariants
 
-- Markdown is authoritative. A cache is optional and rebuildable; it must never become the only copy of task state.
+- Markdown is authoritative for task state. Indexes/caches remain rebuildable; a small durable used-ID record stores allocation history only, not task contents/status.
 - A task's stable ID is independent of its filename and directory. Folder nesting is not automatically parent/child nesting.
 - Parent/child hierarchy and `depends_on` are separate relationships. Readiness/blocking is derived from prerequisites.
 - Task bodies have no required sections. Custom YAML frontmatter fields remain intact after unrelated CLI edits.
-- Every supported write is non-destructive to unrelated content. Unsafe YAML edits fail with a diagnostic rather than silently serializing the entire header.
-- Manual edits take effect on the next CLI read. CLI writes use atomic replacement and conflict detection, acknowledging that external editors may not respect Kadai locks.
+- Supported metadata edits preserve unrelated bytes and supported file security metadata. Unsafe YAML patches or filesystem link/metadata cases fail closed instead of silently discarding content.
+- Manual edits take effect on the next CLI read. Kadai writers coordinate via a project lock, check conflicts before atomic replacement and keep private immutable pre-write recovery copies. Non-cooperating editors can still race between final verification and replacement; do not promise absolute lost-update prevention.
 - Boards reference task IDs. A board is a selection/view; task state remains in each task file.
 - The CLI provides deterministic text output, structured JSON, documented errors, and no required hosted service or MCP server.
 
@@ -40,10 +40,10 @@
 - [x] **KAD-001** Define the v0.1 boundary. _Acceptance:_ Document the minimum CLI workflow and explicitly defer boards, TUI, and desktop. _Specification:_ [KAD-001 v0.1 scope](docs/specs/KAD-001-v0.1-scope.md).
 - [x] **KAD-002** Specify task frontmatter. _Acceptance:_ List reserved keys, defaults, optional keys, status values, and the policy for arbitrary custom metadata. _Specification:_ [KAD-002 task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md).
 - [ ] **KAD-003** Specify project configuration. _Acceptance:_ Document `.kadai.yaml`, configurable task root, optional board root, and project discovery rules.
-- [ ] **KAD-004** Specify task identity. _Acceptance:_ Choose an ID format, collision strategy, filename convention, and behavior after files are moved.
-- [ ] **KAD-005** Specify hierarchy and dependencies. _Acceptance:_ Define `parent` and `depends_on` separately, arrow direction, cycles, missing references, and deletion policy.
-- [ ] **KAD-006** Set YAML compatibility and mutation rules. _Acceptance:_ Decide supported YAML semantics, ambiguous cases, and when mutations must fail instead of reformatting.
-- [ ] **KAD-007** Build a fixture corpus. _Acceptance:_ Include valid tasks, custom fields, comments, CRLF, Unicode, nested directories, malformed YAML, and graph cycles.
+- [ ] **KAD-004** Specify task identity. _Acceptance:_ Define durable project-local used-ID history without a numeric counter, non-reuse of CLI-issued IDs, collision quarantine after Git merges, explicit reference-aware repair, filenames and path-independent IDs.
+- [ ] **KAD-005** Specify hierarchy and dependencies. _Acceptance:_ Define hierarchy and prerequisites independently; use KAD-002's optional `parent: ID|null` field; validate parent/dependency graph, missing references, cycles, invalid statuses, three-state readiness and deletion.
+- [ ] **KAD-006** Set YAML compatibility and mutation rules. _Acceptance:_ Define supported YAML syntax, parser resource limits (bytes, depth, nodes and collection size), ambiguous representations and failure rules for non-destructive source patches.
+- [ ] **KAD-007** Build a fixture corpus. _Acceptance:_ Include valid, invalid, partial, duplicate and unsupported-schema tasks; YAML numeric edge cases and parser limits; comments, CRLF, Unicode, nested dirs, malformed YAML and graph cycles.
 
 ### 1. Odin foundation
 
@@ -82,12 +82,12 @@
 
 - [ ] **KAD-023** Implement optional `kadai init`. _Acceptance:_ Create project-local configuration only on explicit invocation, optionally create a default tasks directory, and never overwrite existing files.
 - [ ] **KAD-024** Implement project root resolution. _Acceptance:_ Support `--project`; without config, resolve to the Git repository root or CWD when Git is absent; apply the precedence specified in KAD-003.
-- [ ] **KAD-025** Scan nested directories. _Acceptance:_ Walk task roots recursively, recognize only Markdown with valid task frontmatter, and exclude board directories and ordinary documents; report malformed task candidates per KAD-002/KAD-006.
-- [ ] **KAD-026** Define path and symlink safety. _Acceptance:_ Avoid root escape, accidental traversal outside the project, and symlink loops; handle platform path differences.
-- [ ] **KAD-027** Build a transient task index. _Acceptance:_ Index ID to path in memory and detect duplicate IDs without creating a required database.
+- [ ] **KAD-025** Scan nested directories. _Acceptance:_ Distinguish indexed valid tasks, diagnostic-only invalid candidates and unsupported-schema documents; exclude ordinary Markdown and board roots while reporting malformed task-like files.
+- [ ] **KAD-026** Define path and symlink safety. _Acceptance:_ Define safe path resolution and handling for symlinks/hardlinks, root escapes and OS-specific filesystem metadata; refuse unsafe mutations.
+- [ ] **KAD-027** Build a transient task index. _Acceptance:_ Build a transient ID index, quarantine all case-insensitive duplicate-ID groups (including Git merges) and retain diagnostic-only invalid candidates without choosing arbitrary winners.
 - [ ] **KAD-028** Handle creates, moves, and renames. _Acceptance:_ Preserve stable IDs while changing file paths and detect destination collisions.
-- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Write to a temporary file in the same directory and replace safely, considering fsync and permissions per OS.
-- [ ] **KAD-030** Detect concurrent edits. _Acceptance:_ Use optimistic version/hash checks and coordination between Kadai processes; never silently overwrite a changed file.
+- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Stage atomic replacement on the same filesystem, preserve supported ownership/mode/ACLs/xattrs or fail closed, keep private immutable pre-write recovery snapshots and test rollback/durability on all OSes.
+- [ ] **KAD-030** Detect concurrent edits. _Acceptance:_ Coordinate all Kadai writes via a native project lock, verify file identity/hash immediately before replacing, reject detected conflicts, document the residual external-editor race and test recovery.
 
 ### 4. Task domain and CRUD
 
@@ -95,13 +95,13 @@
 
 **Depends on:** Phases 2-3. **Done when:** A task can be created, retrieved, updated, moved, and removed without losing unrelated Markdown.
 
-- [ ] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Create Markdown under a selected subdirectory, with frontmatter defaults, unique IDs, an empty body for title-only creation, or a supplied Markdown body via `--body-file` or `--stdin`.
+- [ ] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Reserve generated IDs durably before file creation; never reuse recorded IDs after deletion; default to `status: todo` when omitted; support title-only empty-body and `--body-file`/`--stdin`.
 - [ ] **KAD-032** Get and list tasks. _Acceptance:_ Resolve a task by ID and return deterministic listing data, including path and parsed metadata.
 - [ ] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
 - [ ] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
 - [ ] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
 - [ ] **KAD-036** Move and rename tasks. _Acceptance:_ Keep ID-based references intact when the underlying Markdown file changes path.
-- [ ] **KAD-037** Remove tasks safely. _Acceptance:_ Require an explicit destructive action; warn or reject when dependent tasks or boards reference the ID.
+- [ ] **KAD-037** Remove tasks safely. _Acceptance:_ Require explicit deletion and reference checking; preserve used-ID/tombstone history before removing files so allocated IDs cannot be silently reused.
 - [ ] **KAD-038** Test editor/CLI equivalence. _Acceptance:_ Manually edit a task between commands and verify subsequent reads reflect the changed source file.
 
 ### 5. Hierarchy, dependencies, and validation
@@ -116,7 +116,7 @@
 - [ ] **KAD-042** Detect invalid references and IDs. _Acceptance:_ Report missing parents, missing dependencies, self-links, and duplicate task IDs.
 - [ ] **KAD-043** Build a task tree view. _Acceptance:_ Display indented parent/child hierarchy with stable ordering and task IDs.
 - [ ] **KAD-044** Build a dependency view. _Acceptance:_ Show immediate prerequisites and reverse dependents with explicit arrow direction.
-- [ ] **KAD-045** Derive ready and blocked tasks. _Acceptance:_ Compute readiness from incomplete prerequisites without storing a redundant `blocked` status.
+- [ ] **KAD-045** Derive ready and blocked tasks. _Acceptance:_ Compute `ready`/`blocked`/`unresolved` from direct prerequisites without persisting derived state; invalid or unknown prerequisite status/category/schema yields unresolved.
 - [ ] **KAD-046** Implement project validation. _Acceptance:_ Report all detectable integrity issues; validation itself never modifies files.
 
 ### 6. CLI UX, tests, and first release
@@ -128,11 +128,11 @@
 - [ ] **KAD-047** Implement core command grammar. _Acceptance:_ Expose optional init; add with `--body-file`/`--stdin`; list, show, set/status, edit, move, remove, parent, dep, tree, ready, validate; and `--project`.
 - [ ] **KAD-048** Add basic list filters and deterministic ordering. _Acceptance:_ Filter by status, directory, tags, and parent with stable default ordering; advanced predicates and custom sort modes are KAD-080/KAD-081 (v0.1.x).
 - [ ] **KAD-049** Make readable terminal output. _Acceptance:_ Show compact task lists, trees, dependency arrows, and clear validation messages.
-- [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Provide machine-readable results for queries and mutations, with stable ID/path/status fields.
+- [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Define stable ID/path/status JSON contracts plus reversible encoding (or explicit unsupported-output error) for non-JSON-safe YAML numbers, including large integers and `.nan`/`.inf`.
 - [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
 - [ ] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use.
 - [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI.
-- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Cover path separators, encoding, file replacement, and permission issues on macOS, Linux, and Windows.
+- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows.
 - [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
 
 ### 6a. v0.1.x follow-ups (scheduled TODOs)
@@ -183,7 +183,7 @@
 
 **Depends on:** Phases 0-8. **Done when:** The CLI has versioned on-disk contracts, reproducible releases, bounded performance, and verified recovery behavior.
 
-- [ ] **KAD-072** Stress-test concurrent writers. _Acceptance:_ Simulate multiple Kadai processes and external editor changes; verify conflict behavior and no silent loss.
+- [ ] **KAD-072** Stress-test concurrent writers. _Acceptance:_ Stress coordinated Kadai writers and uncoordinated external-editor saves; verify detected conflicts, recovery snapshots and the documented residual race without claiming an impossible absolute guarantee.
 - [ ] **KAD-073** Fuzz parsers and path handling. _Acceptance:_ Test malformed input, large values, odd Unicode, symlinks, and hostile YAML within documented limits.
 - [ ] **KAD-074** Benchmark larger projects. _Acceptance:_ Measure scans, filtering, and dependency queries with 1k–10k tasks and track regressions.
 - [ ] **KAD-075** Evaluate optional caching. _Acceptance:_ Introduce a rebuildable project-local index only if benchmarked performance warrants it.
@@ -210,7 +210,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 - [ ] A task created or edited by hand appears on the next CLI read.
 - [ ] CLI status updates leave the Markdown body unchanged and preserve unrelated YAML content.
 - [ ] Moving a file keeps its ID, parent links, and dependency links valid.
-- [ ] Invalid/ambiguous YAML and conflicting writes fail without corrupting the source file.
+- [ ] Invalid/ambiguous YAML and **detected** concurrent-write conflicts fail safely. Recovery and limitations with non-cooperating editors are documented.
 - [ ] `kadai validate` reports duplicate IDs, broken references, and cycles.
 - [ ] `--json` output is parseable and does not mix in log messages.
 - [ ] CI exercises builds/tests for macOS, Linux, and Windows.
@@ -219,9 +219,9 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 ## Technical decisions pending
 
 - **YAML parser:** Validate a library such as [LibYAML](https://github.com/yaml/libyaml) via Odin/C FFI; decide static vs dynamic linkage and bundle/licensing approach before locking it in. Parsing YAML and preserving original formatting during edits are distinct tasks.
-- **ID generation:** KAD-002 fixes project-local case-insensitive IDs and sequential CLI-generated IDs with optional prefix; KAD-004 still owns final allocation, collision, and filename behavior.
+- **ID generation:** KAD-002 fixes project-local case-insensitive sequential IDs with optional prefix and durable used-ID history; KAD-004 owns the record format, post-merge repair, filenames and collision details.
 - **Deletion:** Specify whether v0.1 removes files outright, moves them to a project-local trash directory, or requires explicit `--force`.
-- **YAML patch scope:** Explicitly document complex YAML constructs that may be read but not safely edited.
+- **YAML patch scope:** Specify readable-but-uneditable YAML constructs, parser resource limits, v1 deadline grammar and lossless JSON numeric handoff.
 - **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
 
 ## Future ideas, not scheduled
