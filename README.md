@@ -16,8 +16,8 @@ Kadai is meant to help you keep track of work inside a project without depending
 - **Hierarchy and dependencies are separate.** A task can have a parent and depend on other tasks independently of where its file lives.
 - **Kanban is optional.** Create multiple boards, include only selected tasks, and remove cards without deleting their tasks. Boards are Markdown files too.
 - **Built for agents.** A scriptable CLI with machine-readable output will let AI coding agents discover, create, update, and relate tasks without needing an MCP server.
-- **Project-local and offline.** No account, remote service or authoritative task-state DB. Markdown owns task state; a small, durable used-ID record prevents reuse of CLI-generated IDs after deletion. Optional task indexes remain rebuildable.
-- **Version-control friendly.** Tasks can be tracked and reviewed with the rest of the repository.
+- **Local and offline.** No account, remote service or authoritative task-state DB. Markdown owns task state; each task collection keeps a durable used-ID record so CLI-generated IDs are not reused after task deletion while its history is retained. Optional indexes remain rebuildable.
+- **Version control is optional.** Track tasks and history in Git if useful, or keep collections untracked, per-worktree or ephemeral. Kadai does not manage `.gitignore`.
 
 ## Proposed file layout
 
@@ -37,7 +37,7 @@ my-project/
         └── editor-refactor.md
 ```
 
-`tasks/` is a proposed default, not a required folder name. Directory placement organizes files; it does not define task hierarchy, status, or dependencies. The project configuration file is optional: without `kadai init`, commands read and write in the Git repository root (or CWD if Git is absent). `--project <path>` selects a different project. Valid task files enter the task index; malformed task candidates produce separate diagnostics, while ordinary `.md` documents are ignored.
+`tasks/` is the default collection directory, not a required folder name; `tasks.root: .` is also supported. Directory placement organizes files but does not define task hierarchy, status, or dependencies. Configuration is optional: without `--project`, Kadai uses exactly the current working directory (CWD), even inside a Git repository, and looks only there for `.kadai.yaml`. `--project <path>` selects a different existing project directory; `--tasks-root <path>` selects an independent collection within it. Valid task files enter the task index; invalid candidates produce separate diagnostics, while ordinary `.md` documents are ignored.
 
 ### Task example
 
@@ -104,11 +104,11 @@ Selected tasks for this milestone.
 
 A board references tasks by ID. It does not own or duplicate their status: moving a card to another column updates the task's frontmatter. Removing a task from a board does not remove its Markdown file.
 
-Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). Project configuration (KAD-003), task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) are still being finalized. Kadai-coordinated writes check for conflicts and keep recovery copies, but a non-cooperating external editor can still save during the final check/replacement interval.
+Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md), and project configuration v1 is accepted in [KAD-003](docs/specs/KAD-003-project-config-v1.md). Task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) remain pending. Kadai-coordinated writes check for conflicts and keep recovery copies, but a non-cooperating external editor can still save during the final check/replacement interval.
 
 ## CLI-first workflow
 
-The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create a project-local used-ID record without creating `.kadai.yaml`.
+The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create collection-local history under `<tasks.root>/.kadai/` without creating `.kadai.yaml`. Kadai never modifies `.gitignore`.
 
 The following commands are **proposed examples**, not an available or finalized CLI:
 
@@ -129,7 +129,7 @@ The goal is to provide predictable commands, machine-readable output, and useful
 
 ## Roadmap
 
-The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). Accepted specifications: [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md) and [KAD-002: task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md).
+The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). Accepted specifications: [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md), [KAD-002: task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md), and [KAD-003: project configuration v1](docs/specs/KAD-003-project-config-v1.md).
 
 The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Advanced CLI enhancements and explicit `kadai import` are scheduled for **v0.1.x**, before optional manual Kanban boards in v0.2. Agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
 
