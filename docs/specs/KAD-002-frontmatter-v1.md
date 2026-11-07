@@ -156,7 +156,7 @@ Persist the author's declared `status` unchanged. Prerequisites produce a **deri
 - Change **only** the requested metadata span, retaining unrelated content, formatting, Markdown body and bytes. Preserve supported ownership, mode, ACLs and xattrs or fail closed; refuse unsafe symlink or multi-hardlink mutations (KAD-026/KAD-029). Write timestamps naturally change.
 - Use a YAML parser for validation and a separate source-aware patching mechanism for local edits; never fall back silently to whole-header reserialization.
 - If a field's representation cannot be updated safely, fail without modifying the file. Edits fixing individual invalid fields are allowed only when they do not introduce additional errors.
-- All Kadai writes share a native project lock, stage on the same filesystem, check source identity/hash immediately before replacement, and require an immutable private pre-write recovery snapshot. Fail closed if required recovery cannot be recorded. KAD-029/KAD-030 define retention, rollback, fsync and OS-specific behavior.
+- Kadai writes share a native lock per effective collection plus coordination for physical files shared by overlapping collections (KAD-003/KAD-030), stage on the same filesystem, check source identity/hash immediately before replacement, and require an immutable private pre-write recovery snapshot. Fail closed if required recovery cannot be recorded. KAD-029/KAD-030 define retention, rollback, fsync and OS-specific behavior.
 - **Residual race:** external editors ignoring the lock can save between final verification and replacement. A hash check plus rename is not atomic as a pair; the snapshot may miss that last editor save. Never promise universal prevention of lost updates. Document the limitation and recovery procedure. Read-only commands create no recovery state.
 
 ## 7. ID generation and concurrent creation (cross-task constraints)
@@ -205,7 +205,7 @@ KAD-007 should record golden files for these cases; examples here are **contract
 | Invalid UTF-8, missing delimiter, malformed YAML | Diagnostic; no destructive repair |
 | Unknown future `schema_version` | Do not validate as v1 or mutate without compatibility |
 
-Byte-for-byte mutation tests, complex YAML edge cases, project-scoped discovery, and concurrency tests are separately owned by KAD-006, KAD-007, KAD-022, KAD-025, and KAD-030.
+Byte-for-byte mutation tests, complex YAML edge cases, collection-scoped discovery, and concurrency tests are separately owned by KAD-006, KAD-007, KAD-022, KAD-025, and KAD-030.
 
 ## 9. Task completion and handoffs
 
