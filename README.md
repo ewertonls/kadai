@@ -16,7 +16,7 @@ Kadai is meant to help you keep track of work inside a project without depending
 - **Hierarchy and dependencies are separate.** A task can have a parent and depend on other tasks independently of where its file lives.
 - **Kanban is optional.** Create multiple boards, include only selected tasks, and remove cards without deleting their tasks. Boards are Markdown files too.
 - **Built for agents.** A scriptable CLI with machine-readable output will let AI coding agents discover, create, update, and relate tasks without needing an MCP server.
-- **Project-local and offline.** No account, remote service, or database outside the project. Any optional index/cache must be rebuildable from the Markdown files.
+- **Project-local and offline.** No account, remote service or authoritative task-state DB. Markdown owns task state; a small, durable used-ID record prevents reuse of CLI-generated IDs after deletion. Optional task indexes remain rebuildable.
 - **Version-control friendly.** Tasks can be tracked and reviewed with the rest of the repository.
 
 ## Proposed file layout
@@ -37,7 +37,7 @@ my-project/
         └── editor-refactor.md
 ```
 
-`tasks/` is a proposed default, not a required folder name. Directory placement organizes files; it does not define task hierarchy, status, or dependencies. The project configuration file is optional: without `kadai init`, commands read and write in the Git repository root (or CWD if Git is absent). `--project <path>` selects a different project. Only Markdown files with valid task frontmatter are considered tasks; ordinary `.md` documents are ignored.
+`tasks/` is a proposed default, not a required folder name. Directory placement organizes files; it does not define task hierarchy, status, or dependencies. The project configuration file is optional: without `kadai init`, commands read and write in the Git repository root (or CWD if Git is absent). `--project <path>` selects a different project. Valid task files enter the task index; malformed task candidates produce separate diagnostics, while ordinary `.md` documents are ignored.
 
 ### Task example
 
@@ -79,6 +79,8 @@ Task IDs remain stable when files move or are renamed. The four required frontma
 
 ### Board example
 
+This is an illustrative proposal, not the final v0.2 board schema (KAD-056).
+
 ```markdown
 ---
 type: board
@@ -86,8 +88,8 @@ title: MVP
 mode: manual
 columns:
   - todo
-  - in-progress
-  - review
+  - in_progress
+  - blocked
   - done
 tasks:
   - T-001
@@ -102,11 +104,11 @@ Selected tasks for this milestone.
 
 A board references tasks by ID. It does not own or duplicate their status: moving a card to another column updates the task's frontmatter. Removing a task from a board does not remove its Markdown file.
 
-Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). Project configuration (KAD-003), task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) are still being finalized.
+Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). Project configuration (KAD-003), task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) are still being finalized. Kadai-coordinated writes check for conflicts and keep recovery copies, but a non-cooperating external editor can still save during the final check/replacement interval.
 
 ## CLI-first workflow
 
-The CLI is the primary interface for both developers and coding agents. Direct Markdown editing is always supported. `kadai init` is **optional**, and even unconfigured projects support reading and writing tasks.
+The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create a project-local used-ID record without creating `.kadai.yaml`.
 
 The following commands are **proposed examples**, not an available or finalized CLI:
 
