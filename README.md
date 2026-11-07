@@ -43,16 +43,18 @@ my-project/
 
 ```markdown
 ---
+kadai: task
 id: T-003
 title: Implement Markdown syntax highlighting
-status: in-progress
+status: in_progress
 priority: high
-parent: T-001
 depends_on:
   - T-002
 tags:
   - editor
   - textkit
+custom:
+  sprint: 1
 ---
 
 # Implement Markdown syntax highlighting
@@ -71,9 +73,9 @@ the text being edited.
 Add whatever sections, links, or content are useful.
 ```
 
-Task IDs remain stable when files move or are renamed. Unknown frontmatter fields and arbitrary Markdown content should be preserved when the tools update a task.
+Task IDs remain stable when files move or are renamed. The four required frontmatter keys are `kadai: task`, `id`, `title`, and `status`; the v1 defaults and validation rules are in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). User-defined metadata belongs under `custom`. Unknown top-level keys produce diagnostics; unrelated YAML and arbitrary Markdown body content must be preserved by the CLI.
 
-**Parent/child is not the same as dependency.** `parent: T-001` places the task under T-001 in a logical task tree. `depends_on: [T-002]` means T-002 must be completed first. In a dependency view, `T-002 → T-003` means T-003 depends on T-002.
+**Parent/child is not the same as dependency.** The reserved `parent` field will link tasks into a logical tree, with its precise schema defined in KAD-005. `depends_on: [T-002]` means T-002 must be completed first. In a dependency view, `T-002 → T-003` means T-003 is dependent on T-002.
 
 ### Board example
 
@@ -100,7 +102,7 @@ Selected tasks for this milestone.
 
 A board references tasks by ID. It does not own or duplicate their status: moving a card to another column updates the task's frontmatter. Removing a task from a board does not remove its Markdown file.
 
-The precise configuration and schema are not finalized.
+Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). Project configuration (KAD-003), task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) are still being finalized.
 
 ## CLI-first workflow
 
@@ -114,7 +116,7 @@ kadai add "Implement syntax highlighting" --dir editor
 kadai add "Write tests" --body-file ./tests.md
 cat ./notes.md | kadai add "Investigate" --stdin
 kadai list --json
-kadai status T-003 in-progress
+kadai status T-003 in_progress
 kadai dep add T-003 T-002
 kadai tree
 kadai ready --json
@@ -125,7 +127,7 @@ The goal is to provide predictable commands, machine-readable output, and useful
 
 ## Roadmap
 
-The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). The accepted v0.1 boundary and minimum CLI workflow are documented in [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md).
+The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). Accepted specifications: [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md) and [KAD-002: task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md).
 
 The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Advanced CLI enhancements and explicit `kadai import` are scheduled for **v0.1.x**, before optional manual Kanban boards in v0.2. Agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
 
