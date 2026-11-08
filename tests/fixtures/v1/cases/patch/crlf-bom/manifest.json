@@ -1,0 +1,27 @@
+{
+  "fixture_version": 1,
+  "id": "patch/crlf-bom",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "BOM and CRLF remain byte-exact across scalar patch",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "status",
+      "value": "done"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "no_writes": true,
+    "scan_complete": true,
+    "proposed_goldens": {
+      "tasks/T.md": "expected/T.md"
+    }
+  }
+}

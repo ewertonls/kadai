@@ -1,0 +1,27 @@
+{
+  "fixture_version": 1,
+  "id": "patch/clear-null-parent",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Replace an optional null with a safe scalar token",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "parent",
+      "value": null
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "no_writes": true,
+    "scan_complete": true,
+    "proposed_goldens": {
+      "tasks/T.md": "expected/T.md"
+    }
+  }
+}

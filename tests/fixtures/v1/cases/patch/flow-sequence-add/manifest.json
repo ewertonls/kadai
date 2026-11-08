@@ -1,0 +1,28 @@
+{
+  "fixture_version": 1,
+  "id": "patch/flow-sequence-add",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Add flow sequence element without changing trailing inline comment",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "tags",
+      "operation": "append",
+      "value": "docs"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "no_writes": true,
+    "scan_complete": true,
+    "proposed_goldens": {
+      "tasks/T.md": "expected/T.md"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "patch/unsafe-line-ending-insert",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Ambiguous insertion boundary in mixed newline style refuses rather than choosing a line ending",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "priority",
+      "operation": "insert",
+      "value": "high"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "unsafe_line_ending",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

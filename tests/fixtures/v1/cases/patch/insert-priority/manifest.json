@@ -1,0 +1,29 @@
+{
+  "fixture_version": 1,
+  "id": "patch/insert-priority",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Insert optional top-level field without reserializing existing YAML",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "priority",
+      "operation": "insert",
+      "value": "high",
+      "insertion_after": "status"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "no_writes": true,
+    "scan_complete": true,
+    "proposed_goldens": {
+      "tasks/T.md": "expected/T.md"
+    }
+  }
+}

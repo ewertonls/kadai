@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/unrelated-update-invalid-status",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Invalid status does not permit unrelated field rewrite",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "priority",
+      "value": "high"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "unrelated_invalid_field",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

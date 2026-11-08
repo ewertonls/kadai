@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/remove-key-with-leading-comment",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Cannot remove optional mapping entry if comment ownership ambiguous",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "priority",
+      "operation": "unset"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "comment_ownership_ambiguous",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

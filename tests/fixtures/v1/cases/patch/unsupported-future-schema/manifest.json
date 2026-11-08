@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/unsupported-future-schema",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Future schema is read-only, no v1 patch guesses",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "status",
+      "value": "done"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "unsupported_task_schema",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

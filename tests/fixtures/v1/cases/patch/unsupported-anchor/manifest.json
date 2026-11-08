@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/unsupported-anchor",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Unrelated YAML anchor prevents any mutation",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "status",
+      "value": "done"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "unsupported_anchor",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

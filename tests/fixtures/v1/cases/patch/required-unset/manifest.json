@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/required-unset",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Removing a required key is never a valid repair",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "status",
+      "operation": "unset"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "required_field_unset",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}

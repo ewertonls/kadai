@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "patch/invalid-yaml",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Malformed YAML cannot be patched even with visible target token",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "plan_patch",
+    "params": {
+      "path": "tasks/T.md",
+      "field": "status",
+      "value": "done"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "no_writes": true,
+    "scan_complete": true,
+    "diagnostics": [
+      {
+        "category": "yaml_syntax",
+        "path": "tasks/T.md"
+      }
+    ]
+  }
+}
