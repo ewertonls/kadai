@@ -1,0 +1,39 @@
+{
+  "fixture_version": 1,
+  "id": "graph/parent-independent-status",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Parent and child statuses do not propagate",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "roots": [
+      "P"
+    ],
+    "readiness": [
+      {
+        "id": "P",
+        "result": "ready"
+      },
+      {
+        "id": "CHILD",
+        "result": "ready"
+      }
+    ],
+    "relationships": {
+      "parents": [
+        {
+          "child": "CHILD",
+          "parent": "P"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "fixture_version": 1,
+  "id": "graph/detach-with-item-comment-refused",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Refuse delete+detach if a required reference has unsafe comment ownership",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "delete",
+    "params": {
+      "id": "X",
+      "detach": true
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "unsafe_source_patch",
+        "path": "tasks/D.md",
+        "field": "depends_on"
+      }
+    ]
+  }
+}

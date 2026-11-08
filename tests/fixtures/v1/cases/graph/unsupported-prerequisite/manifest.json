@@ -1,0 +1,44 @@
+{
+  "fixture_version": 1,
+  "id": "graph/unsupported-prerequisite",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Future-schema target causes unresolved, not missing or ready",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "unsupported_prerequisite",
+        "path": "tasks/A.md",
+        "field": "depends_on",
+        "target_id": "FUTURE"
+      }
+    ],
+    "documents": [
+      {
+        "path": "tasks/A.md",
+        "classification": "valid",
+        "id": "A"
+      },
+      {
+        "path": "tasks/F.md",
+        "classification": "unsupported_schema",
+        "id": "FUTURE"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "A",
+        "result": "unresolved"
+      }
+    ]
+  }
+}

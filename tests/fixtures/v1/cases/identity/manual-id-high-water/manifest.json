@@ -1,0 +1,23 @@
+{
+  "fixture_version": 1,
+  "id": "identity/manual-id-high-water",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Leading zeroes are numeric when scanning generated ID suffixes",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "add",
+    "params": {
+      "title": "New Task"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": false,
+    "next_id": "KAD-0010"
+  }
+}

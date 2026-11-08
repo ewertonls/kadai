@@ -1,0 +1,28 @@
+{
+  "fixture_version": 1,
+  "id": "graph/canceled-is-blocking",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Canceled category is not equivalent to completed",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "blocked"
+      }
+    ]
+  }
+}

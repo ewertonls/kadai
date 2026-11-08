@@ -1,0 +1,46 @@
+{
+  "fixture_version": 1,
+  "id": "graph/parent-cycle",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Three-member parent cycle is diagnosed deterministically",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "parent_cycle"
+      }
+    ],
+    "cycle_members": {
+      "parent": [
+        [
+          "A",
+          "B",
+          "C"
+        ]
+      ]
+    },
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "ready"
+      },
+      {
+        "id": "C",
+        "result": "ready"
+      }
+    ]
+  }
+}

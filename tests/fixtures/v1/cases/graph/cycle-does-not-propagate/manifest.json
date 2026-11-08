@@ -1,0 +1,37 @@
+{
+  "fixture_version": 1,
+  "id": "graph/cycle-does-not-propagate",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Cycle member A status done directly satisfies external task C",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "dependency_cycle"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "A",
+        "result": "unresolved"
+      },
+      {
+        "id": "B",
+        "result": "unresolved"
+      },
+      {
+        "id": "C",
+        "result": "ready"
+      }
+    ]
+  }
+}

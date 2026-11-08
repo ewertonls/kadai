@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "graph/cross-collection-dependency",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Prerequisite outside effective overridden root is missing",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate",
+    "tasks_root": "tasks/backend"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "missing_prerequisite",
+        "path": "backend/C.md",
+        "field": "depends_on",
+        "target_id": "ROOT"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "C",
+        "result": "unresolved"
+      }
+    ]
+  }
+}

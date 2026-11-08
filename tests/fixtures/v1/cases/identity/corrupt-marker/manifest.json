@@ -1,0 +1,27 @@
+{
+  "fixture_version": 1,
+  "id": "identity/corrupt-marker",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Incorrect marker contents block allocation without clobbering history",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "add",
+    "params": {
+      "title": "Denied"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "corrupt_used_id_marker"
+      }
+    ]
+  }
+}

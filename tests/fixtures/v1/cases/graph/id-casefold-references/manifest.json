@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "graph/id-casefold-references",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Case-insensitive reference resolution preserves written case",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "readiness": [
+      {
+        "id": "BETA",
+        "result": "ready"
+      }
+    ],
+    "relationships": {
+      "prerequisites": [
+        {
+          "task": "BETA",
+          "target": "Alpha"
+        }
+      ]
+    }
+  }
+}

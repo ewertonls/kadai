@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "graph/status-done-refused",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Transitioning to done with unmet prerequisite fails without edits",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "set",
+    "params": {
+      "id": "B",
+      "field": "status",
+      "value": "done"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "done_transition_blocked",
+        "path": "tasks/B.md",
+        "field": "status"
+      }
+    ]
+  }
+}

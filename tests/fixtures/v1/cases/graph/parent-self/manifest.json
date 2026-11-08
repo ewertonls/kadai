@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "graph/parent-self",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Self parent including case-insensitive spelling is a hierarchy error",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "parent_self_link",
+        "path": "tasks/A.md",
+        "field": "parent",
+        "target_id": "A"
+      }
+    ]
+  }
+}

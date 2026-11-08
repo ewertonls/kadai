@@ -1,0 +1,38 @@
+{
+  "fixture_version": 1,
+  "id": "graph/direct-done-transitive",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Completed direct prerequisite satisfies caller despite its own todo dependency",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "completed_with_unmet_prerequisites",
+        "path": "tasks/B.md"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "blocked"
+      },
+      {
+        "id": "C",
+        "result": "ready"
+      }
+    ]
+  }
+}

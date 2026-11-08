@@ -1,0 +1,44 @@
+{
+  "fixture_version": 1,
+  "id": "graph/default-ready-filter",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Persisted blocked/done/canceled excluded from ready query even when derived ready",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "ready_selection": [
+      "P",
+      "T"
+    ],
+    "readiness": [
+      {
+        "id": "B",
+        "result": "ready"
+      },
+      {
+        "id": "C",
+        "result": "ready"
+      },
+      {
+        "id": "D",
+        "result": "ready"
+      },
+      {
+        "id": "P",
+        "result": "ready"
+      },
+      {
+        "id": "T",
+        "result": "ready"
+      }
+    ]
+  }
+}

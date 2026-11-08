@@ -1,0 +1,49 @@
+{
+  "fixture_version": 1,
+  "id": "graph/invalid-status-prerequisite",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Invalid target status prevents resolution",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "invalid_status",
+        "path": "tasks/B.md",
+        "field": "status"
+      },
+      {
+        "category": "invalid_prerequisite",
+        "path": "tasks/A.md",
+        "field": "depends_on",
+        "target_id": "BAD"
+      }
+    ],
+    "documents": [
+      {
+        "path": "tasks/A.md",
+        "classification": "valid",
+        "id": "A"
+      },
+      {
+        "path": "tasks/B.md",
+        "classification": "invalid_candidate",
+        "id": "BAD"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "A",
+        "result": "unresolved"
+      }
+    ]
+  }
+}

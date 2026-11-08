@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "identity/occupied-default-filename",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Non-task occupying preferred default filename must not be overwritten",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "add",
+    "params": {
+      "title": "Created"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": false,
+    "next_id": "0002",
+    "unchanged": [
+      "tasks/0001.md"
+    ]
+  }
+}

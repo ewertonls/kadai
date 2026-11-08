@@ -1,0 +1,23 @@
+{
+  "fixture_version": 1,
+  "id": "identity/unprefixed-history-high-water",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Used-ID marker prevents automatic reuse without live task",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "add",
+    "params": {
+      "title": "New Task"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": false,
+    "next_id": "0003"
+  }
+}

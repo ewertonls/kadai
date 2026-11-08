@@ -1,0 +1,36 @@
+{
+  "fixture_version": 1,
+  "id": "identity/duplicate-id-repair-needs-reference-choice",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Repair cannot choose ambiguous inbound target by itself",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "repair_id",
+    "params": {
+      "keep_path": "tasks/one.md",
+      "reassign": [
+        {
+          "path": "tasks/two.md",
+          "id": "NEW"
+        }
+      ]
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "ambiguous_repair_reference",
+        "path": "tasks/ref.md",
+        "field": "depends_on",
+        "target_id": "DUP"
+      }
+    ]
+  }
+}

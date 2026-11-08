@@ -1,0 +1,41 @@
+{
+  "fixture_version": 1,
+  "id": "graph/dependency-cycle",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Two-node prerequisite cycle produces unresolved participants",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "dependency_cycle"
+      }
+    ],
+    "cycle_members": {
+      "dependency": [
+        [
+          "A",
+          "B"
+        ]
+      ]
+    },
+    "readiness": [
+      {
+        "id": "A",
+        "result": "unresolved"
+      },
+      {
+        "id": "B",
+        "result": "unresolved"
+      }
+    ]
+  }
+}

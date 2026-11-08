@@ -1,0 +1,29 @@
+{
+  "fixture_version": 1,
+  "id": "graph/parent-casefold",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Parent reference resolved by ASCII casefold",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "relationships": {
+      "parents": [
+        {
+          "child": "CHILD",
+          "parent": "Parent"
+        }
+      ]
+    },
+    "roots": [
+      "Parent"
+    ]
+  }
+}

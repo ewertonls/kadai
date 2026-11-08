@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "identity/name-independent",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Existing filename never supplies ID",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/completely-different.md",
+        "classification": "valid",
+        "id": "MY-ID"
+      }
+    ]
+  }
+}

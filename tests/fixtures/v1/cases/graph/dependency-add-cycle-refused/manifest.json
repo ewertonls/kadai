@@ -1,0 +1,28 @@
+{
+  "fixture_version": 1,
+  "id": "graph/dependency-add-cycle-refused",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "CLI must refuse adding an edge that creates prerequisite cycle",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "link",
+    "params": {
+      "type": "depends_on",
+      "source": "B",
+      "target": "A"
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "dependency_cycle"
+      }
+    ]
+  }
+}

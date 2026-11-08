@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "graph/missing-parent",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Broken parent reference is a hierarchy error but not a readiness input",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "missing_parent",
+        "path": "tasks/C.md",
+        "field": "parent",
+        "target_id": "GHOST"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "C",
+        "result": "ready"
+      }
+    ]
+  }
+}

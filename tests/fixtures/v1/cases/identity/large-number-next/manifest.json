@@ -1,0 +1,23 @@
+{
+  "fixture_version": 1,
+  "id": "identity/large-number-next",
+  "contracts": [
+    "KAD-002",
+    "KAD-004"
+  ],
+  "description": "Generated numeric suffix must not wrap bounded integer",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "add",
+    "params": {
+      "title": "Next"
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": false,
+    "next_id": "KAD-1000000000000000000000000000000000000"
+  }
+}

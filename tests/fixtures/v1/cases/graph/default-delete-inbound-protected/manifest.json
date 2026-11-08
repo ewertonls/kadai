@@ -1,0 +1,36 @@
+{
+  "fixture_version": 1,
+  "id": "graph/default-delete-inbound-protected",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Remove is blocked with parent and dependent inbound references",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "delete",
+    "params": {
+      "id": "X",
+      "detach": false
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "inbound_parent",
+        "path": "tasks/child.md",
+        "field": "parent",
+        "target_id": "X"
+      },
+      {
+        "category": "inbound_dependency",
+        "path": "tasks/dep.md",
+        "field": "depends_on",
+        "target_id": "X"
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "graph/dep-absent-null-empty",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Absent, null or empty depends_on are semantically equivalent",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "ready"
+      },
+      {
+        "id": "C",
+        "result": "ready"
+      }
+    ]
+  }
+}

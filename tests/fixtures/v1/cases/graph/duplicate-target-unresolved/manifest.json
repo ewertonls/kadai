@@ -1,0 +1,44 @@
+{
+  "fixture_version": 1,
+  "id": "graph/duplicate-target-unresolved",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Two case-fold-equal live IDs leave parent and prerequisite ambiguous",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "duplicate_id"
+      },
+      {
+        "category": "ambiguous_parent",
+        "path": "tasks/C.md",
+        "field": "parent",
+        "target_id": "SAME"
+      },
+      {
+        "category": "ambiguous_prerequisite",
+        "path": "tasks/C.md",
+        "field": "depends_on",
+        "target_id": "same"
+      }
+    ],
+    "quarantined_ids": [
+      "SAME"
+    ],
+    "readiness": [
+      {
+        "id": "C",
+        "result": "unresolved"
+      }
+    ]
+  }
+}

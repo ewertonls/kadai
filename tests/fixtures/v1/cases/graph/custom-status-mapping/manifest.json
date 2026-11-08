@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "graph/custom-status-mapping",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Custom status category done satisfies dependency; custom in_progress selected as ready",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "ready"
+      }
+    ],
+    "ready_selection": [
+      "B"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "fixture_version": 1,
+  "id": "graph/missing-dep-unresolved-precedence",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Missing prerequisite takes precedence over blocked readiness",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "missing_prerequisite",
+        "path": "tasks/A.md",
+        "field": "depends_on",
+        "target_id": "UNKNOWN"
+      }
+    ],
+    "readiness": [
+      {
+        "id": "A",
+        "result": "unresolved"
+      },
+      {
+        "id": "TODO",
+        "result": "ready"
+      }
+    ]
+  }
+}

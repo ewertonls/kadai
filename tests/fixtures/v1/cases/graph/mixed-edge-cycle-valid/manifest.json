@@ -1,0 +1,35 @@
+{
+  "fixture_version": 1,
+  "id": "graph/mixed-edge-cycle-valid",
+  "contracts": [
+    "KAD-005"
+  ],
+  "description": "Mixed parent/dependency cycle is valid when each graph alone is acyclic",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "readiness": [
+      {
+        "id": "A",
+        "result": "ready"
+      },
+      {
+        "id": "B",
+        "result": "blocked"
+      }
+    ],
+    "cycle_members": {
+      "parent": [],
+      "dependency": []
+    },
+    "roots": [
+      "B"
+    ]
+  }
+}
