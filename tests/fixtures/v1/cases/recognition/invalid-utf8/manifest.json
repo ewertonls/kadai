@@ -10,6 +10,10 @@
   "tier": "normal",
   "setup": [
     {
+      "op": "mkdir",
+      "path": "project/tasks"
+    },
+    {
       "op": "write_bytes",
       "path": "project/tasks/invalid.md",
       "base64": "LS0tCmthZGFpOiB0YXNrCmlkOiBCQURVVEYKdGl0bGU6IP9iYWQKc3RhdHVzOiB0b2RvCi0tLQo="
