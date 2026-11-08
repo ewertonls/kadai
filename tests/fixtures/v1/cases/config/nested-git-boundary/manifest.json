@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "config/nested-git-boundary",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Nested .git marker file excludes repository subtree",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "write_bytes",
+      "path": "project/tasks/vendor/.git",
+      "base64": "Z2l0ZGlyOiBleHRlcm5hbAo="
+    }
+  ],
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/normal.md",
+        "classification": "valid",
+        "id": "NORMAL"
+      }
+    ]
+  }
+}

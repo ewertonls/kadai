@@ -1,0 +1,39 @@
+{
+  "fixture_version": 1,
+  "id": "config/explicit-project-symlink",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Selected project symlink resolves physically",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "symlink",
+      "path": "project/alias",
+      "target": "real"
+    }
+  ],
+  "requires": [
+    "symlink"
+  ],
+  "action": {
+    "op": "scan",
+    "project": "alias"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/OK.md",
+        "classification": "valid",
+        "id": "OK"
+      }
+    ],
+    "warnings": [
+      "explicit_project_symlink"
+    ]
+  }
+}

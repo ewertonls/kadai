@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/null-optional",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Null optional config means builtin defaults",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/DEF.md",
+        "classification": "valid",
+        "id": "DEF"
+      }
+    ]
+  }
+}

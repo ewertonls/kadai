@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "config/cwd-not-git-root",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Implicit CWD is exact, never discovered Git root",
+  "cwd": "project/src",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project/.git"
+    }
+  ],
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/LOCAL.md",
+        "classification": "valid",
+        "id": "LOCAL"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/custom-root",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Project-relative configured root selects independent collection",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tickets/X.md",
+        "classification": "valid",
+        "id": "X"
+      }
+    ]
+  }
+}

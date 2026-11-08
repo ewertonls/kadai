@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/boards-config-independent",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Configured board root always relative to effective collection root",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "tasks_root": "other"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "other/real.md",
+        "classification": "valid",
+        "id": "REAL"
+      }
+    ]
+  }
+}

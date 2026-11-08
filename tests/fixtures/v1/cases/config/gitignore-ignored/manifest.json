@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/gitignore-ignored",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Gitignore has no bearing on discovery",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/ignored.md",
+        "classification": "valid",
+        "id": "IGNORE"
+      }
+    ]
+  }
+}

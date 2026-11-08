@@ -1,0 +1,39 @@
+{
+  "fixture_version": 1,
+  "id": "config/internal-root-symlink",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Explicit internal root symlink allowed with warning",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "symlink",
+      "path": "project/alias",
+      "target": "tasks"
+    }
+  ],
+  "requires": [
+    "symlink"
+  ],
+  "action": {
+    "op": "scan",
+    "tasks_root": "alias"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/OK.md",
+        "classification": "valid",
+        "id": "OK"
+      }
+    ],
+    "warnings": [
+      "explicit_internal_symlink"
+    ]
+  }
+}

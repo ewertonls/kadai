@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/invalid-leaf-overridden",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Invalid config leaf can be replaced by CLI before effective field validation",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "tasks_root": "tasks"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/GOOD.md",
+        "classification": "valid",
+        "id": "GOOD"
+      }
+    ]
+  }
+}

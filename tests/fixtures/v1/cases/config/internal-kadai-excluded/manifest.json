@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/internal-kadai-excluded",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Internal state subtree never scanned",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/visible.md",
+        "classification": "valid",
+        "id": "VISIBLE"
+      }
+    ]
+  }
+}

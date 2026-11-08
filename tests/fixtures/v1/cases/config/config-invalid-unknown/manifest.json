@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/config-invalid-unknown",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Unknown config keys prevent scan",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "unknown_config_key",
+        "path": ".kadai.yaml",
+        "field": "unknown"
+      }
+    ]
+  }
+}

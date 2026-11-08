@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/glob-excludes",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Portable root-only and any-depth patterns",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/sub/build/B.md",
+        "classification": "valid",
+        "id": "B"
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/unknown-key-not-overridden",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Structural config errors cannot be bypassed by CLI override",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config",
+    "tasks_root": "tasks"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "unknown_config_key",
+        "path": ".kadai.yaml",
+        "field": "tasks.unknown"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/config-traversal",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Config task root escaping project rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "root_escape",
+        "path": ".kadai.yaml",
+        "field": "tasks.root"
+      }
+    ]
+  }
+}

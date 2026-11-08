@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/invalid-root-overridden",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Invalid root traversal in replaced leaf can be overridden",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "tasks_root": "tasks"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/GOOD.md",
+        "classification": "valid",
+        "id": "GOOD"
+      }
+    ]
+  }
+}

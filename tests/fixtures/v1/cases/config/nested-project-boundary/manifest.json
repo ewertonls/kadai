@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/nested-project-boundary",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Nested .kadai.yaml excludes nested subtree",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/outside.md",
+        "classification": "valid",
+        "id": "OUTSIDE"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/hidden-scanned",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Hidden directories still eligible",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/.private/SECRET.md",
+        "classification": "valid",
+        "id": "SECRET"
+      }
+    ]
+  }
+}

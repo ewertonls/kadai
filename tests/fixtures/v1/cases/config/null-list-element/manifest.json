@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/null-list-element",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Null list element violates config field's element schema",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "invalid_config_field",
+        "path": ".kadai.yaml",
+        "field": "tasks.exclude"
+      }
+    ]
+  }
+}

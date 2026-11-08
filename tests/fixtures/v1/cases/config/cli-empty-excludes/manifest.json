@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/cli-empty-excludes",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Explicit empty CLI exclusion override removes only user exclusions",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "exclude": []
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/generated/G.md",
+        "classification": "valid",
+        "id": "G"
+      }
+    ]
+  }
+}

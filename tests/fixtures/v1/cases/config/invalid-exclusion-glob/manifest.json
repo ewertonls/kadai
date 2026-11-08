@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/invalid-exclusion-glob",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Glob syntax excludes negation",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "invalid_exclusion_pattern",
+        "path": ".kadai.yaml",
+        "field": "tasks.exclude"
+      }
+    ]
+  }
+}

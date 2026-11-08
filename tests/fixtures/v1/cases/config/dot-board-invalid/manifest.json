@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/dot-board-invalid",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Board root cannot be identical to task root",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "invalid_board_root",
+        "path": ".kadai.yaml",
+        "field": "boards.root"
+      }
+    ]
+  }
+}

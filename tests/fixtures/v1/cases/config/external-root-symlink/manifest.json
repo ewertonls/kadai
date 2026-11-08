@@ -1,0 +1,38 @@
+{
+  "fixture_version": 1,
+  "id": "config/external-root-symlink",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Explicit root symlink escaping project rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    },
+    {
+      "op": "symlink",
+      "path": "project/alias",
+      "target": "../outside"
+    }
+  ],
+  "requires": [
+    "symlink"
+  ],
+  "action": {
+    "op": "resolve_config",
+    "tasks_root": "alias"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "root_escape"
+      }
+    ]
+  }
+}

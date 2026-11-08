@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/future-config-schema",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Future config schema is fatal, cannot use CLI overrides",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config",
+    "tasks_root": "tasks"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "unsupported_config_schema",
+        "path": ".kadai.yaml",
+        "field": "schema_version"
+      }
+    ]
+  }
+}

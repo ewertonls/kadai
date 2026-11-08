@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "config/null-status-extension",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Null status extension is omitted and does not define a valid status",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/R.md",
+        "classification": "invalid_candidate",
+        "id": "R"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "invalid_status",
+        "path": "tasks/R.md",
+        "field": "status"
+      }
+    ]
+  }
+}

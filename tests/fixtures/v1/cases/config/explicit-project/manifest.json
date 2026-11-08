@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/explicit-project",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Explicit --project relative to invocation CWD selects exact existing directory",
+  "cwd": "project/sub",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "project": ".."
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/ROOT.md",
+        "classification": "valid",
+        "id": "ROOT"
+      }
+    ]
+  }
+}

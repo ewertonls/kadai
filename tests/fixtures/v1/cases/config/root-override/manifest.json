@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/root-override",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "CLI --tasks-root replaces configured root and collection identity",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "tasks_root": "other"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "other/B.md",
+        "classification": "valid",
+        "id": "B"
+      }
+    ]
+  }
+}

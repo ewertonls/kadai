@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/missing-tasks-dir",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Missing effective collection directory reads empty and creates nothing",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    }
+  ],
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": []
+  }
+}

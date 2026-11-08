@@ -1,0 +1,35 @@
+{
+  "fixture_version": 1,
+  "id": "config/scanner-dir-symlink",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Recursive scan never traverses directory symlink",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "symlink",
+      "path": "project/tasks/linked",
+      "target": "../../outside"
+    }
+  ],
+  "requires": [
+    "symlink"
+  ],
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/ok.md",
+        "classification": "valid",
+        "id": "OK"
+      }
+    ]
+  }
+}

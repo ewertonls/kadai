@@ -1,0 +1,28 @@
+{
+  "fixture_version": 1,
+  "id": "config/cli-exclude-replaces",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "CLI exclusion list replaces config list, not appends",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "exclude": [
+      "build/"
+    ]
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/generated/G.md",
+        "classification": "valid",
+        "id": "G"
+      }
+    ]
+  }
+}

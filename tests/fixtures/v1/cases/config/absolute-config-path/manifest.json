@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/absolute-config-path",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Absolute configured task root rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "absolute_config_path",
+        "path": ".kadai.yaml",
+        "field": "tasks.root"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/boards-excluded",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Board subtree excluded even before board feature exists",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/normal.md",
+        "classification": "valid",
+        "id": "NORMAL"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/config-duplicate",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Decoded duplicate config keys are fatal",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "duplicate_mapping_key",
+        "path": ".kadai.yaml",
+        "field": "tasks"
+      }
+    ]
+  }
+}

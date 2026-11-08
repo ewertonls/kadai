@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "config/tasks-root-dot",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Task collection root may be project directory",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "free.md",
+        "classification": "valid",
+        "id": "FREE"
+      }
+    ]
+  }
+}

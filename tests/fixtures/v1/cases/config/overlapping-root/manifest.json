@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "config/overlapping-root",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Nested collection scan does not inherit parent collection's task index",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan",
+    "tasks_root": "tasks/backend"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "backend/sub.md",
+        "classification": "valid",
+        "id": "SUB"
+      }
+    ]
+  }
+}

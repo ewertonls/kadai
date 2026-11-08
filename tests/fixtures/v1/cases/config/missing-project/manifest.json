@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "config/missing-project",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Explicit nonexistent project fails rather than creating it",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    }
+  ],
+  "action": {
+    "op": "scan",
+    "project": "absent"
+  },
+  "expect": {
+    "result": "config_error",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "project_not_found"
+      }
+    ],
+    "documents": []
+  }
+}
