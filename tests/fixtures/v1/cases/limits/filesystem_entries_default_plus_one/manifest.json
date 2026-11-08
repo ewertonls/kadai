@@ -1,0 +1,41 @@
+{
+  "fixture_version": 1,
+  "id": "limits/filesystem_entries_default_plus_one",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "filesystem_entries: default plus one",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "entries",
+      "count": 250001,
+      "extension": ".txt"
+    }
+  ],
+  "assert_generated": {
+    "metric": "filesystem_entries",
+    "value": 250001
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "scan_incomplete",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "limit_exceeded",
+        "field": "filesystem_entries"
+      },
+      {
+        "category": "scan_incomplete"
+      }
+    ],
+    "normal_partial_results": false
+  }
+}

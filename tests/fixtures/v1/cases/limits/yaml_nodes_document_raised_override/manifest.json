@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "limits/yaml_nodes_document_raised_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "yaml_nodes_document: raised override",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "generate_file",
+      "path": "project/tasks/GENERATED.md",
+      "kind": "yaml_node_count",
+      "target": 10001
+    }
+  ],
+  "assert_generated": {
+    "metric": "yaml_nodes_document",
+    "value": 10001
+  },
+  "action": {
+    "op": "scan",
+    "limits": {
+      "yaml_nodes_document": 10001
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

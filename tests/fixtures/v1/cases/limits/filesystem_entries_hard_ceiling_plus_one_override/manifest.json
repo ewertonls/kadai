@@ -1,0 +1,34 @@
+{
+  "fixture_version": 1,
+  "id": "limits/filesystem_entries_hard_ceiling_plus_one_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "filesystem_entries: hard ceiling plus one override",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    }
+  ],
+  "action": {
+    "op": "scan",
+    "limits": {
+      "filesystem_entries": 2000001
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": false,
+    "no_writes": true,
+    "before_file_access": true,
+    "diagnostics": [
+      {
+        "category": "invalid_limit",
+        "field": "filesystem_entries"
+      }
+    ]
+  }
+}

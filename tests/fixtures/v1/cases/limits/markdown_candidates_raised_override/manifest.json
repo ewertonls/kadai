@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "limits/markdown_candidates_raised_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "markdown_candidates: raised override",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "markdown_candidates",
+      "count": 50001
+    }
+  ],
+  "assert_generated": {
+    "metric": "markdown_candidates",
+    "value": 50001
+  },
+  "action": {
+    "op": "scan",
+    "limits": {
+      "markdown_candidates": 50001
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

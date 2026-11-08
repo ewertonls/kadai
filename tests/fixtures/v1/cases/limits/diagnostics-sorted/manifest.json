@@ -1,0 +1,28 @@
+{
+  "fixture_version": 1,
+  "id": "limits/diagnostics-sorted",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Scanner discovers files in deterministic order regardless of enumeration order",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "result": "diagnostic",
+    "scan_complete": true,
+    "ordered_diagnostics": [
+      {
+        "category": "invalid_status",
+        "path": "tasks/a-bad.md"
+      },
+      {
+        "category": "invalid_status",
+        "path": "tasks/z-bad.md"
+      }
+    ]
+  }
+}

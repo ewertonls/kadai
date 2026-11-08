@@ -1,0 +1,40 @@
+{
+  "fixture_version": 1,
+  "id": "limits/yaml_depth_default_plus_one",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "yaml_depth: default plus one",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "generate_file",
+      "path": "project/tasks/GENERATED.md",
+      "kind": "yaml_depth",
+      "target": 33
+    }
+  ],
+  "assert_generated": {
+    "metric": "yaml_depth",
+    "value": 33
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "scan_incomplete",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "limit_exceeded",
+        "field": "yaml_depth"
+      },
+      {
+        "category": "scan_incomplete"
+      }
+    ],
+    "normal_partial_results": false
+  }
+}

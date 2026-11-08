@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "limits/scan_yaml_nodes_equal_default",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "scan_yaml_nodes: equal default",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "yaml_nodes_total",
+      "total": 1000000
+    }
+  ],
+  "assert_generated": {
+    "metric": "scan_yaml_nodes",
+    "value": 1000000
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

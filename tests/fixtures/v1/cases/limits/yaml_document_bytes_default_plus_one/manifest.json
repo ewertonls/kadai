@@ -1,0 +1,40 @@
+{
+  "fixture_version": 1,
+  "id": "limits/yaml_document_bytes_default_plus_one",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "yaml_document_bytes: default plus one",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "generate_file",
+      "path": "project/tasks/GENERATED.md",
+      "kind": "yaml_header_bytes",
+      "target": 262145
+    }
+  ],
+  "assert_generated": {
+    "metric": "yaml_document_bytes",
+    "value": 262145
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "scan_incomplete",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "limit_exceeded",
+        "field": "yaml_document_bytes"
+      },
+      {
+        "category": "scan_incomplete"
+      }
+    ],
+    "normal_partial_results": false
+  }
+}

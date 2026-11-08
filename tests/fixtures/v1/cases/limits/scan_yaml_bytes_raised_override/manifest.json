@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "limits/scan_yaml_bytes_raised_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "scan_yaml_bytes: raised override",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "yaml_bytes_total",
+      "total": 268435457
+    }
+  ],
+  "assert_generated": {
+    "metric": "scan_yaml_bytes",
+    "value": 268435457
+  },
+  "action": {
+    "op": "scan",
+    "limits": {
+      "scan_yaml_bytes": 268435457
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

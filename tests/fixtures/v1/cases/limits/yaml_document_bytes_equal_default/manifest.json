@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "limits/yaml_document_bytes_equal_default",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "yaml_document_bytes: equal default",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "generate_file",
+      "path": "project/tasks/GENERATED.md",
+      "kind": "yaml_header_bytes",
+      "target": 262144
+    }
+  ],
+  "assert_generated": {
+    "metric": "yaml_document_bytes",
+    "value": 262144
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "fixture_version": 1,
+  "id": "limits/filesystem_entries_raised_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "filesystem_entries: raised override",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "entries",
+      "count": 250001,
+      "extension": ".txt"
+    }
+  ],
+  "assert_generated": {
+    "metric": "filesystem_entries",
+    "value": 250001
+  },
+  "action": {
+    "op": "scan",
+    "limits": {
+      "filesystem_entries": 250001
+    }
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

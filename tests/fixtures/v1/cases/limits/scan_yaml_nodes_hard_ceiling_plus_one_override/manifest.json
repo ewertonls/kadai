@@ -1,0 +1,34 @@
+{
+  "fixture_version": 1,
+  "id": "limits/scan_yaml_nodes_hard_ceiling_plus_one_override",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "scan_yaml_nodes: hard ceiling plus one override",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    }
+  ],
+  "action": {
+    "op": "scan",
+    "limits": {
+      "scan_yaml_nodes": 10000001
+    }
+  },
+  "expect": {
+    "result": "refused",
+    "scan_complete": false,
+    "no_writes": true,
+    "before_file_access": true,
+    "diagnostics": [
+      {
+        "category": "invalid_limit",
+        "field": "scan_yaml_nodes"
+      }
+    ]
+  }
+}

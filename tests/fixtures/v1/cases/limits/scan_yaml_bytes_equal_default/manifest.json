@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "limits/scan_yaml_bytes_equal_default",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "scan_yaml_bytes: equal default",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "yaml_bytes_total",
+      "total": 268435456
+    }
+  ],
+  "assert_generated": {
+    "metric": "scan_yaml_bytes",
+    "value": 268435456
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

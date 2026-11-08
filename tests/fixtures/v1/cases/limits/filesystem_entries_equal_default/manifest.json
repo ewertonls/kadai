@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "limits/filesystem_entries_equal_default",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "filesystem_entries: equal default",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "entries",
+      "count": 250000,
+      "extension": ".txt"
+    }
+  ],
+  "assert_generated": {
+    "metric": "filesystem_entries",
+    "value": 250000
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

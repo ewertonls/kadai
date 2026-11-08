@@ -1,0 +1,39 @@
+{
+  "fixture_version": 1,
+  "id": "limits/incomplete-no-partial-result",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Budget failure never exposes normal partial list or permits writes",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "generate_family",
+      "kind": "markdown_candidates",
+      "path": "project/tasks",
+      "count": 2
+    }
+  ],
+  "action": {
+    "op": "scan",
+    "limits": {
+      "markdown_candidates": 1
+    }
+  },
+  "expect": {
+    "no_writes": true,
+    "result": "scan_incomplete",
+    "scan_complete": false,
+    "normal_partial_results": false,
+    "diagnostics": [
+      {
+        "category": "limit_exceeded",
+        "field": "markdown_candidates"
+      },
+      {
+        "category": "scan_incomplete"
+      }
+    ]
+  }
+}

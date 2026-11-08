@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "id": "limits/markdown_candidates_equal_default",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "markdown_candidates: equal default",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "markdown_candidates",
+      "count": 50000
+    }
+  ],
+  "assert_generated": {
+    "metric": "markdown_candidates",
+    "value": 50000
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true
+  }
+}

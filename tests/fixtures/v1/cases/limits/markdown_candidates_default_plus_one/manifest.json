@@ -1,0 +1,40 @@
+{
+  "fixture_version": 1,
+  "id": "limits/markdown_candidates_default_plus_one",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "markdown_candidates: default plus one",
+  "cwd": "project",
+  "tier": "heavy",
+  "setup": [
+    {
+      "op": "generate_family",
+      "path": "project/tasks",
+      "kind": "markdown_candidates",
+      "count": 50001
+    }
+  ],
+  "assert_generated": {
+    "metric": "markdown_candidates",
+    "value": 50001
+  },
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "scan_incomplete",
+    "scan_complete": false,
+    "no_writes": true,
+    "diagnostics": [
+      {
+        "category": "limit_exceeded",
+        "field": "markdown_candidates"
+      },
+      {
+        "category": "scan_incomplete"
+      }
+    ],
+    "normal_partial_results": false
+  }
+}
