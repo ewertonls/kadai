@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/root-flow-map",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Root flow mapping with task discriminator is supported",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "ok",
+    "documents": [
+      {
+        "path": "tasks/root.md",
+        "classification": "valid",
+        "id": "FLOWROOT"
+      }
+    ]
+  }
+}

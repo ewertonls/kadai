@@ -1,0 +1,38 @@
+{
+  "fixture_version": 1,
+  "id": "config/external-config-symlink",
+  "contracts": [
+    "KAD-003"
+  ],
+  "description": "Config symlink outside physical project must be rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "setup": [
+    {
+      "op": "mkdir",
+      "path": "project"
+    },
+    {
+      "op": "symlink",
+      "path": "project/.kadai.yaml",
+      "target": "../outside.yaml"
+    }
+  ],
+  "requires": [
+    "symlink"
+  ],
+  "action": {
+    "op": "resolve_config"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": false,
+    "result": "config_error",
+    "diagnostics": [
+      {
+        "category": "config_escape",
+        "path": ".kadai.yaml"
+      }
+    ]
+  }
+}

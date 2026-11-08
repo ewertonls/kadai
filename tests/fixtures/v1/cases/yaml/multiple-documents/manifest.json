@@ -1,0 +1,24 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/multiple-documents",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Second YAML document marker with comment before frontmatter close rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "diagnostic",
+    "diagnostics": [
+      {
+        "category": "multiple_yaml_documents",
+        "path": "tasks/multi.md"
+      }
+    ]
+  }
+}

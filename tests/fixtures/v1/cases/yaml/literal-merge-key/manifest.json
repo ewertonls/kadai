@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/literal-merge-key",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Literal << key in custom data is plain key, never implicit merge",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "diagnostic",
+    "diagnostics": [
+      {
+        "category": "duplicate_mapping_key",
+        "path": "tasks/merge.md",
+        "field": "custom.<<"
+      }
+    ]
+  }
+}

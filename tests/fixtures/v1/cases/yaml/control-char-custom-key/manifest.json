@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/control-char-custom-key",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Decoded newline in custom mapping key rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "diagnostic",
+    "diagnostics": [
+      {
+        "category": "invalid_custom_key",
+        "path": "tasks/key.md",
+        "field": "custom"
+      }
+    ]
+  }
+}

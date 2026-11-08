@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/duplicate-nested-flow",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Duplicate decoded keys in nested flow mapping rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "diagnostic",
+    "diagnostics": [
+      {
+        "category": "duplicate_mapping_key",
+        "path": "tasks/dupe.md",
+        "field": "custom.nested.key"
+      }
+    ]
+  }
+}

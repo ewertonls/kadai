@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/literal-merge-key-valid",
+  "contracts": [
+    "KAD-006"
+  ],
+  "description": "Plain << key in custom data is a string, not an alias merge",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "validate"
+  },
+  "expect": {
+    "no_writes": true,
+    "scan_complete": true,
+    "result": "ok",
+    "documents": [
+      {
+        "path": "tasks/merge.md",
+        "classification": "valid",
+        "id": "MERGE"
+      }
+    ]
+  }
+}
