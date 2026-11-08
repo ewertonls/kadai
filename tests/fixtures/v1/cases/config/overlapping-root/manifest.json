@@ -17,7 +17,7 @@
     "no_writes": true,
     "documents": [
       {
-        "path": "backend/sub.md",
+        "path": "tasks/backend/sub.md",
         "classification": "valid",
         "id": "SUB"
       }

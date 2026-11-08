@@ -59,7 +59,7 @@ A fully completed runner must run normal tests by default and heavy tests only w
 - `expect.documents[].classification` is `valid`, `invalid_candidate`, `unsupported_schema`, or `non_task`; only attach a usable ID where supported.
 - `expect.no_writes: true` applies to source tasks, config, used-ID history, recovery files and other persistent artifacts. It is required for read-only operations and refusals.
 - `expect.proposed_goldens` tests `plan_patch`'s returned candidate bytes while still forbidding writes. `expect.goldens` compares post-mutation files after actual writes. `expected/` relative paths are relative to the **scenario directory**.
-- `expect.allow_additional_diagnostics` is false by default. Declared diagnostic categories must match by path/field where given; error presentation/codes are not fixed.
+- Declared diagnostic categories must match by path/field where given. They form a required set for `diagnostic` and `refused`; additional independent categories are allowed unless `expect.allow_additional_diagnostics: false` explicitly requires an exact set. `result: ok` rejects unexpected errors. Error presentation/codes are not fixed.
 - `assert_generated` checks the intended measured budget dimension before running any Kadai code. The generator also checks that other limits stay below their defaults, avoiding accidentally testing a different limit.
 - `action.limits` values are invocation-only overrides; invalid overrides are rejected before filesystem inspection. Incomplete scans must not expose normal partial query results.
 - `requires` is a capability prerequisite list, not an OS name filter. A host without symlink support may mark just those scenarios `unsupported_host`, not all filesystem tests.

@@ -18,7 +18,7 @@
     "diagnostics": [
       {
         "category": "missing_prerequisite",
-        "path": "backend/C.md",
+        "path": "tasks/backend/C.md",
         "field": "depends_on",
         "target_id": "ROOT"
       }
