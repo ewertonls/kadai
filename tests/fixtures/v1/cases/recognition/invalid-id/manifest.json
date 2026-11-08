@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/invalid-id",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Malformed ID is not indexed",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/invalid.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "invalid_id",
+        "path": "tasks/invalid.md",
+        "field": "id"
+      }
+    ]
+  }
+}

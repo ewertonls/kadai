@@ -1,0 +1,4 @@
+# Just markdown
+---
+kadai: task
+---

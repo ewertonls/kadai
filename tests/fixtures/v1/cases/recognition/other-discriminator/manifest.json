@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/other-discriminator",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Other discriminator is not a task",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/notes.md",
+        "classification": "non_task"
+      }
+    ]
+  }
+}

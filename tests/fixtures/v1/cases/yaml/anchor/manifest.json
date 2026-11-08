@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/anchor",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Anchors are unsupported, even inside unrelated custom metadata",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/anchor.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "unsupported_anchor",
+        "path": "tasks/anchor.md"
+      }
+    ]
+  }
+}

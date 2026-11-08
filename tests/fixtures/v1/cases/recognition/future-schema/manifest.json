@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/future-schema",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Future task schema recognized but not parsed as v1",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "unsupported_schema",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/future.md",
+        "classification": "unsupported_schema",
+        "id": "FUTURE"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "unsupported_task_schema",
+        "path": "tasks/future.md",
+        "field": "schema_version"
+      }
+    ]
+  }
+}

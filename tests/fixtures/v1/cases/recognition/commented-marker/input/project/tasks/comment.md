@@ -1,0 +1,4 @@
+---
+# kadai: task
+id: GHOST
+---

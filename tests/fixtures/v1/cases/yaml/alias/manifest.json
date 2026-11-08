@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/alias",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Aliases are unsupported",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/alias.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "unsupported_alias",
+        "path": "tasks/alias.md"
+      }
+    ]
+  }
+}

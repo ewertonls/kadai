@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/malformed-after-marker",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Lexically proven marker with malformed subsequent YAML",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/bad.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "yaml_syntax",
+        "path": "tasks/bad.md"
+      }
+    ]
+  }
+}

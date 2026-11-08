@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/crlf-bom",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "UTF-8 BOM and CRLF preserved",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/crlf.md",
+        "classification": "valid",
+        "id": "BOM"
+      }
+    ]
+  }
+}

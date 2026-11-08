@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/empty-header",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Empty frontmatter is ordinary Markdown",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/empty.md",
+        "classification": "non_task"
+      }
+    ]
+  }
+}

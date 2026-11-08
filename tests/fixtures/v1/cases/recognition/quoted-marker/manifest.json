@@ -1,0 +1,26 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/quoted-marker",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Quoted mapping key and marker are decoded",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/quoted.md",
+        "classification": "valid",
+        "id": "QUOTED"
+      }
+    ]
+  }
+}

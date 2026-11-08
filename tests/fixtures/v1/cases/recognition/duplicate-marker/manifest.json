@@ -1,0 +1,32 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/duplicate-marker",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Conflicting duplicate kadai declarations",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/dupe.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "duplicate_mapping_key",
+        "path": "tasks/dupe.md",
+        "field": "kadai"
+      }
+    ]
+  }
+}

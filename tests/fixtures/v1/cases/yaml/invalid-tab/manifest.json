@@ -1,0 +1,31 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/invalid-tab",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Indentation tabs unsupported",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/tab.md",
+        "classification": "invalid_candidate"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "invalid_indentation",
+        "path": "tasks/tab.md"
+      }
+    ]
+  }
+}

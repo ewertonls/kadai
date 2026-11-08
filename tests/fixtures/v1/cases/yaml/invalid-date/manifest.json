@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/invalid-date",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Invalid leap-day date rejected",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/due.md",
+        "classification": "invalid_candidate",
+        "id": "DUE"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "invalid_due",
+        "path": "tasks/due.md",
+        "field": "due"
+      }
+    ]
+  }
+}

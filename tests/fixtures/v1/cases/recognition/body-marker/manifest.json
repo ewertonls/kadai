@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/body-marker",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Do not seek later YAML header or body marker",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/body.md",
+        "classification": "non_task"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "fixture_version": 1,
+  "id": "recognition/ordinary-md",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Plain Markdown is not imported",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "ok",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/notes.md",
+        "classification": "non_task"
+      }
+    ]
+  }
+}

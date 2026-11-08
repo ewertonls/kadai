@@ -1,0 +1,33 @@
+{
+  "fixture_version": 1,
+  "id": "yaml/unknown-key",
+  "contracts": [
+    "KAD-002",
+    "KAD-006"
+  ],
+  "description": "Unknown v1 top-level task metadata not accepted",
+  "cwd": "project",
+  "tier": "normal",
+  "action": {
+    "op": "scan"
+  },
+  "expect": {
+    "result": "diagnostic",
+    "scan_complete": true,
+    "no_writes": true,
+    "documents": [
+      {
+        "path": "tasks/unknown.md",
+        "classification": "invalid_candidate",
+        "id": "UNKNOWN"
+      }
+    ],
+    "diagnostics": [
+      {
+        "category": "unknown_top_level_key",
+        "path": "tasks/unknown.md",
+        "field": "sprint"
+      }
+    ]
+  }
+}
