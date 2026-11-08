@@ -1,0 +1,424 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KAD-007 fixture manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fixture_version",
+    "id",
+    "contracts",
+    "description",
+    "cwd",
+    "tier",
+    "action",
+    "expect"
+  ],
+  "properties": {
+    "fixture_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*/[a-z0-9_-]+$"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^KAD-[0-9]{3}$"
+      }
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tier": {
+      "enum": [
+        "normal",
+        "heavy"
+      ]
+    },
+    "requires": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "symlink",
+          "hardlink",
+          "permissions",
+          "acl",
+          "xattr",
+          "case_sensitive_filesystem",
+          "case_insensitive_filesystem"
+        ]
+      }
+    },
+    "setup": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/setup"
+      }
+    },
+    "assert_generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "value"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "task_source_bytes",
+            "yaml_document_bytes",
+            "yaml_nodes_document",
+            "yaml_depth",
+            "filesystem_entries",
+            "markdown_candidates",
+            "scan_yaml_bytes",
+            "scan_yaml_nodes"
+          ]
+        },
+        "value": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "action": {
+      "$ref": "#/$defs/action"
+    },
+    "expect": {
+      "$ref": "#/$defs/expect"
+    }
+  },
+  "$defs": {
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op",
+        "path"
+      ],
+      "properties": {
+        "op": {
+          "enum": [
+            "mkdir",
+            "symlink",
+            "hardlink",
+            "chmod",
+            "write_bytes",
+            "generate_file",
+            "generate_family"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "task_source_bytes",
+            "yaml_header_bytes",
+            "yaml_node_count",
+            "yaml_depth",
+            "regular_file",
+            "entries",
+            "markdown_candidates",
+            "yaml_bytes_total",
+            "yaml_nodes_total"
+          ]
+        },
+        "base64": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "extension": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "repeat_byte": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "enum": [
+            "scan",
+            "validate",
+            "resolve_config",
+            "add",
+            "set",
+            "delete",
+            "link",
+            "repair_id",
+            "plan_patch"
+          ]
+        },
+        "project": {
+          "type": "string"
+        },
+        "tasks_root": {
+          "type": "string"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category"
+      ],
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "classification"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "classification": {
+          "enum": [
+            "valid",
+            "invalid_candidate",
+            "unsupported_schema",
+            "non_task"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "result"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "result": {
+          "enum": [
+            "ready",
+            "blocked",
+            "unresolved"
+          ]
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "no_writes"
+      ],
+      "properties": {
+        "result": {
+          "enum": [
+            "ok",
+            "diagnostic",
+            "refused",
+            "scan_incomplete",
+            "unsupported_schema",
+            "config_error"
+          ]
+        },
+        "no_writes": {
+          "type": "boolean"
+        },
+        "scan_complete": {
+          "type": "boolean"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/document"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "ordered_diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "readiness": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/readiness"
+          }
+        },
+        "ready_selection": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quarantined_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "history_markers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_id": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "object"
+        },
+        "custom_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "relationships": {
+          "type": "object"
+        },
+        "cycle_members": {
+          "type": "object"
+        },
+        "goldens": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "proposed_goldens": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "unchanged": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unchanged_spans": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "absent": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "before_file_access": {
+          "type": "boolean"
+        },
+        "normal_partial_results": {
+          "type": "boolean"
+        },
+        "allow_additional_diagnostics": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

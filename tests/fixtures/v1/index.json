@@ -1,0 +1,773 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {
+      "id": "config/absolute-config-path",
+      "manifest": "cases/config/absolute-config-path/manifest.json"
+    },
+    {
+      "id": "config/boards-config-independent",
+      "manifest": "cases/config/boards-config-independent/manifest.json"
+    },
+    {
+      "id": "config/boards-excluded",
+      "manifest": "cases/config/boards-excluded/manifest.json"
+    },
+    {
+      "id": "config/cli-empty-excludes",
+      "manifest": "cases/config/cli-empty-excludes/manifest.json"
+    },
+    {
+      "id": "config/cli-exclude-replaces",
+      "manifest": "cases/config/cli-exclude-replaces/manifest.json"
+    },
+    {
+      "id": "config/config-duplicate",
+      "manifest": "cases/config/config-duplicate/manifest.json"
+    },
+    {
+      "id": "config/config-invalid-unknown",
+      "manifest": "cases/config/config-invalid-unknown/manifest.json"
+    },
+    {
+      "id": "config/config-traversal",
+      "manifest": "cases/config/config-traversal/manifest.json"
+    },
+    {
+      "id": "config/custom-root",
+      "manifest": "cases/config/custom-root/manifest.json"
+    },
+    {
+      "id": "config/cwd-not-git-root",
+      "manifest": "cases/config/cwd-not-git-root/manifest.json"
+    },
+    {
+      "id": "config/dot-board-invalid",
+      "manifest": "cases/config/dot-board-invalid/manifest.json"
+    },
+    {
+      "id": "config/explicit-project-symlink",
+      "manifest": "cases/config/explicit-project-symlink/manifest.json"
+    },
+    {
+      "id": "config/explicit-project",
+      "manifest": "cases/config/explicit-project/manifest.json"
+    },
+    {
+      "id": "config/external-config-symlink",
+      "manifest": "cases/config/external-config-symlink/manifest.json"
+    },
+    {
+      "id": "config/external-root-symlink",
+      "manifest": "cases/config/external-root-symlink/manifest.json"
+    },
+    {
+      "id": "config/future-config-schema",
+      "manifest": "cases/config/future-config-schema/manifest.json"
+    },
+    {
+      "id": "config/gitignore-ignored",
+      "manifest": "cases/config/gitignore-ignored/manifest.json"
+    },
+    {
+      "id": "config/glob-excludes",
+      "manifest": "cases/config/glob-excludes/manifest.json"
+    },
+    {
+      "id": "config/hidden-scanned",
+      "manifest": "cases/config/hidden-scanned/manifest.json"
+    },
+    {
+      "id": "config/internal-config-symlink",
+      "manifest": "cases/config/internal-config-symlink/manifest.json"
+    },
+    {
+      "id": "config/internal-kadai-excluded",
+      "manifest": "cases/config/internal-kadai-excluded/manifest.json"
+    },
+    {
+      "id": "config/internal-root-symlink",
+      "manifest": "cases/config/internal-root-symlink/manifest.json"
+    },
+    {
+      "id": "config/invalid-exclusion-glob",
+      "manifest": "cases/config/invalid-exclusion-glob/manifest.json"
+    },
+    {
+      "id": "config/invalid-leaf-overridden",
+      "manifest": "cases/config/invalid-leaf-overridden/manifest.json"
+    },
+    {
+      "id": "config/invalid-root-overridden",
+      "manifest": "cases/config/invalid-root-overridden/manifest.json"
+    },
+    {
+      "id": "config/missing-project",
+      "manifest": "cases/config/missing-project/manifest.json"
+    },
+    {
+      "id": "config/missing-tasks-dir",
+      "manifest": "cases/config/missing-tasks-dir/manifest.json"
+    },
+    {
+      "id": "config/nested-git-boundary",
+      "manifest": "cases/config/nested-git-boundary/manifest.json"
+    },
+    {
+      "id": "config/nested-project-boundary",
+      "manifest": "cases/config/nested-project-boundary/manifest.json"
+    },
+    {
+      "id": "config/no-config",
+      "manifest": "cases/config/no-config/manifest.json"
+    },
+    {
+      "id": "config/null-list-element",
+      "manifest": "cases/config/null-list-element/manifest.json"
+    },
+    {
+      "id": "config/null-optional",
+      "manifest": "cases/config/null-optional/manifest.json"
+    },
+    {
+      "id": "config/null-status-extension",
+      "manifest": "cases/config/null-status-extension/manifest.json"
+    },
+    {
+      "id": "config/overlapping-root",
+      "manifest": "cases/config/overlapping-root/manifest.json"
+    },
+    {
+      "id": "config/relative-task-root",
+      "manifest": "cases/config/relative-task-root/manifest.json"
+    },
+    {
+      "id": "config/root-override",
+      "manifest": "cases/config/root-override/manifest.json"
+    },
+    {
+      "id": "config/scanner-dir-symlink",
+      "manifest": "cases/config/scanner-dir-symlink/manifest.json"
+    },
+    {
+      "id": "config/scanner-file-symlink",
+      "manifest": "cases/config/scanner-file-symlink/manifest.json"
+    },
+    {
+      "id": "config/tasks-root-dot",
+      "manifest": "cases/config/tasks-root-dot/manifest.json"
+    },
+    {
+      "id": "config/unknown-key-not-overridden",
+      "manifest": "cases/config/unknown-key-not-overridden/manifest.json"
+    },
+    {
+      "id": "graph/canceled-is-blocking",
+      "manifest": "cases/graph/canceled-is-blocking/manifest.json"
+    },
+    {
+      "id": "graph/cross-collection-dependency",
+      "manifest": "cases/graph/cross-collection-dependency/manifest.json"
+    },
+    {
+      "id": "graph/custom-status-mapping",
+      "manifest": "cases/graph/custom-status-mapping/manifest.json"
+    },
+    {
+      "id": "graph/cycle-does-not-propagate",
+      "manifest": "cases/graph/cycle-does-not-propagate/manifest.json"
+    },
+    {
+      "id": "graph/default-delete-inbound-protected",
+      "manifest": "cases/graph/default-delete-inbound-protected/manifest.json"
+    },
+    {
+      "id": "graph/default-ready-filter",
+      "manifest": "cases/graph/default-ready-filter/manifest.json"
+    },
+    {
+      "id": "graph/dep-absent-null-empty",
+      "manifest": "cases/graph/dep-absent-null-empty/manifest.json"
+    },
+    {
+      "id": "graph/dependency-add-cycle-refused",
+      "manifest": "cases/graph/dependency-add-cycle-refused/manifest.json"
+    },
+    {
+      "id": "graph/dependency-cycle",
+      "manifest": "cases/graph/dependency-cycle/manifest.json"
+    },
+    {
+      "id": "graph/dependency-self",
+      "manifest": "cases/graph/dependency-self/manifest.json"
+    },
+    {
+      "id": "graph/detach-with-item-comment-refused",
+      "manifest": "cases/graph/detach-with-item-comment-refused/manifest.json"
+    },
+    {
+      "id": "graph/direct-done-transitive",
+      "manifest": "cases/graph/direct-done-transitive/manifest.json"
+    },
+    {
+      "id": "graph/duplicate-target-unresolved",
+      "manifest": "cases/graph/duplicate-target-unresolved/manifest.json"
+    },
+    {
+      "id": "graph/id-casefold-references",
+      "manifest": "cases/graph/id-casefold-references/manifest.json"
+    },
+    {
+      "id": "graph/invalid-status-prerequisite",
+      "manifest": "cases/graph/invalid-status-prerequisite/manifest.json"
+    },
+    {
+      "id": "graph/missing-dep-unresolved-precedence",
+      "manifest": "cases/graph/missing-dep-unresolved-precedence/manifest.json"
+    },
+    {
+      "id": "graph/missing-parent",
+      "manifest": "cases/graph/missing-parent/manifest.json"
+    },
+    {
+      "id": "graph/mixed-edge-cycle-valid",
+      "manifest": "cases/graph/mixed-edge-cycle-valid/manifest.json"
+    },
+    {
+      "id": "graph/nested-all-roots",
+      "manifest": "cases/graph/nested-all-roots/manifest.json"
+    },
+    {
+      "id": "graph/parent-casefold",
+      "manifest": "cases/graph/parent-casefold/manifest.json"
+    },
+    {
+      "id": "graph/parent-cycle",
+      "manifest": "cases/graph/parent-cycle/manifest.json"
+    },
+    {
+      "id": "graph/parent-independent-status",
+      "manifest": "cases/graph/parent-independent-status/manifest.json"
+    },
+    {
+      "id": "graph/parent-self",
+      "manifest": "cases/graph/parent-self/manifest.json"
+    },
+    {
+      "id": "graph/status-done-refused",
+      "manifest": "cases/graph/status-done-refused/manifest.json"
+    },
+    {
+      "id": "graph/unsupported-prerequisite",
+      "manifest": "cases/graph/unsupported-prerequisite/manifest.json"
+    },
+    {
+      "id": "identity/corrupt-marker",
+      "manifest": "cases/identity/corrupt-marker/manifest.json"
+    },
+    {
+      "id": "identity/duplicate-case",
+      "manifest": "cases/identity/duplicate-case/manifest.json"
+    },
+    {
+      "id": "identity/duplicate-id-repair-needs-reference-choice",
+      "manifest": "cases/identity/duplicate-id-repair-needs-reference-choice/manifest.json"
+    },
+    {
+      "id": "identity/invalid-manual-id-blocks-allocation",
+      "manifest": "cases/identity/invalid-manual-id-blocks-allocation/manifest.json"
+    },
+    {
+      "id": "identity/large-number-next",
+      "manifest": "cases/identity/large-number-next/manifest.json"
+    },
+    {
+      "id": "identity/manual-id-high-water",
+      "manifest": "cases/identity/manual-id-high-water/manifest.json"
+    },
+    {
+      "id": "identity/manual-observation-on-write",
+      "manifest": "cases/identity/manual-observation-on-write/manifest.json"
+    },
+    {
+      "id": "identity/name-independent",
+      "manifest": "cases/identity/name-independent/manifest.json"
+    },
+    {
+      "id": "identity/occupied-default-filename",
+      "manifest": "cases/identity/occupied-default-filename/manifest.json"
+    },
+    {
+      "id": "identity/prefixed-history-high-water",
+      "manifest": "cases/identity/prefixed-history-high-water/manifest.json"
+    },
+    {
+      "id": "identity/read-does-not-observe-manual",
+      "manifest": "cases/identity/read-does-not-observe-manual/manifest.json"
+    },
+    {
+      "id": "identity/restored-history",
+      "manifest": "cases/identity/restored-history/manifest.json"
+    },
+    {
+      "id": "identity/unprefixed-history-high-water",
+      "manifest": "cases/identity/unprefixed-history-high-water/manifest.json"
+    },
+    {
+      "id": "limits/diagnostics-sorted",
+      "manifest": "cases/limits/diagnostics-sorted/manifest.json"
+    },
+    {
+      "id": "limits/filesystem_entries_default_plus_one",
+      "manifest": "cases/limits/filesystem_entries_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/filesystem_entries_equal_default",
+      "manifest": "cases/limits/filesystem_entries_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/filesystem_entries_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/filesystem_entries_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/filesystem_entries_raised_override",
+      "manifest": "cases/limits/filesystem_entries_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/incomplete-no-partial-result",
+      "manifest": "cases/limits/incomplete-no-partial-result/manifest.json"
+    },
+    {
+      "id": "limits/limit-does-not-change-identity",
+      "manifest": "cases/limits/limit-does-not-change-identity/manifest.json"
+    },
+    {
+      "id": "limits/markdown_candidates_default_plus_one",
+      "manifest": "cases/limits/markdown_candidates_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/markdown_candidates_equal_default",
+      "manifest": "cases/limits/markdown_candidates_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/markdown_candidates_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/markdown_candidates_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/markdown_candidates_raised_override",
+      "manifest": "cases/limits/markdown_candidates_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/negative-limit",
+      "manifest": "cases/limits/negative-limit/manifest.json"
+    },
+    {
+      "id": "limits/no-frontmatter-large-markdown",
+      "manifest": "cases/limits/no-frontmatter-large-markdown/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_bytes_default_plus_one",
+      "manifest": "cases/limits/scan_yaml_bytes_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_bytes_equal_default",
+      "manifest": "cases/limits/scan_yaml_bytes_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_bytes_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/scan_yaml_bytes_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_bytes_raised_override",
+      "manifest": "cases/limits/scan_yaml_bytes_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_nodes_default_plus_one",
+      "manifest": "cases/limits/scan_yaml_nodes_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_nodes_equal_default",
+      "manifest": "cases/limits/scan_yaml_nodes_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_nodes_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/scan_yaml_nodes_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/scan_yaml_nodes_raised_override",
+      "manifest": "cases/limits/scan_yaml_nodes_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/task_source_bytes_default_plus_one",
+      "manifest": "cases/limits/task_source_bytes_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/task_source_bytes_equal_default",
+      "manifest": "cases/limits/task_source_bytes_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/task_source_bytes_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/task_source_bytes_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/task_source_bytes_raised_override",
+      "manifest": "cases/limits/task_source_bytes_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_depth_default_plus_one",
+      "manifest": "cases/limits/yaml_depth_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/yaml_depth_equal_default",
+      "manifest": "cases/limits/yaml_depth_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/yaml_depth_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/yaml_depth_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_depth_raised_override",
+      "manifest": "cases/limits/yaml_depth_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_document_bytes_default_plus_one",
+      "manifest": "cases/limits/yaml_document_bytes_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/yaml_document_bytes_equal_default",
+      "manifest": "cases/limits/yaml_document_bytes_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/yaml_document_bytes_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/yaml_document_bytes_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_document_bytes_raised_override",
+      "manifest": "cases/limits/yaml_document_bytes_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_nodes_document_default_plus_one",
+      "manifest": "cases/limits/yaml_nodes_document_default_plus_one/manifest.json"
+    },
+    {
+      "id": "limits/yaml_nodes_document_equal_default",
+      "manifest": "cases/limits/yaml_nodes_document_equal_default/manifest.json"
+    },
+    {
+      "id": "limits/yaml_nodes_document_hard_ceiling_plus_one_override",
+      "manifest": "cases/limits/yaml_nodes_document_hard_ceiling_plus_one_override/manifest.json"
+    },
+    {
+      "id": "limits/yaml_nodes_document_raised_override",
+      "manifest": "cases/limits/yaml_nodes_document_raised_override/manifest.json"
+    },
+    {
+      "id": "limits/zero-limit",
+      "manifest": "cases/limits/zero-limit/manifest.json"
+    },
+    {
+      "id": "patch/ambiguous-duplicate-scalar",
+      "manifest": "cases/patch/ambiguous-duplicate-scalar/manifest.json"
+    },
+    {
+      "id": "patch/block-sequence-add",
+      "manifest": "cases/patch/block-sequence-add/manifest.json"
+    },
+    {
+      "id": "patch/block-sequence-remove",
+      "manifest": "cases/patch/block-sequence-remove/manifest.json"
+    },
+    {
+      "id": "patch/clear-null-parent",
+      "manifest": "cases/patch/clear-null-parent/manifest.json"
+    },
+    {
+      "id": "patch/crlf-bom",
+      "manifest": "cases/patch/crlf-bom/manifest.json"
+    },
+    {
+      "id": "patch/flow-sequence-add",
+      "manifest": "cases/patch/flow-sequence-add/manifest.json"
+    },
+    {
+      "id": "patch/flow-sequence-remove",
+      "manifest": "cases/patch/flow-sequence-remove/manifest.json"
+    },
+    {
+      "id": "patch/insert-priority",
+      "manifest": "cases/patch/insert-priority/manifest.json"
+    },
+    {
+      "id": "patch/invalid-yaml",
+      "manifest": "cases/patch/invalid-yaml/manifest.json"
+    },
+    {
+      "id": "patch/mixed-line-endings",
+      "manifest": "cases/patch/mixed-line-endings/manifest.json"
+    },
+    {
+      "id": "patch/no-final-newline",
+      "manifest": "cases/patch/no-final-newline/manifest.json"
+    },
+    {
+      "id": "patch/quote-required",
+      "manifest": "cases/patch/quote-required/manifest.json"
+    },
+    {
+      "id": "patch/quoted-title",
+      "manifest": "cases/patch/quoted-title/manifest.json"
+    },
+    {
+      "id": "patch/remove-key-with-leading-comment",
+      "manifest": "cases/patch/remove-key-with-leading-comment/manifest.json"
+    },
+    {
+      "id": "patch/remove-priority",
+      "manifest": "cases/patch/remove-priority/manifest.json"
+    },
+    {
+      "id": "patch/repair-invalid-status",
+      "manifest": "cases/patch/repair-invalid-status/manifest.json"
+    },
+    {
+      "id": "patch/required-unset",
+      "manifest": "cases/patch/required-unset/manifest.json"
+    },
+    {
+      "id": "patch/scalar-quoted-escape",
+      "manifest": "cases/patch/scalar-quoted-escape/manifest.json"
+    },
+    {
+      "id": "patch/scalar-status-comment",
+      "manifest": "cases/patch/scalar-status-comment/manifest.json"
+    },
+    {
+      "id": "patch/unrelated-update-invalid-status",
+      "manifest": "cases/patch/unrelated-update-invalid-status/manifest.json"
+    },
+    {
+      "id": "patch/unsafe-comment-removal",
+      "manifest": "cases/patch/unsafe-comment-removal/manifest.json"
+    },
+    {
+      "id": "patch/unsafe-line-ending-insert",
+      "manifest": "cases/patch/unsafe-line-ending-insert/manifest.json"
+    },
+    {
+      "id": "patch/unsupported-anchor",
+      "manifest": "cases/patch/unsupported-anchor/manifest.json"
+    },
+    {
+      "id": "patch/unsupported-flow-comment",
+      "manifest": "cases/patch/unsupported-flow-comment/manifest.json"
+    },
+    {
+      "id": "patch/unsupported-future-schema",
+      "manifest": "cases/patch/unsupported-future-schema/manifest.json"
+    },
+    {
+      "id": "recognition/basic",
+      "manifest": "cases/recognition/basic/manifest.json"
+    },
+    {
+      "id": "recognition/block-scalar-marker",
+      "manifest": "cases/recognition/block-scalar-marker/manifest.json"
+    },
+    {
+      "id": "recognition/body-delimiter",
+      "manifest": "cases/recognition/body-delimiter/manifest.json"
+    },
+    {
+      "id": "recognition/body-marker",
+      "manifest": "cases/recognition/body-marker/manifest.json"
+    },
+    {
+      "id": "recognition/commented-marker",
+      "manifest": "cases/recognition/commented-marker/manifest.json"
+    },
+    {
+      "id": "recognition/crlf-bom",
+      "manifest": "cases/recognition/crlf-bom/manifest.json"
+    },
+    {
+      "id": "recognition/duplicate-marker",
+      "manifest": "cases/recognition/duplicate-marker/manifest.json"
+    },
+    {
+      "id": "recognition/empty-header",
+      "manifest": "cases/recognition/empty-header/manifest.json"
+    },
+    {
+      "id": "recognition/future-schema",
+      "manifest": "cases/recognition/future-schema/manifest.json"
+    },
+    {
+      "id": "recognition/invalid-id",
+      "manifest": "cases/recognition/invalid-id/manifest.json"
+    },
+    {
+      "id": "recognition/invalid-utf8",
+      "manifest": "cases/recognition/invalid-utf8/manifest.json"
+    },
+    {
+      "id": "recognition/malformed-after-marker",
+      "manifest": "cases/recognition/malformed-after-marker/manifest.json"
+    },
+    {
+      "id": "recognition/missing-close",
+      "manifest": "cases/recognition/missing-close/manifest.json"
+    },
+    {
+      "id": "recognition/mixed-newlines",
+      "manifest": "cases/recognition/mixed-newlines/manifest.json"
+    },
+    {
+      "id": "recognition/nested-marker",
+      "manifest": "cases/recognition/nested-marker/manifest.json"
+    },
+    {
+      "id": "recognition/nested-path",
+      "manifest": "cases/recognition/nested-path/manifest.json"
+    },
+    {
+      "id": "recognition/ordinary-md",
+      "manifest": "cases/recognition/ordinary-md/manifest.json"
+    },
+    {
+      "id": "recognition/other-discriminator",
+      "manifest": "cases/recognition/other-discriminator/manifest.json"
+    },
+    {
+      "id": "recognition/partial-id-invalid-status",
+      "manifest": "cases/recognition/partial-id-invalid-status/manifest.json"
+    },
+    {
+      "id": "recognition/quoted-marker",
+      "manifest": "cases/recognition/quoted-marker/manifest.json"
+    },
+    {
+      "id": "recognition/unicode",
+      "manifest": "cases/recognition/unicode/manifest.json"
+    },
+    {
+      "id": "yaml/alias",
+      "manifest": "cases/yaml/alias/manifest.json"
+    },
+    {
+      "id": "yaml/anchor",
+      "manifest": "cases/yaml/anchor/manifest.json"
+    },
+    {
+      "id": "yaml/control-char-custom-key",
+      "manifest": "cases/yaml/control-char-custom-key/manifest.json"
+    },
+    {
+      "id": "yaml/directive",
+      "manifest": "cases/yaml/directive/manifest.json"
+    },
+    {
+      "id": "yaml/duplicate-custom-key",
+      "manifest": "cases/yaml/duplicate-custom-key/manifest.json"
+    },
+    {
+      "id": "yaml/duplicate-nested-flow",
+      "manifest": "cases/yaml/duplicate-nested-flow/manifest.json"
+    },
+    {
+      "id": "yaml/duplicate-top-key",
+      "manifest": "cases/yaml/duplicate-top-key/manifest.json"
+    },
+    {
+      "id": "yaml/flow-block",
+      "manifest": "cases/yaml/flow-block/manifest.json"
+    },
+    {
+      "id": "yaml/invalid-date",
+      "manifest": "cases/yaml/invalid-date/manifest.json"
+    },
+    {
+      "id": "yaml/invalid-dependency-case-dupe",
+      "manifest": "cases/yaml/invalid-dependency-case-dupe/manifest.json"
+    },
+    {
+      "id": "yaml/invalid-plain-key-null",
+      "manifest": "cases/yaml/invalid-plain-key-null/manifest.json"
+    },
+    {
+      "id": "yaml/invalid-tab",
+      "manifest": "cases/yaml/invalid-tab/manifest.json"
+    },
+    {
+      "id": "yaml/invalid-tag-duplicate",
+      "manifest": "cases/yaml/invalid-tag-duplicate/manifest.json"
+    },
+    {
+      "id": "yaml/known-numeric-string",
+      "manifest": "cases/yaml/known-numeric-string/manifest.json"
+    },
+    {
+      "id": "yaml/literal-merge-key-valid",
+      "manifest": "cases/yaml/literal-merge-key-valid/manifest.json"
+    },
+    {
+      "id": "yaml/literal-merge-key",
+      "manifest": "cases/yaml/literal-merge-key/manifest.json"
+    },
+    {
+      "id": "yaml/lone-cr",
+      "manifest": "cases/yaml/lone-cr/manifest.json"
+    },
+    {
+      "id": "yaml/multiline-title",
+      "manifest": "cases/yaml/multiline-title/manifest.json"
+    },
+    {
+      "id": "yaml/multiple-documents",
+      "manifest": "cases/yaml/multiple-documents/manifest.json"
+    },
+    {
+      "id": "yaml/non-string-key",
+      "manifest": "cases/yaml/non-string-key/manifest.json"
+    },
+    {
+      "id": "yaml/null-optional",
+      "manifest": "cases/yaml/null-optional/manifest.json"
+    },
+    {
+      "id": "yaml/null-required",
+      "manifest": "cases/yaml/null-required/manifest.json"
+    },
+    {
+      "id": "yaml/numeric-core",
+      "manifest": "cases/yaml/numeric-core/manifest.json"
+    },
+    {
+      "id": "yaml/quoted-integer-version",
+      "manifest": "cases/yaml/quoted-integer-version/manifest.json"
+    },
+    {
+      "id": "yaml/quoted-null-string",
+      "manifest": "cases/yaml/quoted-null-string/manifest.json"
+    },
+    {
+      "id": "yaml/root-flow-map",
+      "manifest": "cases/yaml/root-flow-map/manifest.json"
+    },
+    {
+      "id": "yaml/tag",
+      "manifest": "cases/yaml/tag/manifest.json"
+    },
+    {
+      "id": "yaml/unicode-key-distinct",
+      "manifest": "cases/yaml/unicode-key-distinct/manifest.json"
+    },
+    {
+      "id": "yaml/unknown-key",
+      "manifest": "cases/yaml/unknown-key/manifest.json"
+    },
+    {
+      "id": "yaml/valid-datetime",
+      "manifest": "cases/yaml/valid-datetime/manifest.json"
+    }
+  ]
+}
