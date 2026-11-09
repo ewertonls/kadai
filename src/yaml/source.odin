@@ -8,7 +8,7 @@ Byte_Range :: struct {start, end: int}
 Node :: struct {
 	kind:    Node_Kind,
 	// Half-open byte offsets into the original YAML input.
-	span:    Byte_Range,
+	using location: Location,
 	// Decoded scalar text. For numbers kind + text is lossless at any precision.
 	text:    string,
 	items:   [dynamic]Node,

@@ -34,6 +34,11 @@ Reader :: struct {
 	node_count: int,
 	char_index: uint,
 	byte_index: int,
+	field: [dynamic]union {^Entry, int},
+	offender: ^Node,
+	bad_offset: int,
+	failed_depth: int,
+	initialized: bool,
 }
 
 @(private)
@@ -54,6 +59,7 @@ byte_offset :: proc(r: ^Reader, mark: oyaml.mark, scalar_content := false) -> (i
 		// LibYAML skips a BOM before a document even after leading comments.
 		// A U+FEFF inside a scalar is content and keeps its original span.
 		if !scalar_content && c == '\uFEFF' && (r.byte_index == 0 || r.source[r.byte_index-1] == '\n') {
+			r.bad_offset = r.byte_index
 			return 0, .Unexpected_BOM
 		}
 		r.byte_index += size
@@ -73,8 +79,12 @@ check_properties :: proc(anchor, tag: cstring) -> Error {
 read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 	r.node_count += 1
 	if r.node_count > r.limits.nodes do return .Too_Many_Nodes
-	if depth > r.limits.depth do return .Too_Deep
+	if depth > r.limits.depth {
+		r.failed_depth = depth
+		return .Too_Deep
+	}
 	node.span.start = byte_offset(r, r.event.start_mark) or_return
+	node.line, node.column = int(r.event.start_mark.line) + 1, int(r.event.start_mark.column) + 1
 	#partial switch r.event.type {
 	case .SCALAR_EVENT:
 		scalar := r.event.data.scalar
@@ -88,7 +98,9 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 		advance(r) or_return
 		for r.event.type != .SEQUENCE_END_EVENT {
 			append(&node.items, Node{})
+			append(&r.field, len(node.items) - 1)
 			read_node(r, &node.items[len(node.items)-1], depth + 1) or_return
+			pop(&r.field)
 			advance(r) or_return
 		}
 	case .MAPPING_START_EVENT:
@@ -102,11 +114,19 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 			append(&node.entries, Entry{})
 			pair := &node.entries[len(node.entries)-1]
 			read_node(r, &pair.key, depth + 1) or_return
-			if pair.key.kind == .Mapping || pair.key.kind == .Sequence do return .Invalid_Key
-			if pair.key.text in seen do return .Duplicate_Key
+			if pair.key.kind == .Mapping || pair.key.kind == .Sequence {
+				r.offender = &pair.key
+				return .Invalid_Key
+			}
+			append(&r.field, pair)
+			if pair.key.text in seen {
+				r.offender = &pair.key
+				return .Duplicate_Key
+			}
 			seen[pair.key.text] = true
 			advance(r) or_return
 			read_node(r, &pair.value, depth + 1) or_return
+			pop(&r.field)
 			advance(r) or_return
 		}
 	case .ALIAS_EVENT: return .Alias
@@ -129,7 +149,10 @@ read_document :: proc(r: ^Reader, root: ^Node) -> Error {
 	if doc.version_directive_m != nil || doc.tag_directives.start != doc.tag_directives.end do return .Directive
 	advance(r) or_return
 	read_node(r, root, 1) or_return
-	if root.kind != .Mapping do return .Not_Mapping
+	if root.kind != .Mapping {
+		r.offender = root
+		return .Not_Mapping
+	}
 	advance(r) or_return // document end
 	advance(r) or_return
 	if r.event.type != .STREAM_END_EVENT do return .Multiple_Documents
@@ -137,24 +160,45 @@ read_document :: proc(r: ^Reader, root: ^Node) -> Error {
 	return .None
 }
 
-// Parses one bounded mapping. An empty stream returns an Absent node. The
-// caller owns a successful tree and releases it with destroy.
-parse_mapping :: proc(source: string, limits := DEFAULT_LIMITS) -> (Node, Error) {
-	if !valid_limits(limits) do return {}, .Invalid_Limits
-	if len(source) > limits.bytes do return {}, .Too_Large
-	if len(source) == 0 do return {}, .None
-	if !utf8.valid_string(source) do return {}, .Invalid_UTF8
-	if strings.has_prefix(source, "\uFEFF") do return {}, .Unexpected_BOM
-	for c, i in source {
-		if unsupported_line_break(c, source[i:]) do return {}, .Unsupported_Line_Break
+@(private)
+parse_input :: proc(r: ^Reader, root: ^Node) -> Error {
+	if !valid_limits(r.limits) do return .Invalid_Limits
+	if len(r.source) > r.limits.bytes do return .Too_Large
+	if len(r.source) == 0 do return .None
+	if offset, invalid := first_invalid_utf8(r.source); invalid {
+		r.bad_offset = offset
+		return .Invalid_UTF8
 	}
-	reader := Reader{source = source, limits = limits}
-	if oyaml.parser_initialize(&reader.parser) == 0 do return {}, .Syntax
-	defer oyaml.parser_delete(&reader.parser)
-	defer oyaml.event_delete(&reader.event)
-	oyaml.parser_set_input_string(&reader.parser, raw_data(source), uint(len(source)))
+	if strings.has_prefix(r.source, "\uFEFF") {
+		r.bad_offset = 0
+		return .Unexpected_BOM
+	}
+	for c, i in r.source {
+		if unsupported_line_break(c, r.source[i:]) {
+			r.bad_offset = i
+			return .Unsupported_Line_Break
+		}
+	}
+	if oyaml.parser_initialize(&r.parser) == 0 do return .Syntax
+	r.initialized = true
+	oyaml.parser_set_input_string(&r.parser, raw_data(r.source), uint(len(r.source)))
+	return read_document(r, root)
+}
+
+// The caller owns a successful tree (Absent for an empty stream). On failure,
+// an optional fresh report receives a diagnostic relative to the YAML source.
+parse_mapping :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "") -> (Node, Error) {
+	r := Reader{source = source, limits = limits, bad_offset = -1}
+	defer {
+		delete(r.field)
+		if r.initialized {
+			oyaml.event_delete(&r.event)
+			oyaml.parser_delete(&r.parser)
+		}
+	}
 	root: Node
-	if err := read_document(&reader, &root); err != .None {
+	if err := parse_input(&r, &root); err != .None {
+		if report != nil do report^ = parser_diagnostic(&r, err, path)
 		destroy(&root)
 		return {}, err
 	}
