@@ -9,7 +9,7 @@
 - **Published:** 2026-11-03.
 - **Upstream note:** Hotfix to `dev-2026-11` correcting a BNG/LZ4 enum clash.
 
-This is the recommended compiler for contributors and the future CI baseline. Other Odin versions are allowed, but not automatically verified. When KAD-010 introduces version checks, differences should generate a **warning**, not block development.
+This is the recommended compiler for contributors and the future CI baseline. Contributors may use other Odin versions. Compatibility with those versions is unverified.
 
 ## Official artifacts
 
@@ -70,7 +70,6 @@ These SHA-256 values are from the official release's GitHub asset metadata.
 
 - The reference is **advisory**, not a minimum supported version or compatibility gate.
 - When changing the baseline, update the tag, commit, links and SHA-256 values together.
-- Do not automatically install or replace the contributor's compiler. KAD-010 may emit version-mismatch warnings, not errors solely for mismatches.
-- KAD-009 defines packages; KAD-010 adds build/format/vet scripts; KAD-011 adds test runners; KAD-012 adds the CLI entrypoint. None is included in KAD-008.
+- Contributors manage their own compiler installation. If tooling detects a version mismatch, it may warn and continue.
 
 Upstream: [official Odin installation guide](https://odin-lang.org/docs/install/).
