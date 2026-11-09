@@ -1,3 +1,4 @@
 /kadai
 /kadai.exe
 .DS_Store
+/third_party/odin-yaml/shared/libyaml/
