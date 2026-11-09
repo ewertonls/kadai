@@ -48,12 +48,11 @@ compose_header_edit :: proc(doc: ^Task_Document, span: Byte_Range, replacement: 
 		return "", yaml.diagnostic(doc.path, "unsafe_source_patch", "", "Keep the closing delimiter at the start of its own line.", loc) or_return
 	}
 
-	failure: yaml.Diagnostic
-	parts, status := extract_frontmatter(edited, limits, &failure, doc.path)
+	parts, status := extract_frontmatter(edited, limits)
 	if status != .Present {
 		// The candidate is discarded. Point to the planned edit in the original.
-		failure.location = yaml.locate(doc.source, {start, end})
-		return "", failure
+		loc := yaml.locate(doc.source, {start, end})
+		return "", boundary_diagnostic(edited, doc.path, status, limits, loc) or_return
 	}
 	// The suffix was copied verbatim. Its original closing delimiter must
 	// still be the one that separates the YAML from the Markdown body.

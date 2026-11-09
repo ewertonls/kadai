@@ -1,6 +1,7 @@
 // Interprets task Markdown and applies source-preserving frontmatter edits.
 package document
 
+import "base:runtime"
 import "core:strings"
 import "core:unicode/utf8"
 import "kadai:yaml"
@@ -75,7 +76,11 @@ extract_frontmatter :: proc(
 ) -> (parts: Frontmatter, status: Frontmatter_Status) {
 	bad_offset := -1
 	defer if report != nil && status != .Present && status != .Absent {
-		report^ = boundary_diagnostic(source, path, status, limits, bad_offset)
+		loc: yaml.Location
+		if bad_offset >= 0 {
+			loc = yaml.locate(source, yaml.rune_span(source, bad_offset))
+		}
+		report^ = boundary_diagnostic(source, path, status, limits, loc)
 	}
 	if limits.task_source_bytes <= 0 || limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes ||
 	   limits.yaml_document_bytes <= 0 || limits.yaml_document_bytes > MAX_FRONTMATTER_LIMITS.yaml_document_bytes {
@@ -118,9 +123,9 @@ extract_frontmatter :: proc(
 }
 
 @(private)
-boundary_diagnostic :: proc(source, path: string, status: Frontmatter_Status, limits: Frontmatter_Limits, offset: int) -> yaml.Diagnostic {
-	loc: yaml.Location
-	if offset >= 0 do loc = yaml.locate(source, yaml.rune_span(source, offset))
+boundary_diagnostic :: proc(
+	source, path: string, status: Frontmatter_Status, limits: Frontmatter_Limits, loc: yaml.Location,
+) -> (d: yaml.Diagnostic, err: runtime.Allocator_Error) #optional_allocator_error {
 	switch status {
 	case .Invalid_Limits:
 		if limits.task_source_bytes <= 0 || limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes {
@@ -135,7 +140,7 @@ boundary_diagnostic :: proc(source, path: string, status: Frontmatter_Status, li
 	case .Missing_Close: return yaml.diagnostic(path, "frontmatter_missing_close", "", "Add a closing --- line before the Markdown body.", loc)
 	case .Unsupported_Line_Break: return yaml.diagnostic(path, "unsupported_line_break", "", "Use LF or CRLF line endings in frontmatter.", loc)
 	case .Invalid_UTF8: return yaml.diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
-	case .Absent, .Present: return {}
+	case .Absent, .Present: return {}, nil
 	}
-	return {}
+	return {}, nil
 }

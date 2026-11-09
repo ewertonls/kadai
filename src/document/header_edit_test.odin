@@ -85,19 +85,25 @@ metadata_edit_refuses_unsafe_spans_and_growth :: proc(t: ^testing.T) {
 
 @(test)
 metadata_edit_propagates_allocation_failure :: proc(t: ^testing.T) {
-	doc := decode_task("---\nkadai: task\nid: T\ntitle: T\nstatus: todo\n---")
+	source :: "---\nkadai: task\nid: T\ntitle: T\nstatus: todo\n---"
+	doc := decode_task(source)
 	defer destroy(&doc)
 	if !testing.expect_value(t, doc.status, .Decoded) {
 		return
 	}
 	span := yaml.lookup(&doc.root, "status").span
-	allocators := [?]runtime.Allocator{runtime.nil_allocator(), mem.nil_allocator()}
-	for allocator in allocators {
+	// This arena fits the invalid candidate exactly. Only its diagnostic fails to allocate.
+	storage: [len(source)]byte
+	arena := mem.Arena{data = storage[:]}
+	cases := [?]struct {allocator: runtime.Allocator, replacement: string}{
+		{runtime.nil_allocator(), "done"}, {mem.nil_allocator(), "done"}, {mem.arena_allocator(&arena), "\xffxxx"},
+	}
+	for c in cases {
 		candidate: string
 		err: Header_Edit_Error
 		{
-			context.allocator = allocator
-			candidate, err = compose_header_edit(&doc, span, "done")
+			context.allocator = c.allocator
+			candidate, err = compose_header_edit(&doc, span, c.replacement)
 		}
 		defer delete(candidate)
 		testing.expect_value(t, candidate, "")
@@ -106,4 +112,5 @@ metadata_edit_propagates_allocation_failure :: proc(t: ^testing.T) {
 			testing.expect_value(t, allocation_error, .Out_Of_Memory)
 		}
 	}
+	testing.expect_value(t, arena.peak_used, len(source))
 }
