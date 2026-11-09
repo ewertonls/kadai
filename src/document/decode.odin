@@ -38,6 +38,7 @@ Decode_Status :: enum {
 Task_Document :: struct {
 	source, path:       string,
 	parts:              Frontmatter,
+	frontmatter_limits: Frontmatter_Limits,
 	root:               yaml.Node,
 	fields:             Task_Fields,
 	status:             Decode_Status,
@@ -69,6 +70,7 @@ decode_task :: proc(
 	doc: Task_Document,
 ) {
 	doc.source, doc.path = source, path
+	doc.frontmatter_limits = {task_source_bytes, yaml_limits.bytes}
 	failure: yaml.Diagnostic
 	if !yaml.valid_limits(yaml_limits) {
 		doc.status, doc.boundary_status = .Boundary_Error, .Invalid_Limits
@@ -77,7 +79,7 @@ decode_task :: proc(
 	}
 	doc.parts, doc.boundary_status = extract_frontmatter(
 		source,
-		{task_source_bytes, yaml_limits.bytes},
+		doc.frontmatter_limits,
 		&failure,
 		path,
 	)
