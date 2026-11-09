@@ -1,6 +1,6 @@
 # KAD-007 fixture corpus v1
 
-**Status:** Declarative inputs and expectations, not a passing Odin test suite. The CLI and fixture adapters remain implementation work.
+**Status:** The Odin integration test uses `recognition/crlf-bom` to check catalog selection and byte-preserving sandbox preparation. Product actions, including this fixture's `scan`, await their implementations. Run the unit and integration checks from the repository root using the [native test commands](../../../docs/development/toolchain.md#run-tests).
 
 Owner: [KAD-007](../../../docs/specs/KAD-007-fixture-corpus-v1.md). All test implementation follows [Section 7: minimum necessary tests](../../../docs/specs/KAD-007-fixture-corpus-v1.md#7-agent-rule-minimum-necessary-tests). KAD-002 through KAD-006 own product semantics.
 

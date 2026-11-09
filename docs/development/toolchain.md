@@ -86,16 +86,17 @@ odin check src/app -collection:kadai=src -no-entry-point -vet
 
 Replace `src/app` with the package directory you are working on. Odin checks that package and its imports. Use `-no-entry-point` for library packages and `-vet` to enable vetting. A successful check exits with status 0.
 
-### Run tests (KAD-011)
+### Run tests
 
-Once KAD-011 adds tests, run `odin test` on the directory containing the `@(test)` procedures. For example, to run unit tests in `src/task` or the planned fixture runner, respectively:
+From the repository root, run the fixture helpers' unit and filesystem integration tests together:
 
 ```sh
-odin test src/task -collection:kadai=src
 odin test tests/fixture_runner -collection:kadai=src
 ```
 
-Each invocation runs tests in the selected package. The fixture runner will read the corpus in `tests/fixtures/v1/`.
+For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, once `src/task/` has tests, run `odin test src/task -collection:kadai=src` to execute them.
+
+The integration test selects `recognition/crlf-bom` from the [fixture catalog](../../tests/fixtures/v1/README.md), prepares its literal inputs in a fresh temporary directory, and verifies that the staged task preserves the source bytes, including the BOM and CRLF. Its `scan` action awaits the scanner.
 
 ### Build the CLI (KAD-012)
 

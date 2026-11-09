@@ -29,4 +29,6 @@ For a status change, `cli` passes the ID and requested status to `app`. The oper
 
 Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. KAD-012 will add a thin entrypoint in `cmd/kadai/main.odin` that calls `cli`. See the [native development workflow](toolchain.md#native-development-workflow) for package checks, tests, and the CLI build command.
 
-Keep unit tests beside the implementation, with `#+test` on test files and `@(test)` on test procedures. KAD-011 will add the fixture runner under `tests/fixture_runner/` and integration tests under `tests/integration/`. Tests that write files will use temporary directories and take fixture inputs from `tests/fixtures/v1/`.
+Place product tests in `*_test.odin` files beside the implementation, with the same package declaration, `#+test` at the top of the file, and `@(test)` on each test procedure. This gives tests access to package-private declarations. Declarations marked `@(private="file")` are visible only within their defining file.
+
+`tests/fixtures/v1/` holds shared inputs and expectations. `tests/fixture_runner/` provides reusable fixture helpers and keeps its own tests beside those helpers.
