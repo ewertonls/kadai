@@ -26,6 +26,19 @@ line_ending :: proc(source: string, lf: int) -> string {
 	return "\n"
 }
 
+// pos is a header-relative line start immediately after an LF. A closing
+// delimiter at EOF has no line ending to compare.
+@(private)
+insertion_line_ending :: proc(doc: ^Task_Document, pos: int, name: string, loc: yaml.Location) -> (eol: string, err: Header_Edit_Error) {
+	absolute := doc.parts.header.start + pos
+	eol = line_ending(doc.source, absolute-1)
+	next := doc.source[absolute:doc.parts.closing.end]
+	if lf := strings.index_byte(next, '\n'); lf >= 0 && line_ending(next, lf) != eol {
+		return "", yaml.diagnostic(doc.path, "unsafe_line_ending", name, "Choose an insertion point with consistent adjacent line endings.", loc) or_return
+	}
+	return
+}
+
 // A key next to a standalone comment can change the comment's attachment.
 // Look past blank lines without consuming them in the splice.
 @(private)
@@ -37,16 +50,21 @@ adjacent_comment :: proc(header: string, span: Byte_Range) -> bool {
 }
 
 @(private)
-insert_field :: proc(
-	doc: ^Task_Document, name: string, insert: Insert_Field,
-) -> (edited: string, expected: Expected_Field, loc: yaml.Location, err: Header_Edit_Error) {
+Field_Insertion :: struct {
+	span: Byte_Range,
+	indent, eol: string,
+	location: yaml.Location,
+}
+
+@(private)
+field_insertion_point :: proc(doc: ^Task_Document, name, after: string) -> (point: Field_Insertion, err: Header_Edit_Error) {
 	header := doc.source[doc.parts.header.start:doc.parts.header.end]
 	entries := doc.root.entries[:]
 	offset := doc.root.span.end
-	if insert.after != "" {
+	if after != "" {
 		found := false
 		for &entry, i in entries {
-			if entry.key.text == insert.after {
+			if entry.key.text == after {
 				found = true
 				if i+1 < len(entries) {
 					offset = entries[i+1].key.span.start
@@ -55,34 +73,23 @@ insert_field :: proc(
 			}
 		}
 		if !found {
-			return "", {}, {}, yaml.diagnostic(doc.path, "missing_field", insert.after, "Choose an existing top-level key as the insertion point.") or_return
+			return {}, yaml.diagnostic(doc.path, "missing_field", after, "Choose an existing top-level key as the insertion point.") or_return
 		}
 	}
 	pos := line_start(header, offset)
 	span := Byte_Range{pos, pos}
 	absolute := doc.parts.header.start + pos
-	loc = yaml.locate(doc.source, {absolute, absolute})
+	loc := yaml.locate(doc.source, {absolute, absolute})
 	indent := header[line_start(header, doc.root.span.start):doc.root.span.start]
 	if pos == 0 || strings.trim_left(indent, " ") != "" || strings.trim_left(header[pos:offset], " ") != "" {
-		return "", {}, loc, yaml.diagnostic(doc.path, "unsafe_source_patch", name, "Insert at the start of an ordinary block mapping line.", loc) or_return
+		return {}, yaml.diagnostic(doc.path, "unsafe_source_patch", name, "Insert at the start of an ordinary block mapping line.", loc) or_return
 	}
 	if adjacent_comment(header, span) {
-		return "", {}, loc, yaml.diagnostic(doc.path, "comment_ownership_ambiguous", name, "Choose an insertion point separate from standalone comments.", loc) or_return
+		return {}, yaml.diagnostic(doc.path, "comment_ownership_ambiguous", name, "Choose an insertion point separate from standalone comments.", loc) or_return
 	}
 
-	// Compare only the adjacent lines. A closing delimiter at EOF has no EOL.
-	eol := line_ending(header, pos-1)
-	next := doc.source[absolute:doc.parts.closing.end]
-	if lf := strings.index_byte(next, '\n'); lf >= 0 && line_ending(next, lf) != eol {
-		return "", {}, loc, yaml.diagnostic(doc.path, "unsafe_line_ending", name, "Choose an insertion point with consistent adjacent line endings.", loc) or_return
-	}
-	edited = compose_field_value(doc, name, span, insert.value, .Plain, loc, indent, eol) or_return
-	line_bytes := len(edited) - len(doc.source)
-	expected = {
-		span = {pos + len(indent) + len(name) + len(": "), pos + line_bytes - len(eol)},
-		value = insert.value,
-	}
-	return
+	eol := insertion_line_ending(doc, pos, name, loc) or_return
+	return {span, indent, eol, loc}, nil
 }
 
 // A block collection's parser end mark can include following trivia. Its last
@@ -161,15 +168,20 @@ plan_key_patch :: proc(
 	}
 
 	edited: string
-	expected: Expected_Field
-	target: ^Expected_Field
+	target: Field_Expectation
 	switch op in edit {
 	case Insert_Field:
 		if entry != nil {
 			return "", yaml.diagnostic(path, "field_already_present", name, "Select a missing field to insert.", loc) or_return
 		}
-		edited, expected, loc = insert_field(&doc, name, op) or_return
-		target = &expected
+		point := field_insertion_point(&doc, name, op.after) or_return
+		loc = point.location
+		edited = compose_field_value(&doc, name, point.span, op.value, .Plain, loc, point.indent, point.eol) or_return
+		pos := point.span.start
+		target = Expected_Field{
+			span = {pos + len(point.indent) + len(name) + len(": "), pos + (len(edited) - len(source)) - len(point.eol)},
+			value = op.value,
+		}
 	case Unset_Field:
 		if field == .Title || field == .Status {
 			return "", yaml.diagnostic(path, "required_field_unset", name, "Keep required fields and replace their values instead.", loc) or_return

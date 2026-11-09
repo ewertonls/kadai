@@ -93,6 +93,6 @@ plan_scalar_patch :: proc(
 		{node.span.start, node.span.end + len(edited) - len(source)},
 		requested,
 	}
-	verify_field_patch(&before, edited, name, &expected, loc, vocabulary, yaml_limits) or_return
+	verify_field_patch(&before, edited, name, expected, loc, vocabulary, yaml_limits) or_return
 	return edited, nil
 }

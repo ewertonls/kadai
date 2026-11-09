@@ -82,16 +82,19 @@ check_patch_target :: proc(before: ^Task_Document, name: string, loc: yaml.Locat
 	return nil
 }
 
-// A nil expectation requires the key to be absent after reparsing.
 @(private)
 Expected_Field :: struct {
 	span: Byte_Range,
 	value: Field_Value,
 }
 
+// A nil expectation requires the key to be absent after reparsing.
+@(private)
+Field_Expectation :: union {Expected_Field, Expected_Sequence}
+
 @(private)
 verify_field_patch :: proc(
-	before: ^Task_Document, edited, name: string, expected: ^Expected_Field,
+	before: ^Task_Document, edited, name: string, expected: Field_Expectation,
 	loc: yaml.Location, vocabulary: task.Vocabulary, limits: yaml.Limits,
 ) -> Header_Edit_Error {
 	path := before.path
@@ -114,8 +117,11 @@ verify_field_patch :: proc(
 	}
 	node := yaml.lookup(&after.root, name)
 	matches := node == nil
-	if expected != nil {
-		matches = node != nil && node.span == expected.span && matches_value(node, expected.value)
+	switch want in expected {
+	case Expected_Field:
+		matches = node != nil && node.span == want.span && matches_value(node, want.value)
+	case Expected_Sequence:
+		matches = sequence_matches(node, want)
 	}
 	if !matches || !unrelated_fields_match(before, &after, name) {
 		return yaml.diagnostic(path, "unsafe_source_patch", name, "Use an isolated field edit that preserves unrelated metadata.", loc) or_return
