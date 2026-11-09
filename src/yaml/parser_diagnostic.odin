@@ -123,7 +123,7 @@ parser_diagnostic :: proc(r: ^Reader, err: Error, path: string) -> Diagnostic {
 	case .Directive: return diagnostic(path, "unsupported_directive", "", "Remove the YAML directive.", loc)
 	case .Multiple_Documents: return diagnostic(path, "multiple_yaml_documents", "", "Keep a single YAML document in this input.", loc)
 	case .Invalid_Mark: return diagnostic(path, "invalid_yaml_mark", field, "Check the source encoding and line endings before editing.", {})
-	case .None: return {}
+	case .None, .Allocation_Failed: return {}
 	}
 	return {}
 }

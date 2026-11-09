@@ -1,5 +1,6 @@
 package document
 
+import "base:runtime"
 import "kadai:yaml"
 
 // Every extracted header starts on Markdown line two, including BOM and CRLF files.
@@ -9,13 +10,29 @@ markdown_location :: proc(header: Byte_Range, loc: yaml.Location) -> yaml.Locati
 	return {{loc.span.start + header.start, loc.span.end + header.start}, loc.line + 1, loc.column}
 }
 
+// Transfer the diagnostic to the document, or release it on allocation failure.
 @(private)
-field_error :: proc(doc: ^Task_Document, field: string, reason: Field_Error_Reason, node: ^yaml.Node) {
-	append(&doc.field_errors, Field_Error{field, reason})
+add_diagnostic :: proc(doc: ^Task_Document, diagnostic: yaml.Diagnostic) -> runtime.Allocator_Error {
+	d := diagnostic
+	if d.message == "" {
+		yaml.destroy_diagnostic(&d)
+		return .Out_Of_Memory
+	}
+	_, err := append(&doc.diagnostics, d)
+	if err != nil {
+		yaml.destroy_diagnostic(&d)
+	}
+	return err
+}
+
+@(private)
+field_error :: proc(doc: ^Task_Document, field: string, reason: Field_Error_Reason, node: ^yaml.Node) -> runtime.Allocator_Error {
+	_ = append(&doc.field_errors, Field_Error{field, reason}) or_return
 	code, message := field_problem(field, reason, node)
 	loc: yaml.Location
 	if node != nil do loc = markdown_location(doc.parts.header, node.location)
-	append(&doc.diagnostics, yaml.diagnostic(doc.path, code, field, message, loc))
+	d := yaml.diagnostic(doc.path, code, field, message, loc) or_return
+	return add_diagnostic(doc, d)
 }
 
 @(private)

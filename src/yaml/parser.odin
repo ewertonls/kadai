@@ -1,5 +1,6 @@
 package yaml
 
+import "base:runtime"
 import "core:strings"
 import "core:unicode/utf8"
 import oyaml "third_party:odin-yaml"
@@ -17,8 +18,10 @@ valid_limits :: proc(limits: Limits) -> bool {
 Error :: enum {
 	None, Invalid_Limits, Too_Large, Too_Many_Nodes, Too_Deep,
 	Invalid_UTF8, Unsupported_Line_Break, Unexpected_BOM, Syntax, Invalid_Mark,
-	Not_Mapping, Invalid_Key, Duplicate_Key, Anchor, Alias, Tag, Directive, Multiple_Documents,
+	Not_Mapping, Invalid_Key, Duplicate_Key, Anchor, Alias, Tag, Directive, Multiple_Documents, Allocation_Failed,
 }
+
+Parse_Failure :: union {Error, runtime.Allocator_Error}
 
 unsupported_line_break :: proc(r: rune, suffix: string) -> bool {
 	return r == '\u0085' || r == '\u2028' || r == '\u2029' ||
@@ -76,12 +79,12 @@ check_properties :: proc(anchor, tag: cstring) -> Error {
 }
 
 @(private)
-read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
+read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 	r.node_count += 1
-	if r.node_count > r.limits.nodes do return .Too_Many_Nodes
+	if r.node_count > r.limits.nodes do return Error.Too_Many_Nodes
 	if depth > r.limits.depth {
 		r.failed_depth = depth
-		return .Too_Deep
+		return Error.Too_Deep
 	}
 	node.span.start = byte_offset(r, r.event.start_mark) or_return
 	node.line, node.column = int(r.event.start_mark.line) + 1, int(r.event.start_mark.column) + 1
@@ -89,7 +92,10 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 	case .SCALAR_EVENT:
 		scalar := r.event.data.scalar
 		check_properties(scalar.anchor, scalar.tag) or_return
-		node.text = strings.clone(strings.string_from_ptr((^u8)(scalar.value), int(scalar.length)))
+		node.text = strings.clone(strings.string_from_ptr((^u8)(scalar.value), int(scalar.length))) or_return
+		if len(node.text) != int(scalar.length) {
+			return runtime.Allocator_Error.Out_Of_Memory
+		}
 		node.kind = plain_kind(node.text) if scalar.style == .PLAIN_SCALAR_STYLE else .String
 	case .SEQUENCE_START_EVENT:
 		props := r.event.data.sequence_start
@@ -97,8 +103,8 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 		node.kind = .Sequence
 		advance(r) or_return
 		for r.event.type != .SEQUENCE_END_EVENT {
-			append(&node.items, Node{})
-			append(&r.field, len(node.items) - 1)
+			_ = append(&node.items, Node{}) or_return
+			_ = append(&r.field, len(node.items) - 1) or_return
 			read_node(r, &node.items[len(node.items)-1], depth + 1) or_return
 			pop(&r.field)
 			advance(r) or_return
@@ -111,83 +117,85 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Error {
 		defer delete(seen)
 		advance(r) or_return
 		for r.event.type != .MAPPING_END_EVENT {
-			append(&node.entries, Entry{})
+			_ = append(&node.entries, Entry{}) or_return
 			pair := &node.entries[len(node.entries)-1]
 			read_node(r, &pair.key, depth + 1) or_return
 			if pair.key.kind == .Mapping || pair.key.kind == .Sequence {
 				r.offender = &pair.key
-				return .Invalid_Key
+				return Error.Invalid_Key
 			}
-			append(&r.field, pair)
+			_ = append(&r.field, pair) or_return
 			if pair.key.text in seen {
 				r.offender = &pair.key
-				return .Duplicate_Key
+				return Error.Duplicate_Key
 			}
-			seen[pair.key.text] = true
+			_ = map_insert(&seen, pair.key.text, true) or_return
 			advance(r) or_return
 			read_node(r, &pair.value, depth + 1) or_return
 			pop(&r.field)
 			advance(r) or_return
 		}
-	case .ALIAS_EVENT: return .Alias
-	case: return .Syntax
+	case .ALIAS_EVENT: return Error.Alias
+	case: return Error.Syntax
 	}
 	node.span.end = byte_offset(r, r.event.end_mark, r.event.type == .SCALAR_EVENT) or_return
-	return .None
+	return nil
 }
 
 @(private)
-read_document :: proc(r: ^Reader, root: ^Node) -> Error {
+read_document :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 	advance(r) or_return // stream start
 	advance(r) or_return
 	if r.event.type == .STREAM_END_EVENT {
 		_ = byte_offset(r, r.event.end_mark) or_return // empty or comments only
-		return .None
+		return nil
 	}
-	if r.event.type != .DOCUMENT_START_EVENT do return .Syntax
+	if r.event.type != .DOCUMENT_START_EVENT do return Error.Syntax
 	doc := r.event.data.document_start
-	if doc.version_directive_m != nil || doc.tag_directives.start != doc.tag_directives.end do return .Directive
+	if doc.version_directive_m != nil || doc.tag_directives.start != doc.tag_directives.end do return Error.Directive
 	advance(r) or_return
 	read_node(r, root, 1) or_return
 	if root.kind != .Mapping {
 		r.offender = root
-		return .Not_Mapping
+		return Error.Not_Mapping
 	}
 	advance(r) or_return // document end
 	advance(r) or_return
-	if r.event.type != .STREAM_END_EVENT do return .Multiple_Documents
+	if r.event.type != .STREAM_END_EVENT do return Error.Multiple_Documents
 	_ = byte_offset(r, r.event.end_mark) or_return
-	return .None
+	return nil
 }
 
 @(private)
-parse_input :: proc(r: ^Reader, root: ^Node) -> Error {
-	if !valid_limits(r.limits) do return .Invalid_Limits
-	if len(r.source) > r.limits.bytes do return .Too_Large
-	if len(r.source) == 0 do return .None
+parse_input :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
+	if !valid_limits(r.limits) do return Error.Invalid_Limits
+	if len(r.source) > r.limits.bytes do return Error.Too_Large
+	if len(r.source) == 0 do return nil
 	if offset, invalid := first_invalid_utf8(r.source); invalid {
 		r.bad_offset = offset
-		return .Invalid_UTF8
+		return Error.Invalid_UTF8
 	}
 	if strings.has_prefix(r.source, "\uFEFF") {
 		r.bad_offset = 0
-		return .Unexpected_BOM
+		return Error.Unexpected_BOM
 	}
 	for c, i in r.source {
 		if unsupported_line_break(c, r.source[i:]) {
 			r.bad_offset = i
-			return .Unsupported_Line_Break
+			return Error.Unsupported_Line_Break
 		}
 	}
-	if oyaml.parser_initialize(&r.parser) == 0 do return .Syntax
+	if oyaml.parser_initialize(&r.parser) == 0 {
+		return runtime.Allocator_Error.Out_Of_Memory
+	}
 	r.initialized = true
 	oyaml.parser_set_input_string(&r.parser, raw_data(r.source), uint(len(r.source)))
 	return read_document(r, root)
 }
 
-// The caller owns a successful tree (Absent for an empty stream). On failure,
-// an optional fresh report receives a diagnostic relative to the YAML source.
-parse_mapping :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "") -> (Node, Error) {
+// The caller owns a successful tree (Absent for an empty stream). Syntax and
+// policy failures populate report. Allocation failures return the allocator error.
+parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "") -> (Node, Parse_Failure) {
 	r := Reader{source = source, limits = limits, bad_offset = -1}
 	defer {
 		delete(r.field)
@@ -197,10 +205,32 @@ parse_mapping :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnos
 		}
 	}
 	root: Node
-	if err := parse_input(&r, &root); err != .None {
-		if report != nil do report^ = parser_diagnostic(&r, err, path)
+	switch failure in parse_input(&r, &root) {
+	case Error:
+		if r.parser.error == .MEMORY_ERROR {
+			destroy(&root)
+			return {}, runtime.Allocator_Error.Out_Of_Memory
+		}
+		if report != nil do report^ = parser_diagnostic(&r, failure, path)
 		destroy(&root)
-		return {}, err
+		return {}, failure
+	case runtime.Allocator_Error:
+		destroy(&root)
+		return {}, failure
+	}
+	return root, nil
+}
+
+// Readers that only need a category receive Allocation_Failed on allocator errors.
+parse_mapping :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "") -> (Node, Error) {
+	root, failure := parse_mapping_checked(source, limits, report, path)
+	switch err in failure {
+	case Error: return {}, err
+	case runtime.Allocator_Error:
+		if report != nil {
+			report^ = Diagnostic{path = path, code = "yaml_parser_error"}
+		}
+		return {}, .Allocation_Failed
 	}
 	return root, .None
 }

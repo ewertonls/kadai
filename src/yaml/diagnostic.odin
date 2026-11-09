@@ -1,6 +1,7 @@
 package yaml
 
-import "core:fmt"
+import "base:runtime"
+import "core:strconv"
 import "core:strings"
 import "core:unicode/utf8"
 
@@ -16,8 +17,29 @@ Diagnostic :: struct {
 }
 
 // Path is borrowed, code is a static category. Field and message are owned.
-diagnostic :: proc(path, code, field, message: string, location := Location{}) -> Diagnostic {
-	return {path = path, code = code, field = strings.clone(field), message = strings.clone(message), location = location}
+diagnostic :: proc(path, code, field, message: string, location := Location{}) -> (d: Diagnostic, err: runtime.Allocator_Error) #optional_allocator_error {
+	return diagnostic_parts(path, code, field, {message}, location)
+}
+
+@(private)
+diagnostic_parts :: proc(path, code, field: string, parts: []string, location: Location) -> (d: Diagnostic, err: runtime.Allocator_Error) {
+	d.path, d.code, d.location = path, code, location
+	owned_field := strings.clone(field) or_return
+	defer if err != nil { delete(owned_field) }
+	if len(owned_field) != len(field) {
+		return d, .Out_Of_Memory
+	}
+	text := strings.concatenate(parts) or_return
+	if text == "" {
+		for part in parts {
+			if part != "" {
+				delete(text)
+				return d, .Out_Of_Memory
+			}
+		}
+	}
+	d.field, d.message = owned_field, text
+	return
 }
 
 destroy_diagnostic :: proc(d: ^Diagnostic) {
@@ -26,16 +48,20 @@ destroy_diagnostic :: proc(d: ^Diagnostic) {
 	d^ = {}
 }
 
-limit_diagnostic :: proc(path, field: string, observed, limit: int, location := Location{}, invalid := false) -> Diagnostic {
-	d := Diagnostic{path = path, field = strings.clone(field), observed = observed, limit = limit, location = location}
+limit_diagnostic :: proc(path, field: string, observed, limit: int, location := Location{}, invalid := false) -> (d: Diagnostic, err: runtime.Allocator_Error) #optional_allocator_error {
+	actual_buf, limit_buf: [32]byte
+	actual_text := strconv.write_int(actual_buf[:], i64(observed), 10)
+	limit_text := strconv.write_int(limit_buf[:], i64(limit), 10)
 	if invalid {
-		d.code = "invalid_limit"
-		d.message = fmt.aprintf("Set %s to an integer from 1 to %d (received %d).", field, limit, observed)
+		d, err = diagnostic_parts(path, "invalid_limit", field,
+			{"Set ", field, " to an integer from 1 to ", limit_text, " (received ", actual_text, ")."}, location)
 	} else {
-		d.code = "limit_exceeded"
-		d.message = fmt.aprintf("Observed %d %s with a limit of %d. Reduce the input or raise the limit within its allowed range.", observed, field, limit)
+		d, err = diagnostic_parts(path, "limit_exceeded", field,
+			{"Observed ", actual_text, " ", field, " with a limit of ", limit_text,
+			 ". Reduce the input or raise the limit within its allowed range."}, location)
 	}
-	return d
+	d.observed, d.limit = observed, limit
+	return
 }
 
 // Used for a single failure, including errors in a bounded prefix of a large file.

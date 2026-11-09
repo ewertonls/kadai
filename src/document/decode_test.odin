@@ -1,6 +1,7 @@
 #+test
 package document
 
+import "base:runtime"
 import "core:fmt"
 import "core:slice"
 import "core:strings"
@@ -220,4 +221,18 @@ diagnostics_report_observed_limits :: proc(t: ^testing.T) {
 		testing.expect_value(t, d.limit, c.limit)
 		if c.code == "invalid_limit" do testing.expect_value(t, d.location, yaml.Location{})
 	}
+}
+
+@(test)
+decode_propagates_reader_allocation_failure :: proc(t: ^testing.T) {
+	doc: Task_Document
+	err: runtime.Allocator_Error
+	{
+		context.allocator = runtime.nil_allocator()
+		doc, err = decode_task("---\nkadai: task\nid: T\ntitle: Old\nstatus: todo\n---")
+	}
+	defer destroy(&doc)
+	testing.expect_value(t, err, .Out_Of_Memory)
+	testing.expect_value(t, doc.status, .Allocation_Error)
+	testing.expect_value(t, doc.root.kind, .Absent)
 }
