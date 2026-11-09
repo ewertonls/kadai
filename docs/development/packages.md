@@ -9,7 +9,7 @@ The last column lists allowed direct imports within Kadai. Add an import when an
 | Package | Responsibility | May import |
 | --- | --- | --- |
 | `cli` | Translate arguments into operations and present their results | `app` |
-| `app` | Coordinate queries and mutations, including the lock scope across discovery, validation, and persistence | `project`, `task`, `document`, `storage`, and eventually `graph`, `identity` |
+| `app` | Own the application version and coordinate queries and mutations, including the lock scope across discovery, validation, and persistence | `project`, `task`, `document`, `storage`, and eventually `graph`, `identity` |
 | `task` | Define task fields, status rules, ID syntax, and single-task validation in memory | None |
 | `document` | Locate Markdown frontmatter and body, decode task fields, and patch supported fields while preserving unrelated bytes | `yaml`, `task` |
 | `yaml` | Expose YAML parsing, events, and source spans for both project config and task documents. Parser selection belongs to KAD-013. | None |
@@ -27,7 +27,7 @@ For a status change, `cli` passes the ID and requested status to `app`. The oper
 
 ## Imports and checks
 
-Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. KAD-012 will add a thin entrypoint in `cmd/kadai/main.odin` that calls `cli`. See the [native development workflow](toolchain.md#native-development-workflow) for package checks, tests, and the CLI build command.
+Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. The entrypoint in `cmd/kadai/main.odin` passes arguments and output streams to `cli.run` and uses its return value as the process exit code. See the [native development workflow](toolchain.md#native-development-workflow) for package checks, tests, and the CLI build command.
 
 Place product tests in `*_test.odin` files beside the implementation, with the same package declaration, `#+test` at the top of the file, and `@(test)` on each test procedure. This gives tests access to package-private declarations. Declarations marked `@(private="file")` are visible only within their defining file.
 

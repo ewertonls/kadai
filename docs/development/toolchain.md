@@ -96,14 +96,16 @@ From the repository root, run the fixture helpers' unit and filesystem integrati
 odin test tests/fixture_runner -collection:kadai=src
 ```
 
-For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, once `src/task/` has tests, run `odin test src/task -collection:kadai=src` to execute them.
+For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, run `odin test src/cli -collection:kadai=src` to test CLI dispatch and error handling.
 
 The integration test selects `recognition/crlf-bom` from the [fixture catalog](../../tests/fixtures/v1/README.md), prepares its literal inputs in a fresh temporary directory, and verifies that the staged task preserves the source bytes, including the BOM and CRLF. Its `scan` action awaits the scanner.
 
-### Build the CLI (KAD-012)
+### Build the CLI
 
-Once KAD-012 adds the executable entrypoint in `cmd/kadai/`, build it with:
+Build the executable from the repository root:
 
 ```sh
 odin build cmd/kadai -collection:kadai=src
 ```
+
+Run `./kadai --help` or `./kadai --version` (`.\kadai.exe` on Windows). The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.

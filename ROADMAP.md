@@ -55,7 +55,7 @@
 - [x] **KAD-009** Define package boundaries. _Acceptance:_ Separate CLI, project/filesystem, Markdown/YAML, task domain, and graph logic without a UI dependency. _Reference:_ [Odin packages](docs/development/packages.md).
 - [x] **KAD-010** Document the native Odin development workflow. _Acceptance:_ Document and verify the package check command with vetting from the repository root using the `kadai` collection. Document the test and CLI build commands, with their prerequisites in KAD-011 and KAD-012. _Reference:_ [Native development workflow](docs/development/toolchain.md#native-development-workflow).
 - [x] **KAD-011** Set up Odin tests and fixtures. _Acceptance:_ Use `core:testing` and a repeatable runner for unit and integration tests. _Reference:_ [Native test commands](docs/development/toolchain.md#run-tests).
-- [ ] **KAD-012** Create the CLI entrypoint. _Acceptance:_ Implement `kadai --help`, `--version`, command dispatch, and a consistent error boundary.
+- [x] **KAD-012** Create the CLI entrypoint. _Acceptance:_ Implement `kadai --help`, `--version`, command dispatch, and a consistent error boundary. _Reference:_ [Build the CLI](docs/development/toolchain.md#build-the-cli).
 
 ### 2. Markdown and YAML editing
 
