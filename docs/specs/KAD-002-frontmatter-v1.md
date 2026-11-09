@@ -1,6 +1,6 @@
 # KAD-002: task frontmatter v1 contract
 
-> **Status:** Accepted specification, not implemented.
+> **Status:** Accepted specification. KAD-015 implements decoding and field validation for individual task documents.
 > **Milestone:** v0.1. **Owner task:** KAD-002. **Recorded:** 2026-11-06. **Architecture review:** 2026-11-06; cross-contract amendments 2026-11-08.
 > **Depends on:** [KAD-001 product scope](KAD-001-v0.1-scope.md).
 > **Scope:** On-disk task recognition, reserved keys, validation, defaults, YAML types, and the decisions that constrain later implementations.

@@ -32,6 +32,12 @@ LibYAML and libfyaml use MIT licenses. Include the applicable copyright and perm
 | Linux x86_64, ARM64 | Static archive supplied for each target. Dynamic linking needs the distribution's LibYAML development package at build time and the shared library at runtime. | Bindings type-checked for both targets. Native link and execution untested. |
 | Windows x86_64 | `yaml.lib` for static linking. Default dynamic linking uses `yamld.lib` and needs `yaml.dll` on the executable's DLL search path. | Bindings type-checked. Native link and execution untested. |
 
+### Task document decoding
+
+`document.decode_task` borrows the original Markdown and returns the decoded fields, field errors and ordered YAML nodes. Each node carries a half-open byte range relative to the header. An unknown v1 key produces a field error and keeps its key, value and surrounding source available for editing. A future schema exposes only its version and verifiable ID. Release the result with `document.destroy`. [Task decoder](../../src/document/decode.odin).
+
+Known string fields use the decoded scalar text. Under `custom`, nodes carry their resolved type and decoded text. Integer digits and radix are available without narrowing, and floats retain their exact spelling. [Scalar implementation](../../src/yaml/scalar.odin), [YAML 1.2.2 Core Schema](https://yaml.org/spec/1.2.2/#1032-tag-resolution).
+
 ### Run the probe
 
 Run from the repository root. On macOS ARM64, use Homebrew's library path.
@@ -39,10 +45,12 @@ Run from the repository root. On macOS ARM64, use Homebrew's library path.
 ```sh
 brew install libyaml
 odin test src/yaml -collection:kadai=src -collection:third_party=third_party -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
+odin test src/document -collection:kadai=src -collection:third_party=third_party -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
 ```
 
 On macOS x86_64, Linux x86_64 or ARM64, and Windows x86_64, select the matching vendored static library.
 
 ```sh
 odin test src/yaml -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+odin test src/document -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
 ```
