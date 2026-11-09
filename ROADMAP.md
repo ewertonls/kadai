@@ -71,7 +71,7 @@
 - [x] **KAD-018** Patch an existing top-level scalar. _Acceptance:_ Update fields such as `status` or `title` while preserving unrelated text, comments, and quoting where supported. _Reference:_ [Scalar patch contract and tests](docs/development/yaml-parser.md#replacing-a-task-scalar).
 - [x] **KAD-019** Insert and remove top-level metadata keys. _Acceptance:_ Support a missing field or explicit unset without resaving the whole YAML document. _Reference:_ [Top-level key edits](docs/development/yaml-parser.md#inserting-and-removing-task-fields).
 - [x] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts. _Reference:_ [Sequence edits and tests](docs/development/yaml-parser.md#editing-sequence-items).
-- [ ] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits.
+- [x] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits. _Reference:_ [YAML edge cases and regression tests](docs/development/yaml-parser.md#yaml-edge-cases).
 - [ ] **KAD-022** Add byte-level golden tests. _Acceptance:_ Assert that metadata mutations change only intended spans; malformed or unsupported cases never produce destructive output.
 
 ### 3. Project storage and filesystem

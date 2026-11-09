@@ -71,6 +71,12 @@ Use `document.plan_sequence_patch(source, .Tags, .Append, "docs")` to append one
 
 Appending to a missing or null field creates a one-item flow sequence. Removing the last item leaves an explicit empty sequence. A duplicate append, a missing or ambiguous removal target, or a removal that would discard an attached comment returns a diagnostic. The planner reparses the candidate with the original vocabulary and limits and checks every retained item and unrelated field. Collection-level dependency resolution and cycle checks belong to the operation that applies the proposal. [Sequence planner](../../src/document/sequence_patch.odin), [byte-preservation tests](../../src/document/sequence_patch_test.odin).
 
+### YAML edge cases
+
+Block indentation uses spaces. The reader reports `invalid_indentation` at a tab that takes the place of a required space, including on continuation lines inside flow collections and quoted scalars. Tabs after the required indentation can serve as flow separators or as block scalar content. [Parser tests](../../src/yaml/parser_test.odin).
+
+A folded scalar can contain lines that look like keys, comments, anchors or a frontmatter delimiter. An edit to a separate quoted key preserves those lines and their original line endings. Real anchors, aliases and duplicate decoded keys produce diagnostics, including when an edit would introduce an alias into a previously valid document. [Scalar patch tests](../../src/document/scalar_patch_test.odin), [key patch tests](../../src/document/key_patch_test.odin).
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
