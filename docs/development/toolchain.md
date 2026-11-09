@@ -78,6 +78,8 @@ Upstream: [official Odin installation guide](https://odin-lang.org/docs/install/
 
 Run these commands from the repository root. The flag `-collection:kadai=src` resolves imports such as `kadai:task` against `src/`.
 
+For editor support, open the repository root as the workspace. [ols.json](../../ols.json) gives the Odin Language Server (OLS) the same collection mapping. Restart the language server to pick up a configuration change. Direct `odin` commands still need the collection flag.
+
 ### Check a package
 
 ```sh
