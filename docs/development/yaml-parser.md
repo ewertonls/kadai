@@ -38,6 +38,14 @@ LibYAML and libfyaml use MIT licenses. Include the applicable copyright and perm
 
 Known string fields use the decoded scalar text. Under `custom`, nodes carry their resolved type and decoded text. Integer digits and radix are available without narrowing, and floats retain their exact spelling. [Scalar implementation](../../src/yaml/scalar.odin), [YAML 1.2.2 Core Schema](https://yaml.org/spec/1.2.2/#1032-tag-resolution).
 
+### Diagnostics
+
+Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
+
+Diagnostic spans are half-open byte offsets into the original Markdown. Lines and Unicode code-point columns start at one, and an initial BOM occupies no display column. An EOF location has a zero-width span. A missing required field has no token to point to and leaves the location unset (line zero).
+
+Limit errors name the budget and include the observed value and configured limit. When header extraction stops at the first excess byte, the observed count is a lower bound. Direct callers of `yaml.parse_mapping` can pass a fresh `report` and `path` to obtain locations relative to the YAML input. Release that report with `yaml.destroy_diagnostic`. For a task document, `document.destroy` releases all its diagnostics.
+
 ### Run the probe
 
 Run from the repository root. Use the same static LibYAML setting as the [standard CLI build](toolchain.md#build-the-cli) on macOS and Linux (x86_64 or ARM64) and Windows x86_64.
