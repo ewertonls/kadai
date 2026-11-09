@@ -1,0 +1,17 @@
+age: 24
+salary: 35670.60
+message: |
+    I have done this for the greater good.
+    Please forgive me!
+employees:
+    - age: 35
+      salary: 5.5
+      message: >
+       Pay me more!
+       I beg you
+    - {age: 6, salary: 5670.34, message: I am too young}
+inventory: [banana, apple, apricot, beans]
+father:
+    age: 35
+    salary: 1
+    message: I am your father

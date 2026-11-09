@@ -1,5 +1,6 @@
 {
   "collections": [
-    { "name": "kadai", "path": "src" }
+    { "name": "kadai", "path": "src" },
+    { "name": "third_party", "path": "third_party" }
   ]
 }
