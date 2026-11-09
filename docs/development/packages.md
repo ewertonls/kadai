@@ -27,16 +27,6 @@ For a status change, `cli` passes the ID and requested status to `app`. The oper
 
 ## Imports and checks
 
-Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. Run compiler commands from the repository root. To check one package today:
-
-```sh
-odin check src/app -collection:kadai=src -no-entry-point -vet
-```
-
-KAD-012 will add a thin entrypoint in `cmd/kadai/main.odin` that calls `cli`. Its build command will be:
-
-```sh
-odin build cmd/kadai -collection:kadai=src
-```
+Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. KAD-012 will add a thin entrypoint in `cmd/kadai/main.odin` that calls `cli`. See the [native development workflow](toolchain.md#native-development-workflow) for package checks, tests, and the CLI build command.
 
 Keep unit tests beside the implementation, with `#+test` on test files and `@(test)` on test procedures. KAD-011 will add the fixture runner under `tests/fixture_runner/` and integration tests under `tests/integration/`. Tests that write files will use temporary directories and take fixture inputs from `tests/fixtures/v1/`.

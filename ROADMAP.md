@@ -53,7 +53,7 @@
 
 - [x] **KAD-008** Pin the Odin toolchain. _Acceptance:_ Record the compiler revision/release and provide setup instructions for contributors. _Reference:_ [Odin toolchain guide](docs/development/toolchain.md) (advisory pin).
 - [x] **KAD-009** Define package boundaries. _Acceptance:_ Separate CLI, project/filesystem, Markdown/YAML, task domain, and graph logic without a UI dependency. _Reference:_ [Odin packages](docs/development/packages.md).
-- [ ] **KAD-010** Document the native Odin development workflow. _Acceptance:_ Document and verify the package check command with vetting from the repository root using the `kadai` collection. Document the test and CLI build commands, with their prerequisites in KAD-011 and KAD-012.
+- [x] **KAD-010** Document the native Odin development workflow. _Acceptance:_ Document and verify the package check command with vetting from the repository root using the `kadai` collection. Document the test and CLI build commands, with their prerequisites in KAD-011 and KAD-012. _Reference:_ [Native development workflow](docs/development/toolchain.md#native-development-workflow).
 - [ ] **KAD-011** Set up Odin tests and fixtures. _Acceptance:_ Use `core:testing` and a repeatable runner for unit and integration tests.
 - [ ] **KAD-012** Create the CLI entrypoint. _Acceptance:_ Implement `kadai --help`, `--version`, command dispatch, and a consistent error boundary.
 

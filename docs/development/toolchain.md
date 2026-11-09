@@ -73,3 +73,34 @@ These SHA-256 values are from the official release's GitHub asset metadata.
 - Contributors manage their own compiler installation. If tooling detects a version mismatch, it may warn and continue.
 
 Upstream: [official Odin installation guide](https://odin-lang.org/docs/install/).
+
+## Native development workflow
+
+Run these commands from the repository root. The flag `-collection:kadai=src` resolves imports such as `kadai:task` against `src/`.
+
+### Check a package
+
+```sh
+odin check src/app -collection:kadai=src -no-entry-point -vet
+```
+
+Replace `src/app` with the package directory you are working on. Odin checks that package and its imports. Use `-no-entry-point` for library packages and `-vet` to enable vetting. A successful check exits with status 0.
+
+### Run tests (KAD-011)
+
+Once KAD-011 adds tests, run `odin test` on the directory containing the `@(test)` procedures. For example, to run unit tests in `src/task` or the planned fixture runner, respectively:
+
+```sh
+odin test src/task -collection:kadai=src
+odin test tests/fixture_runner -collection:kadai=src
+```
+
+Each invocation runs tests in the selected package. The fixture runner will read the corpus in `tests/fixtures/v1/`.
+
+### Build the CLI (KAD-012)
+
+Once KAD-012 adds the executable entrypoint in `cmd/kadai/`, build it with:
+
+```sh
+odin build cmd/kadai -collection:kadai=src
+```
