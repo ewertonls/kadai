@@ -1,6 +1,6 @@
 # KAD-006: YAML compatibility, resource limits and source-safe mutation v1
 
-> **Status:** Accepted specification, not implemented.
+> **Status:** Accepted specification. KAD-014 implements the task document boundary rules in Section 2.3.
 > **Milestone:** v0.1. **Owner task:** KAD-006. **Recorded:** 2026-11-07.
 > **Depends on:** [KAD-001 product scope](KAD-001-v0.1-scope.md), [KAD-002 task frontmatter v1](KAD-002-frontmatter-v1.md), [KAD-003 project configuration v1](KAD-003-project-config-v1.md), [KAD-004 task identity v1](KAD-004-task-identity-v1.md), and [KAD-005 hierarchy and dependencies v1](KAD-005-hierarchy-dependencies-v1.md).
 > **Scope:** Accepted YAML representations, task recognition under parse failures, scalar interpretation, deterministic parser/scan budgets, eligibility for byte-preserving edits and their failure behavior.
@@ -58,6 +58,9 @@ Do not treat an unsupported feature as an empty value, silently skip it, or let 
 
 Task documents follow KAD-002: an optional UTF-8 BOM, then an opening `---` delimiter line, a YAML header, a closing `---` delimiter line, then arbitrary Markdown body (possibly empty). Delimiters must be complete lines, using LF/CRLF or EOF where appropriate; they are not YAML fields.
 
+- Match exactly three ASCII hyphens starting in column one, without spaces or comments. The delimiter range includes its LF or CRLF when present. A closing delimiter at EOF leaves an empty body.
+- If the initial `---` is immediately followed by a bare CR, U+0085, U+2028 or U+2029, report an unsupported line break. This also applies after a leading UTF-8 BOM.
+- Adjacent opening and closing delimiter lines enclose a zero-byte header. Extraction succeeds; the absent discriminator makes the Markdown a non-task.
 - Do not interpret `---` inside Markdown after the closing delimiter as another YAML document.
 - Do not search for a later header when the initial opening delimiter is absent.
 - Detect a missing closing delimiter or malformed header; never guess that Markdown belongs to the YAML header.

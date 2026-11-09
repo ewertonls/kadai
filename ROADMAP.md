@@ -64,7 +64,7 @@
 **Depends on:** Phases 0-1. **Done when:** Changing one supported metadata field preserves the body and all unrelated bytes; unsafe edits report an error.
 
 - [x] **KAD-013** Spike YAML implementation options. _Acceptance:_ Compare a maintained parser, including LibYAML via Odin/C FFI, with licensing and cross-platform linking costs. Do not write a YAML parser from scratch. _Reference:_ [Parser comparison and native probe](docs/development/yaml-parser.md).
-- [ ] **KAD-014** Extract frontmatter boundaries. _Acceptance:_ Separate opening/closing delimiters and raw body; specify BOM, missing delimiters, and empty headers.
+- [x] **KAD-014** Extract frontmatter boundaries. _Acceptance:_ Separate opening/closing delimiters and raw body; specify BOM, missing delimiters, and empty headers. _Reference:_ [Boundary contract](docs/specs/KAD-006-yaml-compatibility-mutation-v1.md#23-document-boundaries), [Odin extractor](src/document/frontmatter.odin).
 - [ ] **KAD-015** Parse known YAML fields. _Acceptance:_ Decode supported scalar and sequence fields while preserving unrecognized keys for round-trip editing.
 - [ ] **KAD-016** Report useful YAML errors. _Acceptance:_ Include filename, line/column where available, field, and actionable diagnostics.
 - [ ] **KAD-017** Preserve arbitrary Markdown bodies. _Acceptance:_ Keep headings, code fences, links, whitespace, and final newline unchanged during metadata-only edits.
