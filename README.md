@@ -137,6 +137,8 @@ The first milestone is a reliable **Odin CLI** for project-local Markdown tasks,
 
 Kadai is in its early design phase. Ideas, bug reports, and discussions about the file format or workflow are welcome in GitHub Issues. Before building a larger feature, open an issue so the design can be discussed.
 
+Contributor setup: [Odin toolchain guide](docs/development/toolchain.md) (reference release, official downloads, checksums, and platform requirements).
+
 ## License
 
 Kadai is licensed under the [MIT License](LICENSE).
