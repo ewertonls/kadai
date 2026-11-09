@@ -70,7 +70,7 @@
 - [x] **KAD-017** Preserve arbitrary Markdown bodies. _Acceptance:_ Keep headings, code fences, links, whitespace, and final newline unchanged during metadata-only edits. _Reference:_ [Source composition and byte-preservation tests](docs/development/yaml-parser.md#preserving-the-markdown-body).
 - [x] **KAD-018** Patch an existing top-level scalar. _Acceptance:_ Update fields such as `status` or `title` while preserving unrelated text, comments, and quoting where supported. _Reference:_ [Scalar patch contract and tests](docs/development/yaml-parser.md#replacing-a-task-scalar).
 - [x] **KAD-019** Insert and remove top-level metadata keys. _Acceptance:_ Support a missing field or explicit unset without resaving the whole YAML document. _Reference:_ [Top-level key edits](docs/development/yaml-parser.md#inserting-and-removing-task-fields).
-- [ ] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts.
+- [x] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts. _Reference:_ [Sequence edits and tests](docs/development/yaml-parser.md#editing-sequence-items).
 - [ ] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits.
 - [ ] **KAD-022** Add byte-level golden tests. _Acceptance:_ Assert that metadata mutations change only intended spans; malformed or unsupported cases never produce destructive output.
 

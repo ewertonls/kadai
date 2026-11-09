@@ -65,6 +65,12 @@ Insertion appends by default. Set `after` to an existing decoded key to insert b
 
 An explicit unset removes an existing optional entry, including its line ending. Required fields, duplicate insertions and unsets of missing fields produce diagnostics. The planner also refuses edits with ambiguous comment ownership or conflicting line endings at the insertion point. Every proposal is reparsed to check the field change, the order and values of the other entries, and any remaining schema errors. [Key planner](../../src/document/key_patch.odin), [byte-preservation and refusal tests](../../src/document/key_patch_test.odin).
 
+### Editing sequence items
+
+Use `document.plan_sequence_patch(source, .Tags, .Append, "docs")` to append one tag, or `document.plan_sequence_patch(source, .Depends_On, .Remove, "T-2")` to remove one prerequisite. The planner accepts single-line flow sequences and block sequences with an isolated dash and scalar on each edited item line. It preserves the spelling and order of the other items. Tags match exactly. Dependency IDs match case-insensitively under the ASCII ID rules.
+
+Appending to a missing or null field creates a one-item flow sequence. Removing the last item leaves an explicit empty sequence. A duplicate append, a missing or ambiguous removal target, or a removal that would discard an attached comment returns a diagnostic. The planner reparses the candidate with the original vocabulary and limits and checks every retained item and unrelated field. Collection-level dependency resolution and cycle checks belong to the operation that applies the proposal. [Sequence planner](../../src/document/sequence_patch.odin), [byte-preservation tests](../../src/document/sequence_patch_test.odin).
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
