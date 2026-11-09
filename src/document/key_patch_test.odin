@@ -54,6 +54,8 @@ key_patch_refuses_collisions_and_invalid_proposals :: proc(t: ^testing.T) {
 		{prefix + "---", .Priority, Insert_Field{value = "urgent"}, "invalid_priority"},
 		{prefix + "due: bad\n---", .Priority, Insert_Field{value = "high"}, "unrelated_invalid_field"},
 		{prefix + "---", .Tags, Insert_Field{value = Inline_Collection{"[cli, cli]"}}, "duplicate_tag"},
+		// An alias introduced by the proposed value must fail during the candidate reparse.
+		{prefix + "---", .Custom, Insert_Field{value = Inline_Collection{"{link: *ref}"}}, "unsupported_alias"},
 		{prefix + "---", .Custom, Insert_Field{value = Inline_Collection{"{} # trailing"}}, "unsafe_source_patch"},
 		{prefix + "---", .Custom, Insert_Field{value = Inline_Collection{"{}\npriority: high"}}, "unsafe_source_patch"},
 		{prefix + "tags:\n  - cli # note\n  - more\n---", .Tags, Unset_Field{}, "comment_ownership_ambiguous"},

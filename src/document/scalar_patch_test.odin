@@ -11,7 +11,12 @@ scalar_patch_changes_only_the_requested_token :: proc(t: ^testing.T) {
 	// The decoded key and the byte offset of its value both differ from the raw spelling.
 	prefix :: "\uFEFF---\r\nkadai: task\nid: T\nstatus: todo\r\n\"ti\\u0074le\": "
 	suffix :: "  # café\r\ncustom: {x: [1, true, null]}\n---\r\n# Body\n---\nend"
+	// Marker-like lines (and the tab after the block indentation) are scalar data.
+	block :: "---\r\nkadai: task\nid: T\r\nstatus: todo\ncustom:\r\n  example: >2- # sample\r\n" +
+	         "    \t# sample comment\n    title: &name *ref\r\n    ---\n\"ti\\u0074le\": "
+	end :: " # atual\r\n---"
 	cases := []struct {source: string, field: Scalar_Field, value: Maybe(string), expected: string}{
+		{block + "Old" + end, .Title, "New", block + "New" + end},
 		{string(#load(fixtures + "scalar-status-comment/input/project/tasks/T.md")), .Status, "done",
 		 string(#load(fixtures + "scalar-status-comment/expected/T.md"))},
 		{string(#load(fixtures + "quoted-title/input/project/tasks/T.md")), .Title, "New title",
@@ -53,6 +58,8 @@ scalar_patch_refuses_unsafe_or_invalid_changes :: proc(t: ^testing.T) {
 		{string(#load(fixtures + "unsupported-future-schema/input/project/tasks/T.md")), .Status, "done", "unsupported_task_schema"},
 		{string(#load(fixtures + "unrelated-update-invalid-status/input/project/tasks/T.md")), .Priority, "high", "unrelated_invalid_field"},
 		{"---\nkadai: task\nid: _bad\nstatus: todo\ntitle: T\n---", .Title, "X", "invalid_id"},
+		// LibYAML accepts this indentation in flow context. Kadai forbids editing it.
+		{prefix + "title: T\ncustom: {\n\tkey: value}\n---", .Title, "X", "invalid_indentation"},
 		{prefix + "title: T\n---", .Priority, "high", "missing_field"},
 		{prefix + "title: T\n---", .Title, nil, "required_null"},
 		{prefix + "title: T\n---", .Title, "evil\nstatus: done", "invalid_title"},
