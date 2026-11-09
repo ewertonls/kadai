@@ -90,13 +90,15 @@ Replace `src/app` with the package directory you are working on. Odin checks tha
 
 ### Run tests
 
-From the repository root, run the fixture helpers' unit and filesystem integration tests together:
+Run the full suite from the repository root.
 
 ```sh
-odin test tests/fixture_runner -collection:kadai=src -collection:third_party=third_party
+odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
 ```
 
-For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, run `odin test src/cli -collection:kadai=src -collection:third_party=third_party` to test CLI dispatch and error handling. The [YAML test commands](yaml-parser.md#run-the-probe) include the native linker flags for each target.
+`-all-packages` runs tests in the packages imported by the [test entrypoint](../../tests/all.odin). When adding tests to a new package, add its import there.
+
+For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For a focused run, target the package directly. For example, `odin test src/cli -collection:kadai=src -collection:third_party=third_party` tests CLI dispatch and error handling. The [YAML test commands](yaml-parser.md#run-the-probe) include the native linker flags for each target.
 
 The integration test selects `recognition/crlf-bom` from the [fixture catalog](../../tests/fixtures/v1/README.md), prepares its literal inputs in a fresh temporary directory, and verifies that the staged task preserves the source bytes, including the BOM and CRLF. Its `scan` action awaits the scanner.
 

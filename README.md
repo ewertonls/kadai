@@ -19,6 +19,14 @@ odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -
 
 On Windows, run `.\kadai.exe --version`. The [build guide](docs/development/toolchain.md#build-the-cli) covers static library setup and optional dynamic linking.
 
+## Run tests
+
+Run the full suite from the repository root.
+
+```sh
+odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+```
+
 ## Design goals
 
 - **Markdown is the source of truth.** Each task is a `.md` file with YAML frontmatter. Its body and sections are entirely up to the author.
