@@ -1,6 +1,6 @@
 ---
 kadai: task
-id: NULL
+id: "NULL"
 title: Example NULL
 status: todo
 schema_version: null

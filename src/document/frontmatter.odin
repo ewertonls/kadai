@@ -3,11 +3,10 @@ package document
 
 import "core:strings"
 import "core:unicode/utf8"
+import "kadai:yaml"
 
 // Half-open byte offsets into the original Markdown source.
-Byte_Range :: struct {
-	start, end: int,
-}
+Byte_Range :: yaml.Byte_Range
 
 Frontmatter :: struct {
 	bom, opening, header, closing, body: Byte_Range,
@@ -28,14 +27,8 @@ Frontmatter_Limits :: struct {
 	task_source_bytes, yaml_document_bytes: int,
 }
 
-DEFAULT_FRONTMATTER_LIMITS :: Frontmatter_Limits{16 * 1024 * 1024, 256 * 1024}
-MAX_FRONTMATTER_LIMITS :: Frontmatter_Limits{256 * 1024 * 1024, 4 * 1024 * 1024}
-
-@(private)
-unsupported_line_break :: proc(r: rune, suffix: string) -> bool {
-	return r == '\u0085' || r == '\u2028' || r == '\u2029' ||
-	       (r == '\r' && !strings.has_prefix(suffix, "\r\n"))
-}
+DEFAULT_FRONTMATTER_LIMITS :: Frontmatter_Limits{16 * 1024 * 1024, yaml.DEFAULT_LIMITS.bytes}
+MAX_FRONTMATTER_LIMITS :: Frontmatter_Limits{256 * 1024 * 1024, yaml.MAX_LIMITS.bytes}
 
 // Called only at the start of a line. A delimiter owns its line ending, if any.
 @(private)
@@ -46,7 +39,7 @@ delimiter :: proc(line: string) -> (size: int, status: Frontmatter_Status) {
 	if suffix[0] == '\n'                  do return 4, .Present
 	if strings.has_prefix(suffix, "\r\n") do return 5, .Present
 	r, _ := utf8.decode_rune_in_string(suffix)
-	if unsupported_line_break(r, suffix) do return 0, .Unsupported_Line_Break
+	if yaml.unsupported_line_break(r, suffix) do return 0, .Unsupported_Line_Break
 	return 0, .Absent
 }
 
@@ -91,7 +84,7 @@ extract_frontmatter :: proc(
 	if !utf8.valid_string(source) do return {}, .Invalid_UTF8
 	header := source[header_start:closing.start]
 	for r, i in header {
-		if unsupported_line_break(r, header[i:]) do return {}, .Unsupported_Line_Break
+		if yaml.unsupported_line_break(r, header[i:]) do return {}, .Unsupported_Line_Break
 	}
 	return {
 		bom     = {0, bom_size},
