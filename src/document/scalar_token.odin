@@ -1,5 +1,6 @@
 package document
 
+import "base:intrinsics"
 import "base:runtime"
 import "core:strconv"
 import "core:strings"
@@ -93,36 +94,65 @@ quoted_token :: proc(text: string, style: yaml.Node_Style, size: int) -> (token:
 	return string(buf), nil
 }
 
+// A string is always scalar text. An Inline_Collection is one already encoded
+// YAML flow sequence or mapping. The zero value represents explicit YAML null.
+Inline_Collection :: struct {yaml: string}
+Field_Value :: union {string, Inline_Collection}
+
 @(private)
-matches_scalar :: proc(node: ^yaml.Node, value: Maybe(string)) -> bool {
-	if text, ok := value.?; ok {
-		return node.kind != .Null && node.kind != .Sequence && node.kind != .Mapping && node.text == text
+matches_value :: proc(node: ^yaml.Node, value: Field_Value) -> bool {
+	switch v in value {
+	case string:
+		return node.kind != .Null && node.kind != .Sequence && node.kind != .Mapping && node.text == v
+	case Inline_Collection:
+		return node.style == .Flow && (node.kind == .Mapping || node.kind == .Sequence)
 	}
 	return node.kind == .Null
 }
 
 @(private)
-compose_scalar :: proc(doc: ^Task_Document, field: string, node: ^yaml.Node, raw: string, value: Maybe(string)) -> (candidate: string, err: Header_Edit_Error) {
-	if matches_scalar(node, value) {
-		return compose_header_edit(doc, node.span, raw)
+compose_field_value :: proc(
+	doc: ^Task_Document, field: string, span: Byte_Range, value: Field_Value,
+	style: yaml.Node_Style, loc: yaml.Location, indent := "", eol := "",
+) -> (candidate: string, err: Header_Edit_Error) {
+	entry_bytes := 0
+	if eol != "" {
+		entry_bytes = len(indent) + len(field) + len(": ") + len(eol)
 	}
-	text, has_text := value.?
-	if !has_text {
-		return compose_header_edit(doc, node.span, "null")
+	token := "null"
+	owned: string
+	defer delete(owned)
+	switch v in value {
+	case string:
+		// Bound the scan and quote expansion before allocating either buffer.
+		_, _ = header_edit_sizes(doc, span, intrinsics.saturating_add(len(v), entry_bytes)) or_return
+		if !utf8.valid_string(v) {
+			return "", yaml.diagnostic(doc.path, "invalid_utf8", field, "Supply a valid UTF-8 field value.", loc) or_return
+		}
+		encoding := replacement_style(style, v)
+		token = v
+		if encoding != .Plain {
+			size := quoted_token_size(v, encoding)
+			_, _ = header_edit_sizes(doc, span, size + entry_bytes) or_return
+			owned = quoted_token(v, encoding, size) or_return
+			token = owned
+		}
+	case Inline_Collection:
+		token = v.yaml
+		_, _ = header_edit_sizes(doc, span, intrinsics.saturating_add(len(token), entry_bytes)) or_return
+		if token == "" || (token[0] != '[' && token[0] != '{') || strings.contains_any(token, "\r\n") {
+			return "", yaml.diagnostic(doc.path, "unsafe_source_patch", field, "Supply one single-line YAML flow collection.", loc) or_return
+		}
 	}
-	// UTF-8 text is a lower bound on its single-line token size. The document
-	// ceiling also bounds the arithmetic and scanning in quoted_token_size.
-	_, _ = header_edit_sizes(doc, node.span, len(text)) or_return
-	if !utf8.valid_string(text) {
-		return "", yaml.diagnostic(doc.path, "invalid_utf8", field, "Supply a valid UTF-8 field value.", markdown_location(doc.parts.header, node.location)) or_return
+	if eol == "" {
+		return compose_header_edit(doc, span, token)
 	}
-	style := replacement_style(node.style, text)
-	if style == .Plain {
-		return compose_header_edit(doc, node.span, text)
+	size := len(token) + entry_bytes
+	_, _ = header_edit_sizes(doc, span, size) or_return
+	line := strings.concatenate({indent, field, ": ", token, eol}) or_return
+	defer delete(line)
+	if len(line) != size {
+		return "", runtime.Allocator_Error.Out_Of_Memory
 	}
-	size := quoted_token_size(text, style)
-	_, _ = header_edit_sizes(doc, node.span, size) or_return
-	token := quoted_token(text, style, size) or_return
-	defer delete(token)
-	return compose_header_edit(doc, node.span, token)
+	return compose_header_edit(doc, span, line)
 }
