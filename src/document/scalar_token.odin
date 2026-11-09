@@ -147,12 +147,5 @@ compose_field_value :: proc(
 	if eol == "" {
 		return compose_header_edit(doc, span, token)
 	}
-	size := len(token) + entry_bytes
-	_, _ = header_edit_sizes(doc, span, size) or_return
-	line := strings.concatenate({indent, field, ": ", token, eol}) or_return
-	defer delete(line)
-	if len(line) != size {
-		return "", runtime.Allocator_Error.Out_Of_Memory
-	}
-	return compose_header_edit(doc, span, line)
+	return compose_header_parts(doc, span, {indent, field, ": ", token, eol})
 }

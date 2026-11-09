@@ -2,7 +2,6 @@ package document
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:strings"
 import "core:unicode/utf8"
 import "kadai:yaml"
 
@@ -17,6 +16,12 @@ Header_Edit_Error :: union {
 // The caller owns the returned string on success or a diagnostic if one is returned.
 @(require_results)
 compose_header_edit :: proc(doc: ^Task_Document, span: Byte_Range, replacement: string) -> (candidate: string, err: Header_Edit_Error) {
+	return compose_header_parts(doc, span, {replacement})
+}
+
+// Copy each piece directly to the candidate after checking their combined size.
+@(private)
+compose_header_parts :: proc(doc: ^Task_Document, span: Byte_Range, parts: []string) -> (candidate: string, err: Header_Edit_Error) {
 	if (doc.status != .Decoded && doc.status != .Invalid_Fields) ||
 	   doc.fields.schema_version.digits != "1" || doc.fields.id == "" {
 		return "", yaml.diagnostic(doc.path, "unsafe_source_patch", "", "Select a parsed v1 task with a valid ID before editing its header.") or_return
@@ -32,23 +37,31 @@ compose_header_edit :: proc(doc: ^Task_Document, span: Byte_Range, replacement: 
 	}
 
 	limits := doc.frontmatter_limits
-	new_header_size, new_source_size := header_edit_sizes(doc, span, len(replacement)) or_return
-
-	edited := strings.concatenate({doc.source[:start], replacement, doc.source[end:]}) or_return
-	defer if err != nil {
-		delete(edited)
+	replacement_size := 0
+	for part in parts {
+		replacement_size = intrinsics.saturating_add(replacement_size, len(part))
 	}
-	// A nil allocator can decline a nonempty allocation without returning an error.
-	if len(edited) != new_source_size {
+	new_header_size, new_source_size := header_edit_sizes(doc, span, replacement_size) or_return
+	buffer := non_zero_make([]byte, new_source_size) or_return
+	defer if err != nil {
+		delete(buffer)
+	}
+	if len(buffer) != new_source_size {
 		return "", runtime.Allocator_Error.Out_Of_Memory
 	}
+	pos := copy(buffer, doc.source[:start])
+	for part in parts {
+		pos += copy(buffer[pos:], part)
+	}
+	copy(buffer[pos:], doc.source[end:])
+	edited := string(buffer)
 	closing_start := header.start + new_header_size
 	if edited[closing_start - 1] != '\n' {
 		loc := yaml.locate(doc.source, {start, end})
 		return "", yaml.diagnostic(doc.path, "unsafe_source_patch", "", "Keep the closing delimiter at the start of its own line.", loc) or_return
 	}
 
-	parts, status := extract_frontmatter(edited, limits)
+	envelope, status := extract_frontmatter(edited, limits)
 	if status != .Present {
 		// The candidate is discarded. Point to the planned edit in the original.
 		loc := yaml.locate(doc.source, {start, end})
@@ -56,7 +69,7 @@ compose_header_edit :: proc(doc: ^Task_Document, span: Byte_Range, replacement: 
 	}
 	// The suffix was copied verbatim. Its original closing delimiter must
 	// still be the one that separates the YAML from the Markdown body.
-	if parts.closing.start != closing_start {
+	if envelope.closing.start != closing_start {
 		loc := yaml.locate(doc.source, {start, end})
 		return "", yaml.diagnostic(doc.path, "unsafe_source_patch", "", "Keep the original closing delimiter at the end of the edited header.", loc) or_return
 	}
