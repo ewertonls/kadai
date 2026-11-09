@@ -68,7 +68,7 @@
 - [x] **KAD-015** Parse known YAML fields. _Acceptance:_ Decode supported scalar and sequence fields while preserving unrecognized keys for round-trip editing. _Reference:_ [Task decoder](src/document/decode.odin), [field and source-preservation tests](src/document/decode_test.odin).
 - [x] **KAD-016** Report useful YAML errors. _Acceptance:_ Include filename, line/column where available, field, and actionable diagnostics. _Reference:_ [Document diagnostics](docs/development/yaml-parser.md#diagnostics).
 - [x] **KAD-017** Preserve arbitrary Markdown bodies. _Acceptance:_ Keep headings, code fences, links, whitespace, and final newline unchanged during metadata-only edits. _Reference:_ [Source composition and byte-preservation tests](docs/development/yaml-parser.md#preserving-the-markdown-body).
-- [ ] **KAD-018** Patch an existing top-level scalar. _Acceptance:_ Update fields such as `status` or `title` while preserving unrelated text, comments, and quoting where supported.
+- [x] **KAD-018** Patch an existing top-level scalar. _Acceptance:_ Update fields such as `status` or `title` while preserving unrelated text, comments, and quoting where supported. _Reference:_ [Scalar patch contract and tests](docs/development/yaml-parser.md#replacing-a-task-scalar).
 - [ ] **KAD-019** Insert and remove top-level metadata keys. _Acceptance:_ Support a missing field or explicit unset without resaving the whole YAML document.
 - [ ] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts.
 - [ ] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits.

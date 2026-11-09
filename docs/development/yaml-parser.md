@@ -44,6 +44,12 @@ Known string fields use the decoded scalar text. Under `custom`, nodes carry the
 
 On success the caller owns the candidate string and the error is `nil`. A rejected edit returns a `yaml.Diagnostic`, which the caller releases with `yaml.destroy_diagnostic`. Candidate allocation errors propagate as `runtime.Allocator_Error`. An allocator that supplies no storage for the candidate yields `.Out_Of_Memory`.
 
+### Replacing a task scalar
+
+`document.plan_scalar_patch(source, .Title, "New title")` returns owned candidate Markdown with the same error and ownership contract as `compose_header_edit`. It supports existing single-line plain, single-quoted and double-quoted tokens for `title`, `status`, `priority`, `parent` and `due` in a block root. Pass `nil` to set an optional field to YAML null. A text value such as `"null"` keeps its string meaning. Missing fields, empty implicit values, multiline tokens and flow roots are refused by this operation.
+
+The planner reparses the entire candidate with the supplied vocabulary and limits. It checks the new value and its byte range, every unrelated YAML entry, and the remaining field errors. A schema-invalid task with a usable ID and a supported version permits repair of its invalid target field. Collection-level identity, relationship checks and persistence belong to the caller. [Scalar planner](../../src/document/scalar_patch.odin), [source-preservation tests](../../src/document/scalar_patch_test.odin).
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
@@ -51,6 +57,8 @@ Pass the known filename to `document.decode_task(source, path = "tasks/example.m
 Diagnostic spans are half-open byte offsets into the original Markdown. Lines and Unicode code-point columns start at one, and an initial BOM occupies no display column. An EOF location has a zero-width span. A missing required field has no token to point to and leaves the location unset (line zero).
 
 Limit errors name the budget and include the observed value and configured limit. When header extraction stops at the first excess byte, the observed count is a lower bound. Direct callers of `yaml.parse_mapping` can pass a fresh `report` and `path` to obtain locations relative to the YAML input. Release that report with `yaml.destroy_diagnostic`. For a task document, `document.destroy` releases all its diagnostics.
+
+`yaml.parse_mapping_checked` exposes the allocator error when building the tree fails. A caller of `document.decode_task` can capture its optional second return value to propagate that error. Allocation failure leaves the document in the `Allocation_Error` state with its partial tree released.
 
 ### Run the probe
 
