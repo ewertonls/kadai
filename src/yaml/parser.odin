@@ -19,6 +19,7 @@ Error :: enum {
 	None, Invalid_Limits, Too_Large, Too_Many_Nodes, Too_Deep,
 	Invalid_UTF8, Unsupported_Line_Break, Unexpected_BOM, Syntax, Invalid_Mark,
 	Not_Mapping, Invalid_Key, Duplicate_Key, Anchor, Alias, Tag, Directive, Multiple_Documents, Allocation_Failed,
+	Invalid_Indentation,
 }
 
 Parse_Failure :: union {Error, runtime.Allocator_Error}
@@ -51,19 +52,42 @@ advance :: proc(r: ^Reader) -> Error {
 	return .None
 }
 
+// Tabs can separate flow tokens after the enclosing block's indentation.
+@(private)
+indentation_tab :: proc(line: string, required_spaces: int, scalar_content: bool) -> int {
+	i := 0
+	for i < min(len(line), required_spaces) && line[i] == ' ' {
+		i += 1
+	}
+	if i == required_spaces || i == len(line) || line[i] != '\t' {
+		return -1
+	}
+	content := strings.trim_left(line[i:], " \t")
+	if content == "" || content[0] == '\r' || content[0] == '\n' || (!scalar_content && content[0] == '#') {
+		return -1
+	}
+	return i
+}
+
 // Walk UTF-8 only once, in event order. LibYAML indexes count code points,
 // including both characters of a CRLF. All returned spans index source bytes.
 @(private)
-byte_offset :: proc(r: ^Reader, mark: oyaml.mark, scalar_content := false) -> (int, Error) {
+byte_offset :: proc(r: ^Reader, mark: oyaml.mark, required_spaces := 1, scalar_content := false) -> (int, Error) {
 	if mark.index < r.char_index do return 0, .Invalid_Mark
 	for r.char_index < mark.index {
 		if r.byte_index >= len(r.source) do return 0, .Invalid_Mark
 		c, size := utf8.decode_rune_in_string(r.source[r.byte_index:])
-		// LibYAML skips a BOM before a document even after leading comments.
-		// A U+FEFF inside a scalar is content and keeps its original span.
-		if !scalar_content && c == '\uFEFF' && (r.byte_index == 0 || r.source[r.byte_index-1] == '\n') {
-			r.bad_offset = r.byte_index
-			return 0, .Unexpected_BOM
+		if r.byte_index == 0 || r.source[r.byte_index-1] == '\n' {
+			// LibYAML can skip a BOM after leading comments. Inside a scalar it is content.
+			if !scalar_content && c == '\uFEFF' {
+				r.bad_offset = r.byte_index
+				return 0, .Unexpected_BOM
+			}
+			// LibYAML can consume indentation tabs between flow tokens or inside quoted continuations.
+			if offset := indentation_tab(r.source[r.byte_index:], required_spaces, scalar_content); offset >= 0 {
+				r.bad_offset = r.byte_index + offset
+				return 0, .Invalid_Indentation
+			}
 		}
 		r.byte_index += size
 		r.char_index += 1
@@ -78,15 +102,17 @@ check_properties :: proc(anchor, tag: cstring) -> Error {
 	return .None
 }
 
+// Continuations need one more space than the enclosing block indentation. The
+// one-based block column gives that count, including across nested flow nodes.
 @(private)
-read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
+read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> Parse_Failure {
 	r.node_count += 1
 	if r.node_count > r.limits.nodes do return Error.Too_Many_Nodes
 	if depth > r.limits.depth {
 		r.failed_depth = depth
 		return Error.Too_Deep
 	}
-	node.span.start = byte_offset(r, r.event.start_mark) or_return
+	node.span.start = byte_offset(r, r.event.start_mark, required_spaces) or_return
 	node.line, node.column = int(r.event.start_mark.line) + 1, int(r.event.start_mark.column) + 1
 	#partial switch r.event.type {
 	case .SCALAR_EVENT:
@@ -110,11 +136,12 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 		check_properties(props.anchor, props.tag) or_return
 		node.kind = .Sequence
 		node.style = .Flow if props.style == .FLOW_SEQUENCE_STYLE else .Block
+		child_indent := node.column if node.style == .Block else required_spaces
 		advance(r) or_return
 		for r.event.type != .SEQUENCE_END_EVENT {
 			_ = append(&node.items, Node{}) or_return
 			_ = append(&r.field, len(node.items) - 1) or_return
-			read_node(r, &node.items[len(node.items)-1], depth + 1) or_return
+			read_node(r, &node.items[len(node.items)-1], depth + 1, child_indent) or_return
 			pop(&r.field)
 			advance(r) or_return
 		}
@@ -123,13 +150,14 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 		check_properties(props.anchor, props.tag) or_return
 		node.kind = .Mapping
 		node.style = .Flow if props.style == .FLOW_MAPPING_STYLE else .Block
+		child_indent := node.column if node.style == .Block else required_spaces
 		seen: map[string]bool
 		defer delete(seen)
 		advance(r) or_return
 		for r.event.type != .MAPPING_END_EVENT {
 			_ = append(&node.entries, Entry{}) or_return
 			pair := &node.entries[len(node.entries)-1]
-			read_node(r, &pair.key, depth + 1) or_return
+			read_node(r, &pair.key, depth + 1, child_indent) or_return
 			if pair.key.kind == .Mapping || pair.key.kind == .Sequence {
 				r.offender = &pair.key
 				return Error.Invalid_Key
@@ -141,14 +169,14 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 			}
 			_ = map_insert(&seen, pair.key.text, true) or_return
 			advance(r) or_return
-			read_node(r, &pair.value, depth + 1) or_return
+			read_node(r, &pair.value, depth + 1, child_indent) or_return
 			pop(&r.field)
 			advance(r) or_return
 		}
 	case .ALIAS_EVENT: return Error.Alias
 	case: return Error.Syntax
 	}
-	node.span.end = byte_offset(r, r.event.end_mark, r.event.type == .SCALAR_EVENT) or_return
+	node.span.end = byte_offset(r, r.event.end_mark, required_spaces, r.event.type == .SCALAR_EVENT) or_return
 	return nil
 }
 

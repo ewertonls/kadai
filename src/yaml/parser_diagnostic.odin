@@ -111,6 +111,7 @@ parser_diagnostic :: proc(r: ^Reader, err: Error, path: string) -> Diagnostic {
 	case .Too_Many_Nodes: return limit_diagnostic(path, "yaml_nodes_document", r.node_count, r.limits.nodes, loc)
 	case .Too_Deep: return limit_diagnostic(path, "yaml_depth", r.failed_depth, r.limits.depth, loc)
 	case .Syntax: return syntax_diagnostic(r, path, field)
+	case .Invalid_Indentation: return indentation_diagnostic(path, loc)
 	case .Invalid_UTF8: return diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
 	case .Unsupported_Line_Break: return diagnostic(path, "unsupported_line_break", "", "Use LF or CRLF line endings in YAML.", loc)
 	case .Unexpected_BOM: return diagnostic(path, "unexpected_bom", "", "Remove the unexpected BOM from this YAML input.", loc)
@@ -126,6 +127,11 @@ parser_diagnostic :: proc(r: ^Reader, err: Error, path: string) -> Diagnostic {
 	case .None, .Allocation_Failed: return {}
 	}
 	return {}
+}
+
+@(private)
+indentation_diagnostic :: proc(path: string, loc: Location) -> Diagnostic {
+	return diagnostic(path, "invalid_indentation", "", "Replace the indentation tab with spaces.", loc)
 }
 
 @(private)
@@ -150,7 +156,7 @@ syntax_diagnostic :: proc(r: ^Reader, path, active_field: string) -> Diagnostic 
 	if loc.line != 0 && loc.span.start < len(s) && s[loc.span.start] == '\t' {
 		start := strings.last_index_byte(s[:loc.span.start], '\n') + 1
 		if strings.trim(s[start:loc.span.start], " \t") == "" {
-			return diagnostic(path, "invalid_indentation", "", "Replace the indentation tab with spaces.", loc)
+			return indentation_diagnostic(path, loc)
 		}
 	}
 	d := Diagnostic{path = path, field = strings.clone(field), code = "yaml_syntax", location = loc}

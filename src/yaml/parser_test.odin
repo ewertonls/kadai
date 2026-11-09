@@ -12,6 +12,9 @@ bounded_mapping_events :: proc(t: ^testing.T) {
 		{source, {8, 3, 3}, .Too_Many_Nodes}, {source, {8, 4, 2}, .Too_Deep},
 		{source, {8, 0, 3}, .Invalid_Limits}, {source, {8, 4, MAX_LIMITS.depth + 1}, .Invalid_Limits},
 		{"a: [one", DEFAULT_LIMITS, .Syntax},
+		// A nested block requires three spaces. After them a tab may separate flow tokens.
+		{"a:\n  b: [one,\r\n   \t'two']", DEFAULT_LIMITS, .None},
+		{"a:\n  b: 'one\r\n  \t#two'", DEFAULT_LIMITS, .Invalid_Indentation},
 		{"a: {s: 1, \"\\x73\": 2}", DEFAULT_LIMITS, .Duplicate_Key},
 		{"a: &unsafe [1]", DEFAULT_LIMITS, .Anchor}, {"a: [*ref]", DEFAULT_LIMITS, .Alias},
 		{"a: !!str word", DEFAULT_LIMITS, .Tag}, {"%YAML 1.2\n---\na: b", DEFAULT_LIMITS, .Directive},
