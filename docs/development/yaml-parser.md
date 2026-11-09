@@ -38,6 +38,12 @@ LibYAML and libfyaml use MIT licenses. Include the applicable copyright and perm
 
 Known string fields use the decoded scalar text. Under `custom`, nodes carry their resolved type and decoded text. Integer digits and radix are available without narrowing, and floats retain their exact spelling. [Scalar implementation](../../src/yaml/scalar.odin), [YAML 1.2.2 Core Schema](https://yaml.org/spec/1.2.2/#1032-tag-resolution).
 
+### Preserving the Markdown body
+
+`document.compose_header_edit` builds candidate Markdown in memory from a decoded task, one header-relative byte range and its replacement. It copies the original bytes outside the range and checks that the original closing delimiter still separates the header from the body. The candidate keeps the body's line endings, whitespace and final newline exactly as written. The field planner must verify the target span and reparse the candidate to check the intended field change before persistence. [Source composition](../../src/document/header_edit.odin), [byte-preservation tests](../../src/document/header_edit_test.odin).
+
+On success the caller owns the candidate string and the error is `nil`. A rejected edit returns a `yaml.Diagnostic`, which the caller releases with `yaml.destroy_diagnostic`. Candidate allocation errors propagate as `runtime.Allocator_Error`. An allocator that supplies no storage for the candidate yields `.Out_Of_Memory`.
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
