@@ -52,7 +52,7 @@
 **Depends on:** Phase 0. **Done when:** The command builds on a pinned Odin toolchain, prints help/version, and runs automated tests.
 
 - [x] **KAD-008** Pin the Odin toolchain. _Acceptance:_ Record the compiler revision/release and provide setup instructions for contributors. _Reference:_ [Odin toolchain guide](docs/development/toolchain.md) (advisory pin).
-- [ ] **KAD-009** Define package boundaries. _Acceptance:_ Separate CLI, project/filesystem, Markdown/YAML, task domain, and graph logic without a UI dependency.
+- [x] **KAD-009** Define package boundaries. _Acceptance:_ Separate CLI, project/filesystem, Markdown/YAML, task domain, and graph logic without a UI dependency. _Reference:_ [Odin packages](docs/development/packages.md).
 - [ ] **KAD-010** Add build and developer scripts. _Acceptance:_ Provide reproducible build, format/check, vet, and test commands for local development.
 - [ ] **KAD-011** Set up Odin tests and fixtures. _Acceptance:_ Use `core:testing` and a repeatable runner for unit and integration tests.
 - [ ] **KAD-012** Create the CLI entrypoint. _Acceptance:_ Implement `kadai --help`, `--version`, command dispatch, and a consistent error boundary.

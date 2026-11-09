@@ -1,0 +1,42 @@
+# Odin package boundaries
+
+Each directory under `src/` is an independent Odin package. The CLI calls `app` for queries and mutations. A future UI can call the same operations. Arguments, terminal output, JSON rendering, and exit codes belong to `cli`.
+
+## Package responsibilities
+
+The last column lists allowed direct imports within Kadai. Add an import when an implementation needs it.
+
+| Package | Responsibility | May import |
+| --- | --- | --- |
+| `cli` | Translate arguments into operations and present their results | `app` |
+| `app` | Coordinate queries and mutations, including the lock scope across discovery, validation, and persistence | `project`, `task`, `document`, `storage`, and eventually `graph`, `identity` |
+| `task` | Define task fields, status rules, ID syntax, and single-task validation in memory | None |
+| `document` | Locate Markdown frontmatter and body, decode task fields, and patch supported fields while preserving unrelated bytes | `yaml`, `task` |
+| `yaml` | Expose YAML parsing, events, and source spans for both project config and task documents. Parser selection belongs to KAD-013. | None |
+| `project` | Resolve config and roots, discover documents, and build the transient collection index | `yaml`, `storage`, `document`, `task` |
+| `storage` | Handle physical path safety, file I/O, locks, atomic replacement, and recovery using paths and bytes | None |
+
+Two additional boundaries are defined now. Create their directories when the corresponding contracts are first implemented.
+
+| Future package | Responsibility | May import |
+| --- | --- | --- |
+| `graph` | Resolve references, check hierarchy and dependency cycles separately, and derive readiness from in-memory collection data | `task` |
+| `identity` | Allocate IDs, maintain durable used-ID markers, and plan reference-aware repairs. The application coordinates applying a repair across files. | `task`, `storage` |
+
+For a status change, `cli` passes the ID and requested status to `app`. The operation uses `storage` for coordination, `project` to find the current task, and `task` and `graph` to validate the change. Then `document` prepares the edited bytes and `storage` persists them under the same coordination. Only `cli` chooses how to present the result.
+
+## Imports and checks
+
+Use the `kadai` collection rooted at `src/`, for example `import "kadai:task"` inside `app`. Run compiler commands from the repository root. To check one package today:
+
+```sh
+odin check src/app -collection:kadai=src -no-entry-point -vet
+```
+
+KAD-012 will add a thin entrypoint in `cmd/kadai/main.odin` that calls `cli`. Its build command will be:
+
+```sh
+odin build cmd/kadai -collection:kadai=src
+```
+
+Keep unit tests beside the implementation, with `#+test` on test files and `@(test)` on test procedures. KAD-011 will add the fixture runner under `tests/fixture_runner/` and integration tests under `tests/integration/`. Tests that write files will use temporary directories and take fixture inputs from `tests/fixtures/v1/`.
