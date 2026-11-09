@@ -1,45 +1,22 @@
 {
   "fixture_version": 1,
   "id": "yaml/numeric-core",
-  "contracts": [
-    "KAD-002",
-    "KAD-006"
-  ],
-  "description": "YAML 1.2 Core numeric and string interpretation in custom",
+  "contracts": ["KAD-002", "KAD-006"],
+  "description": "YAML 1.2 Core numeric and string interpretation in custom; plain 0007 is decimal integer 7",
   "cwd": "project",
   "tier": "normal",
-  "action": {
-    "op": "scan"
-  },
+  "action": {"op": "scan"},
   "expect": {
     "result": "ok",
     "scan_complete": true,
     "no_writes": true,
-    "documents": [
-      {
-        "path": "tasks/numbers.md",
-        "classification": "valid",
-        "id": "NUMBERS"
-      }
-    ],
+    "documents": [{"path": "tasks/numbers.md", "classification": "valid", "id": "NUMBERS"}],
     "custom_types": {
-      "yes_word": "string",
-      "no_word": "string",
-      "on_word": "string",
-      "off_word": "string",
-      "true_value": "boolean",
-      "false_value": "boolean",
-      "large": "integer",
-      "signed": "integer",
-      "leading": "string",
-      "hex": "integer",
-      "octal": "integer",
-      "exp": "float",
-      "nan": "float_nan",
-      "inf": "float_positive_infinity",
-      "neg_inf": "float_negative_infinity",
-      "quoted": "string",
-      "date": "string"
+      "yes_word": "string", "no_word": "string", "on_word": "string", "off_word": "string",
+      "true_value": "boolean", "false_value": "boolean", "large": "integer", "signed": "integer",
+      "leading": "integer", "hex": "integer", "octal": "integer", "exp": "float",
+      "nan": "float_nan", "inf": "float_positive_infinity", "neg_inf": "float_negative_infinity",
+      "quoted": "string", "date": "string"
     }
   }
 }

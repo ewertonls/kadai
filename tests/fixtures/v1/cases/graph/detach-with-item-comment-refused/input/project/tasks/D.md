@@ -4,6 +4,6 @@ id: D
 title: D
 status: todo
 depends_on:
-  - X # never silently discard comment
+  - &target X # unsupported anchor; do not silently strip source
   - A
 ---

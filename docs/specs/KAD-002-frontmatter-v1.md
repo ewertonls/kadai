@@ -1,7 +1,7 @@
 # KAD-002: task frontmatter v1 contract
 
 > **Status:** Accepted specification, not implemented.
-> **Milestone:** v0.1. **Owner task:** KAD-002. **Recorded:** 2026-11-06. **Architecture review:** 2026-11-06.
+> **Milestone:** v0.1. **Owner task:** KAD-002. **Recorded:** 2026-11-06. **Architecture review:** 2026-11-06; cross-contract amendments 2026-11-08.
 > **Depends on:** [KAD-001 product scope](KAD-001-v0.1-scope.md).
 > **Scope:** On-disk task recognition, reserved keys, validation, defaults, YAML types, and the decisions that constrain later implementations.
 
@@ -12,7 +12,7 @@
 - Input is strict UTF-8. Invalid byte sequences fail with a diagnostic; they are not replaced or silently repaired. Preserve BOM, line endings, and all unrelated bytes.
 - The frontmatter document's root must be a YAML mapping with string keys. A valid YAML file without `kadai: task`, or with another `kadai` value, is not a task. It must not be imported implicitly.
 - Discovery classifies Markdown as **non-task**, **valid task**, **invalid task candidate** or **unsupported-schema task**. A parsed `kadai: task` with field errors is an invalid candidate; malformed frontmatter is a candidate only when a conservative task marker is found (KAD-006 defines that rule). Ordinary Markdown is ignored.
-- Candidates with a valid, project-unique ID may be available through **diagnostic-only partial reads**, never normal task listing/readiness. Invalid YAML syntax, ambiguous `kadai`/`id` keys and invalid IDs preclude usable indexing. After scanning the whole project, **all** case-insensitive ID collisions are quarantined: ID-based reads/writes fail until explicit repair, and no file wins by scan order. Unknown future schemas are recognized but read-only absent proven compatibility.
+- Candidates with a valid, collection-unique ID may be available through **diagnostic-only partial reads**, never normal task listing/readiness. Invalid YAML syntax, ambiguous `kadai`/`id` keys and invalid IDs preclude usable indexing. After scanning the whole effective collection, **all** case-insensitive ID collisions are quarantined: ID-based reads/writes fail until explicit repair, and no file wins by scan order. Unknown future schemas are recognized but read-only absent proven compatibility.
 - Recognition, parsing, semantic validation, graph integrity, and mutation eligibility are separate steps. A readable or partially indexed file is **not** necessarily valid or safe to write.
 
 ## 2. Reserved keys and types
@@ -22,7 +22,7 @@ Keys are case-sensitive and live at the top level unless stated otherwise.
 | Key | Required | Type | Contract |
 | --- | --- | --- | --- |
 | `kadai` | Yes | String | Exactly `task` |
-| `id` | Yes | String | Project-unique ASCII ID, case-insensitive lookup |
+| `id` | Yes | String | Collection-unique ASCII ID, case-insensitive lookup |
 | `title` | Yes | String | Nonblank single-line Unicode text |
 | `status` | Yes | String | Configured state slug |
 | `schema_version` | No | Positive integer or null | Absent/null means `1` |
@@ -69,7 +69,7 @@ Any Markdown text may follow the closing delimiter. The empty Markdown body in t
 - Allowed ID characters: ASCII letters (`A-Z`, `a-z`), digits (`0-9`), hyphen, underscore, dot.
 - ID must be nonempty and start and end with an ASCII alphanumeric character. Internal consecutive separators are allowed. No arbitrary maximum length at the schema level.
 - Examples valid: `KAD-002`, `0001`, `bug_42`, `setup.cli`. Invalid: `-task`, `task-`, `.config`, `task_`.
-- IDs are unique **within a project**, regardless of file name or directory. Compare by ASCII case folding only. `KAD-002` and `kad-002` collide; retain the originally written case.
+- IDs are unique **within the effective collection**, regardless of file name or directory. Compare by ASCII case folding only. `KAD-002` and `kad-002` collide; retain the originally written case. Different collections have independent namespaces even within one project (KAD-003/KAD-004).
 - `depends_on` uses the same ID grammar and comparison. The rules for ID allocation and filesystem safety belong to KAD-004.
 
 ### Title
@@ -110,8 +110,8 @@ Invalid dates, times or offsets are errors. Dates are YAML strings; quoting is r
 - All mapping keys, at every nesting level, must be nonempty Unicode strings without control characters. Spaces, punctuation, and accents are allowed.
 - Keys are case-sensitive and compared by their exact Unicode codepoint sequences. No NFC/NFD normalization; canonically equivalent but differently encoded keys remain distinct.
 - Duplicate keys are errors at every nesting level. Anchors, aliases, and explicit YAML tags are outside the supported contract.
-- Implicit scalar types in `custom` follow YAML 1.2 **Core Schema**, resolved explicitly rather than relying on a parser's implicit YAML 1.1 conversions. For example, `true` is a boolean, `no` is a string, `3` is an integer, `1.2` is a float, and `2026-11-15` is a string.
-- The CLI preserves custom YAML types and original numeric spelling in unrelated edits. YAML 1.2 Core includes `.nan`/`.inf` and integers beyond JSON's interoperable exact numeric range. KAD-050 must specify a reversible JSON encoding or return an explicit unsupported-output error rather than silently coerce values. Generic custom mutations belong to KAD-066.
+- Implicit scalar types in `custom` follow YAML 1.2 **Core Schema**, resolved explicitly rather than relying on a parser's implicit YAML 1.1 conversions. For example, `true` is a boolean, `no` is a string, `3` is an integer, `1.2` is a float, and `2026-11-15` is a string. Plain `custom: {leading: 0007}` contains the decimal integer `7`; preserving its original lexeme does not turn it into a string.
+- The CLI preserves custom YAML types and original numeric spelling in unrelated edits. YAML 1.2 Core includes `.nan`/`.inf` and integers beyond JSON's interoperable exact numeric range. KAD-050 must specify a reversible JSON encoding or return an explicit unsupported-output error rather than silently coerce values. Predictable serialization errors for a mutation's response must be detected before persistence (KAD-006 Section 6). Generic custom mutations belong to KAD-066.
 
 ## 4. YAML scalar interpretation and versioning
 
@@ -120,9 +120,13 @@ Invalid dates, times or offsets are errors. Dates are YAML strings; quoting is r
 - `schema_version` must be a positive integer if present and not null. Missing or null means schema v1.
 - A future schema version unknown to the running CLI may be surfaced as a partially readable unsupported document. Do not apply v1 unknown-field rules to it or mutate it without proven compatibility. No silent version migration.
 
+**Evolution rule:** adding a reserved top-level field or changing its meaning is not automatically backward-compatible with strict v1 readers. Such changes require an explicit new schema version and a documented compatibility/migration policy; absent/null version always continues to mean v1. Additive application-owned data belongs under `custom` when its existing contract suffices. The same principle applies separately to the strict configuration schema (KAD-003).
+
+**Stable recognition envelope:** future task schemas that expect v1 tools to recognize identity must retain the initial frontmatter wrapper, unique top-level `kadai: task`, integer `schema_version` and string-like `id` with v1 ID grammar and ASCII-folded comparison. Only this envelope may contribute an unsupported document's ID to collision/allocation checks. It grants no permission to interpret future status or relationship fields. If syntax or the envelope cannot be verified within supported limits, do not guess identity or references; dependent operations refuse according to KAD-004/KAD-005/KAD-006. A format that changes this envelope must specify a new recognition mechanism instead of claiming v1 compatibility.
+
 ### Operational resource limits
 
-The abstract schema has no arbitrary ID/title length limit, but parsers MUST bound file and header bytes, YAML node count, collection size and nesting depth. Reaching a limit yields a non-destructive diagnostic and forbids mutation. KAD-006 sets numeric defaults/override rules and KAD-007 supplies fixtures.
+The abstract schema has no arbitrary ID/title length limit, but parsers MUST bound file and header bytes, YAML node count, collection size and nesting depth. Exceeding a limit yields a non-destructive diagnostic and forbids dependent mutation; equality is allowed. KAD-006 defines numeric defaults, invocation-local overrides, bounded internal-state reads and scan incompleteness; KAD-007 supplies small representative boundary cases.
 
 ## 5. Dependency readiness and status invariants
 
@@ -155,23 +159,23 @@ Persist the author's declared `status` unchanged. Prerequisites produce a **deri
 
 - Change **only** the requested metadata span, retaining unrelated content, formatting, Markdown body and bytes. Preserve supported ownership, mode, ACLs and xattrs or fail closed; refuse unsafe symlink or multi-hardlink mutations (KAD-026/KAD-029). Write timestamps naturally change.
 - Use a YAML parser for validation and a separate source-aware patching mechanism for local edits; never fall back silently to whole-header reserialization.
-- If a field's representation cannot be updated safely, fail without modifying the file. Edits fixing individual invalid fields are allowed only when they do not introduce additional errors.
-- Kadai writes share a native lock per effective collection plus coordination for physical files shared by overlapping collections (KAD-003/KAD-030), stage on the same filesystem, check source identity/hash immediately before replacement, and require an immutable private pre-write recovery snapshot. Fail closed if required recovery cannot be recorded. KAD-029/KAD-030 define retention, rollback, fsync and OS-specific behavior.
+- If a field's representation cannot be updated safely, fail without modifying the file. Only supported directed repairs of schema-invalid tasks are allowed; they must address the targeted error without introducing additional errors, not change unrelated fields (KAD-006).
+- Kadai writes use native collection coordination plus protection of read sets, graph/inventory predicates and shared physical files across overlapping collections (KAD-003/KAD-030), stage on the same filesystem, check source identity/hash immediately before replacement, and require an immutable private pre-write recovery snapshot. Fail closed if required recovery cannot be recorded. Recovery must verify current post-operation identity/content or expected absence before restoring; it must not overwrite a later edit. KAD-029/KAD-030 define retention, rollback, fsync and OS-specific behavior.
 - **Residual race:** external editors ignoring the lock can save between final verification and replacement. A hash check plus rename is not atomic as a pair; the snapshot may miss that last editor save. Never promise universal prevention of lost updates. Document the limitation and recovery procedure. Read-only commands create no recovery state.
 
 ## 7. ID generation and concurrent creation (cross-task constraints)
 
 The following decisions are accepted but belong primarily to KAD-004 and KAD-030:
 
-- Manual IDs remain flexible. Automatic IDs are sequential, with optional project prefix, and at least four digits: `JOOJ-0001` or `0001`. The numeric field grows past `9999` as needed.
-- For each prefix within an effective collection, allocate above the highest numeric suffix in live files **and durable used-ID history**. No numeric counter is needed, but a small collection-local used-ID/tombstone record (IDs only, not authoritative task state) is required even without `.kadai.yaml`. Record each allocation durably before task creation; gaps are allowed. CLI-issued IDs **must never be reused** after deletion.
+- Manual IDs remain flexible. Automatic IDs are sequential, with an optional configured prefix, and at least four digits: `JOOJ-0001` or `0001`. The numeric field grows past `9999` as needed.
+- For each prefix within an effective collection, allocate above the highest numeric suffix in live files **and durable used-ID history**. No numeric counter is needed, but a small collection-local used-ID/tombstone record (IDs only, not authoritative task state) is required even without `.kadai.yaml`. Record each allocation durably before task creation; gaps are allowed. CLI-issued IDs **must never be reused** after deletion while their allocation history is retained.
 - Prefixes have independent sequences. Check all live/manual IDs case-insensitively. Independent Git branches, worktrees and clones can allocate the same sequential ID: locks do not span them. Following a merge, quarantine all colliding files and require explicit reference-aware re-ID/repair; never silently select a winner.
-- All Kadai writes within an effective task collection share a native exclusive OS lock (e.g. `flock` on macOS/Linux, `LockFileEx` on Windows). Hold it across scan, durable ID reservation and task creation. Writers from overlapping collections additionally coordinate modifications to the same physical file (KAD-003/KAD-030). External editors and independent clones still need conflict/duplicate validation.
-- KAD-003 fixes lock, recovery and used-ID history placement under `<effective-tasks-root>/.kadai/`; record formats, timeouts and crash recovery belong to KAD-004/KAD-029/KAD-030. No Git tracking or `.gitignore` management is required. CLI deletion retains ID history. A manually created and deleted ID that Kadai never observed cannot be inferred; non-reuse is guaranteed only for recorded IDs.
+- All Kadai writes within an effective task collection share native exclusive OS coordination. Hold it across scan, validation, durable ID reservation and task creation. Overlapping collections also coordinate read-dependent operations, including changes to different files that could jointly create a cycle or invalidate a reference check (KAD-003/KAD-030). External editors and independent clones retain the documented conflict boundary.
+- KAD-003 fixes collection-local recovery and used-ID history placement under `<effective-tasks-root>/.kadai/`; coordination-domain strategy, timeouts and crash recovery belong to KAD-029/KAD-030. No Git tracking or `.gitignore` management is required. CLI deletion retains ID history. A manually created and deleted ID that Kadai never observed cannot be inferred; non-reuse is guaranteed only for recorded IDs.
 
 ## 8. Examples for fixtures and diagnostics
 
-KAD-007 should record golden files for these cases; examples here are **contracts**, not proof of implementation.
+KAD-007 represents these behaviors with necessary table-driven cases; golden files are only needed for byte-preservation contracts. Examples here are **contracts**, not proof of implementation or a requirement for a separate end-to-end test for each row.
 
 | Fixture | Expected outcome |
 | --- | --- |
@@ -188,7 +192,7 @@ KAD-007 should record golden files for these cases; examples here are **contract
 | Unknown top-level `sprint: 2` | Error; preserve source |
 | `tags: [backend, backend]` | Error |
 | `depends_on: [KAD-001, kad-001]` | Error |
-| Missing dependency, self-link, cycle, duplicate project IDs | Integrity diagnostic, unresolved where applicable |
+| Missing dependency, self-link, cycle, duplicate collection IDs | Integrity diagnostic, unresolved where applicable |
 | `parent: KAD-001` or `parent: null` | Valid optional scalar; graph checks in KAD-005 |
 | Duplicate IDs after Git merge | Every colliding ID quarantined until explicit repair |
 | Direct prerequisite with invalid status or unsupported schema | `unresolved` |
@@ -197,7 +201,7 @@ KAD-007 should record golden files for these cases; examples here are **contract
 | Transition to done with blocked/unresolved prerequisites | Reject absent explicit override |
 | YAML anchors, aliases, explicit tags | Unsupported; no unsafe mutation |
 | Huge integer, `.nan` or `.inf` in `custom` | YAML type preserved; JSON never silently coerced |
-| Parser resource limit exceeded | Diagnostic, no writes |
+| Parser resource limit exceeded | Diagnostic, no dependent writes |
 | Symlink/multiple hardlinks or unsupported security metadata | Reject mutation |
 | External save before final conflict check | Reject detected conflict |
 | External save within final-check/replace window | Residual race; snapshot may miss editor save |
@@ -205,7 +209,7 @@ KAD-007 should record golden files for these cases; examples here are **contract
 | Invalid UTF-8, missing delimiter, malformed YAML | Diagnostic; no destructive repair |
 | Unknown future `schema_version` | Do not validate as v1 or mutate without compatibility |
 
-Byte-for-byte mutation tests, complex YAML edge cases, collection-scoped discovery, and concurrency tests are separately owned by KAD-006, KAD-007, KAD-022, KAD-025, and KAD-030.
+Byte-for-byte mutation tests, complex YAML edge cases, collection-scoped discovery, and concurrency tests are separately owned by KAD-006, KAD-007, KAD-022, KAD-025, and KAD-030. Apply KAD-007's minimal-testing policy across those tasks.
 
 ## 9. Task completion and handoffs
 
@@ -217,12 +221,12 @@ Byte-for-byte mutation tests, complex YAML edge cases, collection-scoped discove
 - [x] UTF-8, frontmatter boundaries, and conservative-write invariants recorded.
 - [x] Valid/invalid fixture expectations identified for KAD-007.
 - [x] **KAD-003:** [Project configuration v1](KAD-003-project-config-v1.md): status/priority extensions, time zone, independent task roots and internal-state placement.
-- [ ] **KAD-004:** Durable used-ID record, non-reuse, Git-merge collision repair and filename rules.
-- [ ] **KAD-005:** Parent graph semantics (scalar type fixed here), dependencies and deletion.
-- [ ] **KAD-006:** YAML grammar, parser resource limits and mutation failure rules.
-- [ ] **KAD-007:** Store actual fixture corpus and executable expectations.
+- [x] **KAD-004:** Durable used-ID record, non-reuse, Git-merge collision repair and filename rules specified.
+- [x] **KAD-005:** Parent graph semantics, dependencies and deletion specified.
+- [x] **KAD-006:** YAML grammar, resource limits and mutation failure rules specified.
+- [x] **KAD-007:** Declarative fixture corpus and minimal-testing policy recorded; execution remains pending.
 
-- [ ] **KAD-026/KAD-029/KAD-030:** File security metadata, link safety, writer coordination and recovery.
+- [ ] **KAD-026/KAD-029/KAD-030:** File security metadata, link safety, writer coordination and recovery implementation.
 - [ ] **KAD-050:** Lossless JSON handling for YAML-only numeric scalars.
 
-**Completion criterion:** KAD-002 is finished as a **design/specification** task. No parser, CLI behavior, automated fixtures, or tests are claimed implemented.
+**Completion criterion:** KAD-002 is finished as a **design/specification** task. No parser, CLI behavior or passing automated tests are claimed implemented.

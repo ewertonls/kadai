@@ -1,31 +1,15 @@
 {
   "fixture_version": 1,
   "id": "patch/unsupported-flow-comment",
-  "contracts": [
-    "KAD-002",
-    "KAD-006"
-  ],
-  "description": "Refuse sequence patch if item comment cannot be preserved",
+  "contracts": ["KAD-002", "KAD-006"],
+  "description": "Optional flow-item comment layout may refuse; safe removal must preserve the existing comment and all unrelated bytes",
   "cwd": "project",
   "tier": "normal",
-  "action": {
-    "op": "plan_patch",
-    "params": {
-      "path": "tasks/T.md",
-      "field": "tags",
-      "operation": "remove",
-      "value": "backend"
-    }
-  },
+  "action": {"op": "plan_patch", "params": {"path": "tasks/T.md", "field": "tags", "operation": "remove", "value": "backend"}},
   "expect": {
-    "result": "refused",
+    "result": "safe_patch_or_refusal",
     "no_writes": true,
     "scan_complete": true,
-    "diagnostics": [
-      {
-        "category": "unsafe_source_patch",
-        "path": "tasks/T.md"
-      }
-    ]
+    "diagnostics": [{"category": "unsafe_source_patch", "path": "tasks/T.md"}]
   }
 }

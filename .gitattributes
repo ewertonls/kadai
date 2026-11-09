@@ -1,0 +1,4 @@
+# Preserve literal fixture/golden bytes, including LF, CRLF and mixed endings.
+# Development repository only; Kadai does not manage users' Git attributes.
+/tests/fixtures/v1/cases/**/input/** -text
+/tests/fixtures/v1/cases/**/expected/** -text

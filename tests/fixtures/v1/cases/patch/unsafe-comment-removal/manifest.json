@@ -1,31 +1,15 @@
 {
   "fixture_version": 1,
   "id": "patch/unsafe-comment-removal",
-  "contracts": [
-    "KAD-002",
-    "KAD-006"
-  ],
-  "description": "Cannot delete a block list item with an owned inline comment",
+  "contracts": ["KAD-002", "KAD-006"],
+  "description": "Optional commented-item removal may refuse; success must preserve the comment and unrelated source bytes",
   "cwd": "project",
   "tier": "normal",
-  "action": {
-    "op": "plan_patch",
-    "params": {
-      "path": "tasks/T.md",
-      "field": "tags",
-      "operation": "remove",
-      "value": "backend"
-    }
-  },
+  "action": {"op": "plan_patch", "params": {"path": "tasks/T.md", "field": "tags", "operation": "remove", "value": "backend"}},
   "expect": {
-    "result": "refused",
+    "result": "safe_patch_or_refusal",
     "no_writes": true,
     "scan_complete": true,
-    "diagnostics": [
-      {
-        "category": "unsafe_source_patch",
-        "path": "tasks/T.md"
-      }
-    ]
+    "diagnostics": [{"category": "unsafe_source_patch", "path": "tasks/T.md"}]
   }
 }

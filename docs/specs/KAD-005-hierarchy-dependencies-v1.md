@@ -12,7 +12,7 @@ Kadai derives **two independent directed graphs** from the current Markdown task
 1. **Hierarchy:** a child may declare one `parent: ID`; this makes it a child of that task. Its primary purpose is organization.
 2. **Prerequisites:** a task may declare an ordered `depends_on: [ID, ...]`; each entry means that referenced task must be completed before the declaring task can be considered ready.
 
-No implicit relationship exists because of directory nesting, filename, task status, or matching text in Markdown bodies. Moving a file to a new directory changes neither graph.
+No implicit relationship exists because of directory nesting, filename, task status, or matching text in Markdown bodies. Moving a file within the discoverable effective collection changes neither graph; CLI moves into excluded paths or outside that collection are refused under KAD-003 Section 6.
 
 The graphs are independent. The same two tasks may be related in both graphs, even in opposite directions. A cycle created by *combining* parent and prerequisite edges is not an error unless one individual graph contains a cycle. A hierarchy edge neither adds a prerequisite nor imposes any status constraint.
 
@@ -33,12 +33,12 @@ The reverse dependency index and children lists are **derived**; neither is pers
 Use a complete scan of the effective collection for identity resolution. For every reference:
 
 - **Resolved:** exactly one identified task has that folded ID and is schema-valid and supported for the operation.
-- **Missing:** no identified task has the folded ID.
+- **Missing:** no identified task has the folded ID in a complete inventory. A read/enumeration failure is not proof that a target is absent.
 - **Ambiguous:** multiple task candidates have that folded ID; KAD-004 quarantines all of them and no target wins.
 - **Invalid/unsupported target:** an identifiable but malformed, incompatible-schema, or otherwise unusable task exists; report the specific condition rather than assuming it is a valid target.
 - **Invalid reference value:** the field's type, ID grammar, duplicate values, or YAML syntax violate KAD-002; report a schema diagnostic. Do not fabricate edges from values that cannot be interpreted unambiguously.
 
-A reference to an invalid candidate with an identifiable unique ID is **not** resolved simply because a usable `id` or `status` can be extracted. A recognized unsupported-schema candidate cannot silently be treated as a v1 node. The validator may inspect confidently parsed edges for diagnostics; normal commands must not treat these as ordinary valid tasks.
+A reference to an invalid candidate with an identifiable unique ID is **not** resolved simply because a usable `id` or `status` can be extracted. A recognized unsupported-schema candidate cannot silently be treated as a v1 node. The validator may inspect confidently parsed supported edges for diagnostics; recognition of a future schema's ID alone does not authorize reading its relationship layout or prove it has no inbound references.
 
 Unknown IDs and colliding IDs are not automatically repaired, pruned, or rebound. A restored task with the same unique ID can satisfy a previously missing reference on the next scan, consistent with KAD-004. No mutation occurs during reads.
 
@@ -110,7 +110,7 @@ Other read/validate operations may expose derived readiness for any otherwise re
 
 ## 6. Relationship mutations
 
-Mutations use source-aware YAML patches, not whole-file normalization, and follow KAD-002/KAD-004's lock, identity, history, snapshot and filesystem safety requirements.
+Mutations use source-aware YAML patches, not whole-file normalization, and follow KAD-002/KAD-004's coordination, identity, history, snapshot and filesystem safety requirements.
 
 For adding or replacing `parent` and adding `depends_on` entries, the CLI must verify before writing:
 
@@ -118,7 +118,7 @@ For adding or replacing `parent` and adding `depends_on` entries, the CLI must v
 2. Each new target resolves uniquely to an eligible task in the **same effective collection**.
 3. No self-link or duplicate dependency is introduced.
 4. The proposed change does not introduce a cycle in its **own** graph.
-5. Source spans, filesystem paths, file identity, locks and write recovery satisfy the safe-mutation contracts.
+5. Source spans, filesystem paths, file identity, read-set/predicate coordination and write recovery satisfy the safe-mutation contracts.
 
 Removing a link only removes the chosen relationship. In particular, a parent change never rewrites child links, and a dependency change never updates statuses or hierarchy.
 
@@ -135,10 +135,10 @@ Deleting a task never deletes its descendants or dependents by implication. An a
 For an explicitly requested deletion of task `X`:
 
 1. Resolve `X` uniquely and verify its eligible file identity.
-2. Scan the effective collection for **all** incoming `parent: X` and `depends_on` occurrences, using ASCII-folded IDs, including references in the same file and any confidently parsed candidate.
-3. If any incoming references exist, **block by default**. Report each referring task/path, field and relationship. Do not delete `X` or change other files.
-4. If no incoming references are found and the scan is trustworthy for that decision, remove the task through KAD-037/KAD-029's secure deletion and recovery rules; **keep** KAD-004's used-ID marker.
-5. If a relevant candidate, ambiguous ID or unsupported/malformed source makes it impossible to establish the incoming-reference set, refuse rather than claiming the task is unreferenced.
+2. Scan the effective collection for **all** incoming `parent: X` and `depends_on` occurrences, using ASCII-folded IDs, including references in the same file and any confidently parsed supported candidate.
+3. If any incoming references exist, **block by default**. Report each referring task/path, field and relationship. Do not delete `X` or change other task files. Preflight rejection and stable lock artifacts follow KAD-006 Section 6.
+4. If no incoming references are found and the scan is trustworthy for that decision, remove the task through KAD-037/KAD-029's secure deletion and recovery rules; **keep** KAD-004's used-ID marker. Protect the absence-of-inbound-references predicate through commit, not only the file being deleted.
+5. If a relevant candidate, ambiguous ID or unsupported/malformed source makes it impossible to establish the incoming-reference set, refuse rather than claiming the task is unreferenced. Unreadable non-excluded paths and truncated discovery also prevent that claim.
 
 The outbound `parent` and `depends_on` links *inside* `X` do not prevent deletion by themselves; removing `X` removes those outgoing edges. Existing structural defects elsewhere are diagnostics, not license to ignore a possible incoming reference.
 
@@ -150,9 +150,10 @@ A separate, explicit destructive mode may **detach references then remove `X`**:
 - For each direct child with `parent: X`, unset that parent, making the child a logical root. **Do not** reparent to `X`'s parent and **do not** delete descendants.
 - For each dependent, remove only the occurrences of `X` from `depends_on`, retaining every other dependency and its relative order. The resulting empty list and omission are semantically equivalent; safe patch representation belongs to KAD-006/KAD-020.
 - Leave each surviving task's `status`, Markdown body, unrelated YAML, custom metadata, file path and other relationships unchanged. No cascading status transitions or readiness edits.
-- Re-scan and recheck the plan under required locks immediately before applying. If a required reference cannot be confidently identified and safely patched, or the plan is stale, **abort without claiming successful deletion**.
-- This may modify several files and then delete one: the operation is **not filesystem-atomic as a group**. Require KAD-029/KAD-030's durable multi-file operation journal, immutable pre-write recovery material, verified restart/resume/rollback and coordinated locks (including overlapping collections). An interrupted apply must be surfaced and prevent unsafe follow-on writes until resolved.
-- A deletion's used-ID marker remains untouched, even when the task file is removed. No cross-collection cleanup is attempted.
+- Re-scan and recheck the plan under the required read/predicate coordination immediately before applying. If a required reference cannot be confidently identified and safely patched, or the plan is stale, **abort without claiming successful deletion**. Validate predictable output encoding before persistence.
+- This may modify several files and then delete one: the operation is **not filesystem-atomic as a group**. Require KAD-029/KAD-030's durable multi-file operation journal, immutable pre-write recovery material, verified restart/resume/rollback and coordinated locks (including overlapping collections). An interrupted apply must be surfaced and prevent conflicting follow-on writes through any overlapping root until resolved.
+- Automatic resume/rollback must verify each step's expected path/file identity, bytes/hash, supported security metadata and presence/absence (KAD-004 Section 6). A later edit or recreated destination causes a recovery conflict; preserve the current file, snapshot and journal rather than restoring blindly.
+- A deletion's used-ID marker remains untouched, even when the task file is removed. No cross-collection reference cleanup is attempted. Cross-collection coordination protects physical operations, not a global graph.
 
 Do not offer a cascade-delete mode in v0.1. A user may also explicitly remove references through ordinary relation commands before using default deletion.
 
@@ -172,13 +173,15 @@ The collection scan builds an in-memory `id -> task` lookup (quarantining duplic
 
 All edges are resolved within the **effective collection** from KAD-003. Independent collections can overlap physically and give the same file different graph neighbors depending on the selected root/exclusions; a task found only in another collection is missing in the current one.
 
-A change made through one collection is not an automatic global repair of other independent collections that might also scan the same physical file. KAD-030 must coordinate writes to shared physical files and revalidate the selected collection's snapshot under lock. Ordinary external editor saves remain subject to KAD-002's documented final-check/replace race and recovery limitation.
+A change made through one collection is not an automatic global repair of other independent collections that might also scan the same physical file. KAD-030 must protect the decision's read set and namespace/graph predicates through commit, as required by KAD-003 Section 9. Checking only hashes of written files cannot detect another cooperating writer changing a different prerequisite or adding a new referencing file.
+
+For example, two writers must not both validate `A depends_on B` and `B depends_on A` against the same old graph and then commit to different files. Deletion racing a new inbound reference has the same requirement. Serialize these operations or reject one through equivalent atomic conflict detection; a coarse writer lock is sufficient for v0.1. Pending transaction protection must remain visible through different project/collection selections. Ordinary external editor saves remain subject to KAD-002's documented final-check/replace race and recovery limitation.
 
 Reads and `validate` remain side-effect-free. A modification that can be proven safe does not require a totally error-free unrelated graph; however, no operation may rely on unknown, colliding or malformed references to claim structural integrity.
 
 ## 10. Required fixtures and acceptance
 
-KAD-007 and the relevant implementation tasks must cover:
+KAD-007 and the relevant implementation tasks cover the distinct behaviors below under KAD-007 Section 7. Prefer table-driven domain tests; retain native concurrency/recovery checks only where they test a different failure mechanism:
 
 | Scenario | Expected behavior |
 | --- | --- |
@@ -197,13 +200,13 @@ KAD-007 and the relevant implementation tasks must cover:
 | Add unsatisfied dependency to already `done` task | Allowed, `done` unchanged; validation warning |
 | `status: blocked` without prerequisites | Derived `ready` but excluded from default `kadai ready` |
 | Custom status mapped to `todo` or `in_progress` with ready prerequisites | Included in default `kadai ready` |
-| Remove task with child/dependent references, default mode | No changes; list all inbound references |
+| Remove task with child/dependent references, default mode | No task/history changes; list all inbound references |
 | Explicit detach/remove with children and dependents | Direct children become roots; specified prerequisites removed; no cascade |
 | Unpatchable inbound reference during detach/remove | Abort and require correction; no false success |
-| Interrupted multi-file detach/remove | Journal/recovery detected; do not silently proceed |
+| Interrupted multi-file detach/remove | Pending recovery visible across overlapping roots; later edits are not overwritten |
 | Duplicate ID due to Git merge | Quarantine all collisions, no arbitrary reference target |
-| Moving a file between directories | Identity and graph edges preserved |
-| Overlapping roots that see different task sets | Edges resolved independently, shared-file writes coordinated |
+| Moving a file between eligible directories | Identity and graph edges preserved |
+| Overlapping roots that see different task sets | Edges resolved independently, complete conflicting decisions coordinated |
 | Read/`tree`/`ready`/`validate` | Never mutate tasks, histories or internal state |
 
 ## 11. Completion and handoffs
@@ -215,4 +218,4 @@ KAD-007 and the relevant implementation tasks must cover:
 - [x] Explicit detach-and-remove and default reference-protected deletion defined.
 - [x] Mutation safety, multi-file recovery needs, fixture cases and implementation ownership recorded.
 
-**Follow-ups:** KAD-006 owns parse/patch safety and exact supported YAML representation; KAD-007 fixture files; KAD-029/KAD-030 transaction journal/locking/recovery; KAD-037 deletion implementation; KAD-039–KAD-046 graph and validation implementation; KAD-047/KAD-048 command grammar/filter/order; KAD-050/KAD-051 JSON and diagnostics. KAD-082 owns richer graph views after v0.1. This is a completed **design** contract; no implementation or automated tests are claimed.
+**Follow-ups:** KAD-006 owns parse/patch safety and exact supported YAML representation; KAD-007 fixture files and minimal-testing policy; KAD-029/KAD-030 transaction journal/locking/recovery; KAD-037 deletion implementation; KAD-039–KAD-046 graph and validation implementation; KAD-047/KAD-048 command grammar/filter/order; KAD-050/KAD-051 JSON and diagnostics. KAD-082 owns richer graph views after v0.1. This is a completed **design** contract; no implementation or automated tests are claimed.

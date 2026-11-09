@@ -1,87 +1,56 @@
 # KAD-007 fixture corpus v1
 
-**Status:** Declarative test inputs and expected behavior. The Odin fixture runner and Kadai CLI do not exist yet. The corpus is data, not proof that any behavior has passed.
+**Status:** Declarative inputs and expectations, not a passing Odin test suite. The CLI and fixture adapters remain implementation work.
 
-Owner contract: [KAD-007](../../../docs/specs/KAD-007-fixture-corpus-v1.md). Underlying semantics: KAD-002 through KAD-006.
+Owner: [KAD-007](../../../docs/specs/KAD-007-fixture-corpus-v1.md). All test implementation follows [Section 7: minimum necessary tests](../../../docs/specs/KAD-007-fixture-corpus-v1.md#7-agent-rule-minimum-necessary-tests). KAD-002 through KAD-006 own product semantics.
 
-## Inventory
+## Catalog, not a test quota
 
-The checked-in `index.json` enumerates **192 independent scenarios**:
+`index.json` catalogs 192 scenarios: 21 recognition, 30 YAML, 40 config, 13 identity, 25 graph, 25 patch and 38 limit examples. This is not a requirement to build 192 tests, run each as CLI integration, or implement a generic manifest interpreter. Choose the smallest set of table-driven tests that covers distinct requirements and data-loss risks. Do not use catalog count as evidence of correctness.
 
-| Group | Cases | Main concern |
-| --- | ---: | --- |
-| Recognition | 21 | Discriminator, malformed/partial tasks, BOM, Unicode, encoding |
-| YAML | 30 | Schema, scalar typing, unsupported constructs, invalid source |
-| Config | 40 | CWD, overrides, exclusions, symlinks, nested collections |
-| Identity | 13 | Used-ID records, allocation, collisions, repair |
-| Graph | 25 | Parents, prerequisites, cycles, readiness, deletion |
-| Patch | 25 | Byte-exact proposed output, directed repair, unsafe refusals |
-| Limits | 38 | All eight KAD-006 budgets, ceilings and incomplete scans |
+The historical production-sized limit recipes are optional reference data. Test actual counter boundaries with small invocation overrides instead. `normal` and `heavy` describe cost, not mandatory coverage. No scheduled heavy suite or performance harness is required without a concrete need.
 
-## Directory convention
+## Layout
 
 ```text
 index.json
 schema.json
-cases/
-  recognition/basic/
-    manifest.json
-    input/project/tasks/KAD-1.md
-  patch/scalar-status-comment/
-    manifest.json
-    input/project/tasks/T.md
-    expected/T.md
-  limits/scan_yaml_bytes_default_plus_one/
-    manifest.json        # heavyweight input is generated, not stored
+cases/<category>/<name>/
+  manifest.json
+  input/project/...
+  expected/...              # only when exact bytes are asserted
 ```
 
-Each manifest has a unique `category/name` ID and a sandbox-local `cwd`, default `project`. Each input path is prefixed by `input/`; runtime paths in expectations and semantic action parameters are relative to the **selected physical project** unless the contract explicitly calls for the sandbox root. A relative `action.project` is resolved against the scenario CWD. The runner translates result paths from its public API to this project-relative form for comparisons, rather than asserting a future CLI output path convention.
+A selected scenario runs in a fresh sandbox. Copy literal inputs byte-for-byte, then apply declared setup. Never mutate the checked-in fixture files. The repository's `.gitattributes` prevents text conversion for `input/` and `expected/`; do not normalize CRLF, BOM, Unicode or final newlines.
 
-Input files are copied as bytes into a **fresh, empty, unique sandbox** per scenario. No fixtures share mutable state. Do not run commands against the versioned `input/` files.
+Setup paths and `cwd` are sandbox-relative. `action.project` resolves against `cwd`; relative task roots resolve against the selected project. Expected document/diagnostic paths and action file parameters are selected-project-relative. Golden references are scenario-relative. Link targets are relative to the link's parent and must stay inside the sandbox even when testing escape from the selected project.
 
-## Runner execution order (KAD-011)
+## Small execution adapter
 
-1. Validate `index.json` against `schema.json` for each manifest. Enumerate all manifest paths under `cases/`: reject missing, unlisted or duplicated cases. Validate relative paths and that setup cannot escape the sandbox.
-2. Create a unique temporary sandbox and copy each literal `input/` file byte-for-byte, retaining BOM/CRLF/Unicode and exact final newline behavior.
-3. Apply `setup` recipes in order. For `symlink` and `hardlink`, resolve relative targets only within the sandbox; never materialize an external target. Set permissions only on declared fixture nodes.
-4. Generate heavy inputs deterministically from the v1 generator grammar. Before invoking Kadai, assert declared counts/sizes/depth/nodes, compute SHA-256 per generated file and a sorted-path SHA-256 inventory. Generator failure is a fixture failure, not a Kadai failure or skip.
-5. Run one semantic `action` against the selected effective project/collection, or bind it to a domain-level API where a CLI grammar has not yet been decided. An `op: plan_patch` produces proposed bytes **without writing**. An `op: set` or `op: add` exercises actual writes only after those modules exist.
-6. Compare `expect` semantic categories, document classes/IDs, readiness, paths, fields, warning categories and diagnostics; do not demand unstable stdout or error codes. For `proposed_goldens`, compare generated proposed bytes to `expected/` byte-for-byte. For `goldens`, compare actual committed outputs. For `no_writes`, hash and compare the entire sandbox contents and filesystem object inventory (including absence of new recovery/history), not just the task file.
-7. Clean up the sandbox. Report pass, failure, or `unsupported_host` separately; print an explicit reason for every unsupported host capability. A missing capability is never counted as a successful test.
+1. Validate selected manifests against `schema.json` or equivalent ordinary structural checks. Separately verify index membership, unique IDs and existing paths. `schema.json` validates **manifests**, not the index itself. Unknown selected operations/assertions must fail instead of silently disappearing.
+2. Create an isolated sandbox, copy literal inputs without transformations and apply only the setup operations needed by those tests. Verify physical containment without following links during inventory/cleanup.
+3. Build small generated inputs when necessary. Check claimed sizes/counts independently of the product counter. No universal generator framework or per-run inventory of every possible large recipe is required.
+4. Bind one semantic action to the relevant domain/API or CLI implementation. `plan_patch` returns proposed bytes without persistence. Implement adapters incrementally, only as the selected product behavior exists.
+5. Compare the explicit semantic expectations and preservation invariants. Check committed outputs for mutations, not merely a reported ID or success value. Use goldens only for byte-level contracts.
+6. Clean up the sandbox. Report actual pass/failure, unimplemented selected behavior or `unsupported_host` with a reason separately. An unselected reference example is not a passing test; missing product code is not a host-capability skip.
 
-A fully completed runner must run normal tests by default and heavy tests only when explicitly selected (`tier: heavy`). CI should run the full heavy suite on scheduled/opt-in jobs once the runner exists. Execution timeouts and cleanup thresholds are implementation concerns, not permission to skip required tests silently.
+Native mechanisms must run on a capable supported platform when they are release requirements. Pure schema/graph cases do not need a duplicated platform-specific corpus.
 
-## Manifest interpretation
+## Expectation rules
 
-- `action.op` is a semantic operation, **not CLI argument syntax**. KAD-047/KAD-050/KAD-051 define the eventual command grammar/output and error codes.
-- `expect.result`: `ok`, `diagnostic`, `refused`, `scan_incomplete`, `unsupported_schema`, or `config_error`.
-- `expect.diagnostics[].category` is descriptive and remains unmapped to the final machine codes. Fields and paths identify conditions, not frozen line/column encoding.
-- `expect.documents[].classification` is `valid`, `invalid_candidate`, `unsupported_schema`, or `non_task`; only attach a usable ID where supported.
-- `expect.no_writes: true` applies to source tasks, config, used-ID history, recovery files and other persistent artifacts. It is required for read-only operations and refusals.
-- `expect.proposed_goldens` tests `plan_patch`'s returned candidate bytes while still forbidding writes. `expect.goldens` compares post-mutation files after actual writes. `expected/` relative paths are relative to the **scenario directory**.
-- Declared diagnostic categories must match by path/field where given. They form a required set for `diagnostic` and `refused`; additional independent categories are allowed unless `expect.allow_additional_diagnostics: false` explicitly requires an exact set. `result: ok` rejects unexpected errors. Error presentation/codes are not fixed.
-- `assert_generated` checks the intended measured budget dimension before running any Kadai code. The generator also checks that other limits stay below their defaults, avoiding accidentally testing a different limit.
-- `action.limits` values are invocation-only overrides; invalid overrides are rejected before filesystem inspection. Incomplete scans must not expose normal partial query results.
-- `requires` is a capability prerequisite list, not an OS name filter. A host without symlink support may mark just those scenarios `unsupported_host`, not all filesystem tests.
+KAD-007 Section 3 is authoritative. In particular:
 
-## Generator v1 contract
+- `documents` and present selection/root/history sets are exact unordered sets. `readiness` and keyed `fields` assert the listed tasks. Sequence-valued fields preserve order. `fields` always maps **task ID -> field/value map**, including single-task cases.
+- Diagnostic category/path/field conditions are required matches, not final public error codes. Additional independent diagnostics are allowed for negative cases unless explicitly disallowed. `ordered_diagnostics` is an exact ordered sequence. `ok` prohibits unexpected errors.
+- `proposed_goldens` compares read-only patch output; `goldens` compares committed files. Neither is automatically regenerated from the implementation.
+- `safe_patch_or_refusal` applies only to optional `plan_patch` layouts. A refusal leaves source/state unchanged and matches its declared refusal diagnostic. A success must make the requested change and preserve every unrelated byte/comment. Mandatory simple patches cannot use this allowance.
+- `no_writes` is strict for reads and planners. A preflight-refused mutating command may create only documented stable lock infrastructure, never history or recovery records. Persistence failures and post-commit output failures have different allowed effects under KAD-006 Section 6; do not label them effect-free refusals.
+- Paths, file types, link targets and contents are part of no-write checks; access timestamps caused by reading are not. No blanket exemption for `.kadai/`, and no deleting/recreating live locks to satisfy a test.
 
-Generation must be independent of OS, clock, locale, filesystem enumeration order and random numbers. Use UTF-8, LF and fixed ASCII filler unless the recipe explicitly requests otherwise. Generated names are stable lexically ordered numeric sequences, with distinct IDs. File sizes count **raw bytes**, not decoded characters, and YAML node/depth counters follow KAD-006.
+## Generation and ownership
 
-- `task_source_bytes`: valid minimal task frontmatter followed by deterministic ASCII body padding to exact **total source bytes**.
-- `yaml_header_bytes`: valid minimal task with one plain `custom.padding` scalar padded with ASCII `x` to the requested byte length **between** frontmatter delimiter lines.
-- `yaml_node_count`: valid task with `custom.items` containing sufficient one-scalar elements to make an exact event/node count, including mapping keys and collections.
-- `yaml_depth`: valid task with a single nested `custom` chain, root mapping depth 1.
-- `regular_file`: exact byte count; use optional `prefix` followed by repeating `repeat_byte` (default `x`).
-- `entries`: create `count` unique non-task files beneath the effective root; include every file/directory/link visited under the KAD-006 counting model; no extra nested directories.
-- `markdown_candidates`: create exactly `count` ordinary .md files with no opening frontmatter delimiter.
-- `yaml_bytes_total`: create deterministic task files whose summed YAML header bytes equal `total`; no single header exceeds 256 KiB by default, and collection files/nodes remain under unrelated defaults.
-- `yaml_nodes_total`: create deterministic task files whose YAML node counts sum to `total`; individual documents remain at or below 10,000 nodes and 256 KiB unless overridden for the specific dimension.
+KAD-007 Section 4 defines the small deterministic builders and optional legacy recipes. Use explicit UTF-8/LF, stable indexed names and fixed contents. Aggregate cases must stay within unrelated **effective invocation** caps. A builder/count mismatch is a fixture error, not a successful product rejection.
 
-For family generators, distribute target counts/totals in descending maximum-sized documents and then a smaller final document, adjusting the last two documents if the remainder would be below the smallest valid task. Do not use random content, arbitrary parser-dependent extra nodes or OS-specific line endings. A separate KAD-011 implementation must make this grammar executable and record its canonical generated SHA-256 inventory. No heavy/generated case is claimed executed in KAD-007.
+KAD-011 owns the minimal setup/runner. Parser and storage tasks own the necessary implementation tests, including actual locks, atomic replacement and safe recovery. Graph/domain tasks own table-driven semantics. CLI tasks add only behavior specific to command parsing/output and one representative end-to-end workflow. Do not implement each catalog entry again in every layer.
 
-## Coverage ownership
-
-The corpus gives KAD-011 concrete expectations for setup, parser and cross-platform tests. Actual parser/writer/security/lock tests belong to KAD-013 through KAD-030, graph behavior to KAD-039 through KAD-046, and CLI JSON/diagnostics to KAD-047 through KAD-054.
-
-Do not generate or edit `.gitignore`. Tests do not require Git-tracked user task files. Keep checked-in inputs and goldens immutable; never auto-regenerate expected files from outputs under test.
+Kadai never manages user Git tracking. The development repository's raw-byte fixture attributes do not change that rule. Preserve the underlying contracts; remove redundant testing work rather than weakening safety.

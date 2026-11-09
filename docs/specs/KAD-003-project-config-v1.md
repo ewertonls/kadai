@@ -29,7 +29,7 @@ This specification **supersedes the earlier Git-root fallback** in KAD-001. That
 
 The `.kadai.yaml` file may itself be an internal symlink, provided its physical target remains within the selected project's physical root. Emit the same original-path/target warning. Reject external targets and unsafe, unresolvable links. This exception for explicitly loaded configuration files does **not** mean task discovery follows symlinks.
 
-No implicit parent-project inheritance exists. For example, running from `repo/src/` selects `repo/src/`, even if `repo/.kadai.yaml` exists. Use `--project repo` (or its absolute path) to select the parent.
+No implicit parent-project inheritance exists. For example, running from `repo/src/` selects `repo/src/`, even if `repo/.kadai.yaml` exists. Use `--project ..` from `repo/src/` (or the parent's absolute path) to select the parent.
 
 ## 3. Configuration v1 schema
 
@@ -75,7 +75,7 @@ An omitted or null `timezone` uses the local system time zone. A configured valu
 - The top-level document and non-null nested objects must be mappings with string keys. Unknown schema keys at **any fixed-schema configuration level** are errors. The only variable key space is `statuses`, whose entries must satisfy the name/category rules above. No `extensions` or arbitrary custom keys in v1.
 - Invalid YAML, invalid UTF-8, duplicate mapping keys, malformed shapes, unknown `schema_version`, and unsupported YAML constructs fail closed. No "first key wins", partial config loading or silent migration. KAD-006 owns the exact parser subset and resource limits; it may only narrow unsafe YAML representations, not silently change these semantics.
 - The `schema_version` key is optional; `kadai init` writes `schema_version: 1`. A future version is not interpreted using v1 rules.
-- Task frontmatter `schema_version` and project configuration `schema_version` are separate versioned contracts.
+- Task frontmatter `schema_version` and project configuration `schema_version` are separate versioned contracts. New reserved configuration keys or incompatible meanings require an explicit schema-version/compatibility plan; absent/null version permanently means v1. Adding a key is not backward-compatible merely because a newer parser accepts it.
 
 ## 4. Minimal initialization and no-config use
 
@@ -122,6 +122,10 @@ Always exclude, without a user-configurable opt-out:
 Other hidden directories are eligible for scanning. **Do not read or apply `.gitignore`**, including when the collection sits inside a Git repository. A `.md` file ignored by Git can still be a task.
 
 User-configured `tasks.exclude` exclusions apply on top of mandatory exclusions; they never disable mandatory boundaries.
+
+**Discovery completeness:** inability to enumerate a non-excluded subtree, read a potentially relevant candidate, or reliably determine an entry's exclusion/type is not evidence of absence. Permission/I/O errors, an observed disappearance or identity change that cannot be resolved by a bounded retry, and resource exhaustion make the scan incomplete when they prevent establishing the inventory. Report the path/reason and apply KAD-006's incomplete-scan restrictions. Never silently turn an unreadable candidate into `non_task`. A fully read, diagnosable schema-invalid task is different: its invalidity alone does not make enumeration incomplete or prohibit unrelated proven-safe operations.
+
+**Write destinations:** `add` and `move` must preflight the destination against the same effective root, mandatory boundaries and user exclusions, and recheck under writer coordination. A new/moved task must remain discoverable in that collection. Refuse destinations in boards, `.kadai/`, nested projects/repos, excluded subtrees or outside the effective collection. A directory move must also preserve discovery of the affected tasks; reject it when that cannot be established. This is not an implicit transfer between collections. Manual filesystem moves remain observable on the next read and may leave missing references, without automatic repair.
 
 ## 7. Portable exclusion patterns
 
@@ -175,11 +179,11 @@ All internal per-collection state belongs beneath:
 <effective-tasks-root>/
 └── .kadai/
     ├── <used-ID history, format defined by KAD-004>
-    ├── <native lock state, defined by KAD-030>
+    ├── <native collection lock state, defined by KAD-030>
     └── <private immutable recovery state, defined by KAD-029/KAD-030>
 ```
 
-These are **logical locations**, not frozen filenames. Caches, if added, must be rebuildable. No state file is created by read-only discovery. Generating an ID requires a durable allocation record even in an uninitialized project, per KAD-002/KAD-004.
+These are **logical locations**, not frozen filenames. Caches, if added, must be rebuildable. No state file is created by read-only discovery. Generating an ID requires a durable allocation record even in an uninitialized project, per KAD-002/KAD-004. A common local coordination mechanism, if needed for overlapping roots, is specified by KAD-030 and is not a shared task database; it must not change collection identity or require a daemon.
 
 Kadai does not require, control, configure or modify Git tracking. A collection may be local, untracked, committed, per-worktree or ephemeral. Non-reuse of a CLI-issued ID is guaranteed only while the durable record containing that allocation is retained; deleting an entire collection (including its history), or independently allocating in separate clones/branches, removes that shared-history guarantee. Git merges may create collisions requiring KAD-004's explicit repair process.
 
@@ -187,20 +191,21 @@ Kadai does not require, control, configure or modify Git tracking. A collection 
 
 - A parent collection's recursive scan may also discover files in a nested collection. Do not claim that a nested override automatically isolates those files from its parent scan.
 - IDs, parent references and dependencies are resolved against the **effective collection's** index. There is no cross-collection identity or shared sequence, even if paths overlap.
-- Two different collection locks alone cannot serialize modifications of a shared file. Kadai writers **must** also coordinate writes targeting the same physical file across overlapping collections, including replacement/rename races. Locking only an inode before atomic replacement is insufficient because replacement can change the inode; the strategy must account for stable path identity and file identity across renames. KAD-030 owns the concrete cross-collection locking strategy, safe lock ordering, identity checks and tests; KAD-026 owns path identity and link safety.
-- The guarantee applies to cooperating Kadai writers. External editors ignoring locks retain KAD-002's documented last-check/atomic-rename race; pre-write recovery copies remain mandatory.
-
-These overlaps are intentional and not configuration errors. Callers who need physically separate collections should choose nonoverlapping roots or explicit exclusions.
+- Two different collection locks alone cannot serialize modifications of a shared file. Coordination must account for stable path/namespace identity and file identity across replacement/rename; locking only an inode is insufficient.
+- File-write exclusion alone is also insufficient. Cooperating operations must protect the **read set and predicates used for their decision**, including graph edges, status/config inputs, ID uniqueness, directory membership and absence of inbound references. A writer changing A and another changing B must not independently validate mutually conflicting changes against stale collection views.
+- Hold the applicable coordination across **scan → validation → persistence**, or provide equivalent atomic conflict detection for all relevant reads and namespace predicates before commit. A coarse local writer serialization is acceptable for v0.1 and preferable to an unproven fine-grained protocol. A lock keyed only by the selected project is not sufficient when different project selections address overlapping physical collections. KAD-030 owns the concrete strategy, lock ordering and implementation tests.
+- Pending multi-file operations must protect affected files and namespace predicates across collection selections. A conflicting writer through a different overlapping root must discover the pending operation through the same coordination domain and refuse until verified recovery; checking only its own collection's journal directory is insufficient. This does not merge independent histories or repair other collections' graphs.
+- These guarantees apply to cooperating Kadai writers on the supported local filesystem. External editors ignoring locks retain KAD-002's documented last-check/atomic-rename race; pre-write recovery copies remain mandatory. A scan is not an atomic snapshot of arbitrary external-editor activity.
 
 ## 10. Manual relocation of a collection
 
 A change to configured `tasks.root` is **not** an automatic migration. To relocate an existing collection, the user must move the **whole** collection, including `.kadai/` and its history, then update `.kadai.yaml`. All Kadai writers should be stopped during manual relocation. Selecting another `--tasks-root` does not move any files.
 
-Kadai must fail closed on **detectable** missing/inconsistent internal state when continuing could reuse a recorded ID or corrupt files. However, a missing history file alone cannot prove an incomplete migration: a legitimately fresh or entirely ephemeral collection may have no history. KAD-004 and KAD-030 must specify evidence and recovery rules; do not invent a universal historical reconstruction from the current Markdown files.
+Kadai must fail closed on **detectable** missing/inconsistent internal state when continuing could reuse a recorded ID or corrupt files. However, a missing history file alone cannot prove an incomplete migration: a legitimately fresh or entirely ephemeral collection may have no history. KAD-004 and KAD-030 specify evidence and recovery rules; do not invent a universal historical reconstruction from the current Markdown files. Resolve pending operations before relocation; do not silently discard their coordination records.
 
 ## 11. Fixtures and diagnostics required of implementation
 
-KAD-007/KAD-023–KAD-026/KAD-030 must cover at least:
+KAD-007/KAD-023–KAD-026/KAD-030 must cover the distinct behaviors below using the smallest effective tests under KAD-007 Section 7; rows may be parameters or assertions in an existing test, not separate duplicated suites:
 
 | Scenario | Required behavior |
 | --- | --- |
@@ -222,9 +227,11 @@ KAD-007/KAD-023–KAD-026/KAD-030 must cover at least:
 | Hidden dirs, Git-ignored Markdown | Eligible unless otherwise excluded. |
 | `build/` and `**/cache/` patterns | Root-only vs any-depth matching, always case-sensitive. |
 | `--exclude` over configured exclusions | CLI list replaces custom list; mandatory exclusions remain. |
-| Two collections edit the same physical file | Cooperating writes coordinated despite different collection locks; race/recovery behavior tested under KAD-030. |
+| Conflicting read-dependent operations through overlapping collections | Serialize or reject even with distinct written files; pending transactions cannot be bypassed via another root. |
 | Move collection with `.kadai/` vs incomplete migration | Whole-directory manual relocation supported; detectable missing/corrupt state is not silently reset. |
 | Git-tracking choice | No command creates/edits `.gitignore` or requires a tracked file. |
+| Unreadable non-excluded subtree or candidate | Incomplete inventory; no normal partial query or dependent mutation. |
+| Add/move destination excluded from discovery | Refuse instead of creating a task that disappears from the effective collection. |
 
 Diagnostic categories and exact JSON/exit-code shapes are delegated to KAD-016/KAD-050/KAD-051, and parser-specific byte/depth/node limits to KAD-006. All read and validation paths must remain non-mutating.
 
@@ -234,7 +241,7 @@ Diagnostic categories and exact JSON/exit-code shapes are delegated to KAD-016/K
 - [x] `.kadai.yaml` v1 keys, types, defaults, null behavior and strict validation specified.
 - [x] `tasks.root`, `boards.root`, nested scanning boundaries and portable excludes specified.
 - [x] `init`, CLI precedence/overrides, independent collections, and manual migration specified.
-- [x] Local state placement, optional Git tracking and cross-collection write coordination documented.
+- [x] Local state placement, optional Git tracking and cross-collection decision coordination documented.
 - [x] Acceptance scenarios and error boundaries documented; no implementation or executable tests claimed.
 
-**Follow-ups:** KAD-004 owns ID record format and collision repair; KAD-006 YAML implementation limits; KAD-007 executable fixtures; KAD-023–KAD-026 discovery and filesystem implementation; KAD-029/KAD-030 atomic writes, lock behavior and recovery; KAD-047 CLI grammar; KAD-050/KAD-051 JSON and error contracts. The board document format and commands remain deferred to v0.2.
+**Follow-ups:** KAD-004 owns ID record format and collision repair; KAD-006 YAML implementation limits; KAD-007 declarative fixtures and minimal-testing policy; KAD-023–KAD-026 discovery and filesystem implementation; KAD-029/KAD-030 atomic writes, lock behavior and recovery; KAD-047 CLI grammar; KAD-050/KAD-051 JSON and error contracts. The board document format and commands remain deferred to v0.2.
