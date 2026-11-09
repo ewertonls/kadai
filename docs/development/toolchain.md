@@ -102,10 +102,27 @@ The integration test selects `recognition/crlf-bom` from the [fixture catalog](.
 
 ### Build the CLI
 
-Build the executable from the repository root:
+Kadai's default build explicitly selects static LibYAML with `-define:YAML_STATIC=true`. The binding itself defaults to dynamic linking when this flag is omitted. Run the build from the repository root.
 
 ```sh
-odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party
+odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+./kadai --help
 ```
 
-Run `./kadai --help` or `./kadai --version` (`.\kadai.exe` on Windows). The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.
+On Windows, run `.\kadai.exe --help`. Use `--version` to print the version. The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.
+
+The current CLI only implements help and version. Because it does not import the parser yet, Odin reports `Warning: given -define:YAML_STATIC is unused in the project`. The build succeeds. The [YAML package tests](yaml-parser.md#run-the-probe) exercise both link modes.
+
+On macOS ARM64, the binding expects `third_party/odin-yaml/lib/macos/aarch64/libyaml.a`. If your checkout lacks that archive, copy it from an ARM64 Homebrew installation of LibYAML 0.2.5 before building packages that use YAML.
+
+```sh
+brew install libyaml
+mkdir -p third_party/odin-yaml/lib/macos/aarch64
+cp "$(brew --prefix libyaml)/lib/libyaml.a" third_party/odin-yaml/lib/macos/aarch64/
+```
+
+To build with dynamic LibYAML on macOS, install `libyaml` with Homebrew and supply its library directory to the linker. Executables that use YAML then need the Homebrew dylib at runtime.
+
+```sh
+odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=false -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
+```

@@ -27,10 +27,10 @@ LibYAML and libfyaml use MIT licenses. Include the applicable copyright and perm
 
 | Target | LibYAML link options | Verified here |
 | --- | --- | --- |
-| macOS ARM64 | System `libyaml` (Homebrew). The vendor tree has no ARM64 macOS archive. | Test ran with Homebrew's 0.2.5 dylib. The binary records its Homebrew install path. |
+| macOS ARM64 | Static archive at `lib/macos/aarch64/libyaml.a` in the binding package, or dynamic LibYAML from Homebrew. | Parser tests ran with static and dynamic LibYAML 0.2.5. The dynamic executable records the Homebrew install path. |
 | macOS x86_64 | Vendored static archive or system `libyaml`. | Static test ran under Rosetta without a LibYAML dylib dependency. |
 | Linux x86_64, ARM64 | Static archive supplied for each target. Dynamic linking needs the distribution's LibYAML development package at build time and the shared library at runtime. | Bindings type-checked for both targets. Native link and execution untested. |
-| Windows x86_64 | `yaml.lib` for static linking. Default dynamic linking uses `yamld.lib` and needs `yaml.dll` on the executable's DLL search path. | Bindings type-checked. Native link and execution untested. |
+| Windows x86_64 | `yaml.lib` for static linking. Dynamic linking uses `yamld.lib` and needs `yaml.dll` on the executable's DLL search path. | Bindings type-checked. Native link and execution untested. |
 
 ### Task document decoding
 
@@ -40,17 +40,17 @@ Known string fields use the decoded scalar text. Under `custom`, nodes carry the
 
 ### Run the probe
 
-Run from the repository root. On macOS ARM64, use Homebrew's library path.
-
-```sh
-brew install libyaml
-odin test src/yaml -collection:kadai=src -collection:third_party=third_party -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
-odin test src/document -collection:kadai=src -collection:third_party=third_party -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
-```
-
-On macOS x86_64, Linux x86_64 or ARM64, and Windows x86_64, select the matching vendored static library.
+Run from the repository root. Use the same static LibYAML setting as the [standard CLI build](toolchain.md#build-the-cli) on macOS and Linux (x86_64 or ARM64) and Windows x86_64.
 
 ```sh
 odin test src/yaml -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
 odin test src/document -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+```
+
+To test dynamic linking on macOS with Homebrew:
+
+```sh
+brew install libyaml
+odin test src/yaml -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=false -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
+odin test src/document -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=false -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
 ```

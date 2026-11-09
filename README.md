@@ -2,11 +2,22 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports `kadai --help` and `kadai --version`. The task-management examples below describe planned features. See [Build the CLI](docs/development/toolchain.md#build-the-cli) to run it locally.
+> **Status:** Early development. The CLI supports `kadai --help` and `kadai --version`. The task-management examples below describe planned features.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 
 **Kadai is being built in [Odin](https://odin-lang.org/), with the CLI as the sole development focus for now.** Additional interfaces may be explored later, but are not part of the current roadmap.
+
+## Build the CLI
+
+Install [Odin](docs/development/toolchain.md#installation) and run this from the repository root. Kadai's standard build selects static LibYAML with `-define:YAML_STATIC=true`, so users do not need a separate LibYAML installation to run the executable.
+
+```sh
+odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+./kadai --version
+```
+
+On Windows, run `.\kadai.exe --version`. The [build guide](docs/development/toolchain.md#build-the-cli) covers static library setup and optional dynamic linking.
 
 ## Design goals
 
