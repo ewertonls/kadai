@@ -97,10 +97,19 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 			return runtime.Allocator_Error.Out_Of_Memory
 		}
 		node.kind = plain_kind(node.text) if scalar.style == .PLAIN_SCALAR_STYLE else .String
+		switch scalar.style {
+		case .PLAIN_SCALAR_STYLE:         node.style = .Plain
+		case .SINGLE_QUOTED_SCALAR_STYLE: node.style = .Single_Quoted
+		case .DOUBLE_QUOTED_SCALAR_STYLE: node.style = .Double_Quoted
+		case .LITERAL_SCALAR_STYLE:       node.style = .Literal
+		case .FOLDED_SCALAR_STYLE:        node.style = .Folded
+		case .ANY_SCALAR_STYLE:           node.style = .Unknown
+		}
 	case .SEQUENCE_START_EVENT:
 		props := r.event.data.sequence_start
 		check_properties(props.anchor, props.tag) or_return
 		node.kind = .Sequence
+		node.style = .Flow if props.style == .FLOW_SEQUENCE_STYLE else .Block
 		advance(r) or_return
 		for r.event.type != .SEQUENCE_END_EVENT {
 			_ = append(&node.items, Node{}) or_return
@@ -113,6 +122,7 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int) -> Parse_Failure {
 		props := r.event.data.mapping_start
 		check_properties(props.anchor, props.tag) or_return
 		node.kind = .Mapping
+		node.style = .Flow if props.style == .FLOW_MAPPING_STYLE else .Block
 		seen: map[string]bool
 		defer delete(seen)
 		advance(r) or_return

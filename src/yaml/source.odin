@@ -2,11 +2,13 @@
 package yaml
 
 Node_Kind :: enum {Absent, String, Null, Boolean, Integer, Float, Sequence, Mapping}
+Node_Style :: enum {Unknown, Plain, Single_Quoted, Double_Quoted, Literal, Folded, Block, Flow}
 
 Byte_Range :: struct {start, end: int}
 
 Node :: struct {
 	kind:    Node_Kind,
+	style:   Node_Style,
 	// Half-open byte offsets into the original YAML input.
 	using location: Location,
 	// Decoded scalar text. For numbers kind + text is lossless at any precision.

@@ -2,6 +2,10 @@ package yaml
 
 import "core:strings"
 
+is_plain_null :: proc(s: string) -> bool {
+	return s == "" || s == "~" || s == "null" || s == "Null" || s == "NULL"
+}
+
 @(private)
 digit_count :: proc(s: string) -> int {
 	i := 0
@@ -13,8 +17,10 @@ digit_count :: proc(s: string) -> int {
 // machine integer or float. A later consumer can choose its own representation.
 @(private)
 plain_kind :: proc(s: string) -> Node_Kind {
+	if is_plain_null(s) {
+		return .Null
+	}
 	switch s {
-	case "", "~", "null", "Null", "NULL": return .Null
 	case "true", "True", "TRUE", "false", "False", "FALSE": return .Boolean
 	case ".nan", ".NaN", ".NAN": return .Float
 	}
