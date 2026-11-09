@@ -13,7 +13,8 @@ Scalar_Field :: enum {
 }
 
 // Maps each Scalar_Field to its top-level YAML key, indexed by enum value.
-Scalar_Field_Name :: [Scalar_Field]string {
+@(rodata)
+SCALAR_FIELD_NAME := [Scalar_Field]string {
 	.Title    = "title",
 	.Status   = "status",
 	.Priority = "priority",
@@ -38,8 +39,7 @@ plan_scalar_patch :: proc(
 	candidate: string,
 	err: Header_Edit_Error,
 ) {
-	names := Scalar_Field_Name
-	name := names[field]
+	name := SCALAR_FIELD_NAME[field]
 	before := decode_task(source, vocabulary, task_source_bytes, yaml_limits, path) or_return
 	defer destroy(&before)
 	node := yaml.lookup(&before.root, name)
