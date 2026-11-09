@@ -50,6 +50,21 @@ On success the caller owns the candidate string and the error is `nil`. A reject
 
 The planner reparses the entire candidate with the supplied vocabulary and limits. It checks the new value and its byte range, every unrelated YAML entry, and the remaining field errors. A schema-invalid task with a usable ID and a supported version permits repair of its invalid target field. Collection-level identity, relationship checks and persistence belong to the caller. [Scalar planner](../../src/document/scalar_patch.odin), [source-preservation tests](../../src/document/scalar_patch_test.odin).
 
+### Inserting and removing task fields
+
+Use `document.plan_key_patch` for a whole top-level entry in a block mapping. It uses the same vocabulary, limits, candidate ownership and error handling as `plan_scalar_patch`.
+
+```odin
+added := document.plan_key_patch(source, .Priority, document.Insert_Field{value = "high", after = "status"}) or_return
+defer delete(added)
+restored := document.plan_key_patch(added, .Priority, document.Unset_Field{}) or_return
+defer delete(restored)
+```
+
+Insertion appends by default. Set `after` to an existing decoded key to insert before the next entry. The new line uses the root indentation and the local line ending. A string is scalar text, `nil` inserts YAML null, and `document.Inline_Collection{"[cli, docs]"}` supplies a single flow collection checked against the field schema. Inserting a missing `title` or `status` can repair a task with a valid ID.
+
+An explicit unset removes an existing optional entry, including its line ending. Required fields, duplicate insertions and unsets of missing fields produce diagnostics. The planner also refuses edits with ambiguous comment ownership or conflicting line endings at the insertion point. Every proposal is reparsed to check the field change, the order and values of the other entries, and any remaining schema errors. [Key planner](../../src/document/key_patch.odin), [byte-preservation and refusal tests](../../src/document/key_patch_test.odin).
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
