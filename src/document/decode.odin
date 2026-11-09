@@ -21,7 +21,7 @@ Field_Error :: struct {
 Decode_Status :: enum {Non_Task, Decoded, Invalid_Fields, Unsupported_Schema, Boundary_Error, YAML_Error}
 
 Task_Document :: struct {
-	source: string,
+	source, path: string,
 	parts: Frontmatter,
 	root: yaml.Node,
 	fields: Task_Fields,
@@ -29,9 +29,12 @@ Task_Document :: struct {
 	boundary_status: Frontmatter_Status,
 	yaml_error: yaml.Error,
 	field_errors: [dynamic]Field_Error,
+	diagnostics: [dynamic]yaml.Diagnostic,
 }
 
 destroy :: proc(doc: ^Task_Document) {
+	for &d in doc.diagnostics do yaml.destroy_diagnostic(&d)
+	delete(doc.diagnostics)
 	delete(doc.field_errors)
 	delete(doc.fields.tags)
 	delete(doc.fields.depends_on)
@@ -39,29 +42,35 @@ destroy :: proc(doc: ^Task_Document) {
 	doc^ = {}
 }
 
-// Source is borrowed and must outlive the result. Node spans are relative to
+// Source and path are borrowed and must outlive the result. Node spans are relative to
 // parts.header.start. Always destroy the returned document, including on error.
 decode_task :: proc(
 	source: string,
 	vocabulary := task.Vocabulary{},
 	task_source_bytes := DEFAULT_FRONTMATTER_LIMITS.task_source_bytes,
 	yaml_limits := yaml.DEFAULT_LIMITS,
+	path := "",
 ) -> (doc: Task_Document) {
-	doc.source = source
+	doc.source, doc.path = source, path
+	failure: yaml.Diagnostic
 	if !yaml.valid_limits(yaml_limits) {
 		doc.status, doc.boundary_status = .Boundary_Error, .Invalid_Limits
+		append(&doc.diagnostics, yaml.invalid_limits_diagnostic(path, yaml_limits))
 		return
 	}
-	doc.parts, doc.boundary_status = extract_frontmatter(source, {task_source_bytes, yaml_limits.bytes})
+	doc.parts, doc.boundary_status = extract_frontmatter(source, {task_source_bytes, yaml_limits.bytes}, &failure, path)
 	if doc.boundary_status == .Absent do return
 	if doc.boundary_status != .Present {
 		doc.status = .Boundary_Error
+		append(&doc.diagnostics, failure)
 		return
 	}
 	header := doc.parts.header
-	doc.root, doc.yaml_error = yaml.parse_mapping(source[header.start:header.end], yaml_limits)
+	doc.root, doc.yaml_error = yaml.parse_mapping(source[header.start:header.end], yaml_limits, &failure, path)
 	if doc.yaml_error != .None {
 		doc.status = .YAML_Error
+		failure.location = markdown_location(header, failure.location)
+		append(&doc.diagnostics, failure)
 		return
 	}
 	marker := yaml.lookup(&doc.root, "kadai")
@@ -74,13 +83,15 @@ decode_task :: proc(
 	} else {
 		n, ok := yaml.integer_value(version)
 		if !ok || n.negative || n.digits == "0" {
-			append(&doc.field_errors, Field_Error{"schema_version", .Invalid_Value})
+			field_error(&doc, "schema_version", .Invalid_Value, version)
 			doc.status = .Invalid_Fields
 			return
 		}
 		doc.fields.schema_version = n
 		if n.digits != "1" {
 			doc.status = .Unsupported_Schema
+			append(&doc.diagnostics, yaml.diagnostic(path, "unsupported_task_schema", "schema_version",
+				"Use a Kadai version that supports this task schema.", markdown_location(header, version.location)))
 			return
 		}
 	}
@@ -94,21 +105,21 @@ decode_task :: proc(
 	read_list(&doc, "depends_on", &doc.fields.depends_on)
 	if custom := yaml.lookup(&doc.root, "custom"); custom != nil && custom.kind != .Null {
 		if custom.kind != .Mapping {
-			append(&doc.field_errors, Field_Error{"custom", .Wrong_Type})
-		} else if !valid_custom_keys(custom) {
-			append(&doc.field_errors, Field_Error{"custom", .Invalid_Key})
+			field_error(&doc, "custom", .Wrong_Type, custom)
+		} else if key := invalid_custom_key(custom); key != nil {
+			field_error(&doc, "custom", .Invalid_Key, key)
 		} else {
 			doc.fields.custom = custom
 		}
 	}
-	for entry in doc.root.entries {
+	for &entry in doc.root.entries {
 		if entry.key.kind != .String {
-			append(&doc.field_errors, Field_Error{entry.key.text, .Invalid_Key})
+			field_error(&doc, entry.key.text, .Invalid_Key, &entry.key)
 			continue
 		}
 		switch entry.key.text {
 		case "kadai", "id", "title", "status", "schema_version", "priority", "parent", "due", "tags", "depends_on", "custom":
-		case: append(&doc.field_errors, Field_Error{entry.key.text, .Unknown_Field})
+		case: field_error(&doc, entry.key.text, .Unknown_Field, &entry.key)
 		}
 	}
 	doc.status = .Decoded if len(doc.field_errors) == 0 else .Invalid_Fields
@@ -122,12 +133,12 @@ read_text :: proc(doc: ^Task_Document, name: string, dst: ^string, vocab: task.V
 	if node == nil || node.kind == .Null {
 		if required {
 			reason: Field_Error_Reason = .Missing if node == nil else .Required_Null
-			append(&doc.field_errors, Field_Error{name, reason})
+			field_error(doc, name, reason, node)
 		}
 		return
 	}
 	if node.kind == .Sequence || node.kind == .Mapping {
-		append(&doc.field_errors, Field_Error{name, .Wrong_Type})
+		field_error(doc, name, .Wrong_Type, node)
 		return
 	}
 	s := node.text
@@ -142,7 +153,7 @@ read_text :: proc(doc: ^Task_Document, name: string, dst: ^string, vocab: task.V
 	if valid {
 		dst^ = s
 	} else {
-		append(&doc.field_errors, Field_Error{name, .Invalid_Value})
+		field_error(doc, name, .Invalid_Value, node)
 	}
 }
 
@@ -151,7 +162,7 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) {
 	node := yaml.lookup(&doc.root, name)
 	if node == nil || node.kind == .Null do return
 	if node.kind != .Sequence {
-		append(&doc.field_errors, Field_Error{name, .Wrong_Type})
+		field_error(doc, name, .Wrong_Type, node)
 		return
 	}
 	dependencies := name == "depends_on"
@@ -163,20 +174,20 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) {
 		}
 		delete(seen)
 	}
-	for item in node.items {
+	for &item in node.items {
 		if item.kind == .Mapping || item.kind == .Sequence || item.kind == .Null {
-			append(&doc.field_errors, Field_Error{name, .Wrong_Type})
+			field_error(doc, name, .Wrong_Type, &item)
 			return
 		}
 		if !valid_item(item.text) {
-			append(&doc.field_errors, Field_Error{name, .Invalid_Value})
+			field_error(doc, name, .Invalid_Value, &item)
 			return
 		}
 		key := item.text
 		if dependencies do key = strings.to_lower(key) // valid IDs are ASCII
 		if key in seen {
 			if dependencies do delete(key)
-			append(&doc.field_errors, Field_Error{name, .Duplicate_Item})
+			field_error(doc, name, .Duplicate_Item, &item)
 			return
 		}
 		seen[key] = true
@@ -185,16 +196,16 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) {
 }
 
 @(private)
-valid_custom_keys :: proc(node: ^yaml.Node) -> bool {
+invalid_custom_key :: proc(node: ^yaml.Node) -> ^yaml.Node {
 	for &entry in node.entries {
-		if entry.key.kind != .String || entry.key.text == "" do return false
+		if entry.key.kind != .String || entry.key.text == "" do return &entry.key
 		for c in entry.key.text {
-			if unicode.is_control(c) do return false
+			if unicode.is_control(c) do return &entry.key
 		}
-		if !valid_custom_keys(&entry.value) do return false
+		if bad := invalid_custom_key(&entry.value); bad != nil do return bad
 	}
 	for &item in node.items {
-		if !valid_custom_keys(&item) do return false
+		if bad := invalid_custom_key(&item); bad != nil do return bad
 	}
-	return true
+	return nil
 }

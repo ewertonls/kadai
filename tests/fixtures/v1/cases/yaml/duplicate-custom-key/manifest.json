@@ -25,7 +25,7 @@
       {
         "category": "duplicate_mapping_key",
         "path": "tasks/dup.md",
-        "field": "x"
+        "field": "custom.nested.x"
       }
     ]
   }

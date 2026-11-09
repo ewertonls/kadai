@@ -3,6 +3,7 @@ package document
 
 import "core:fmt"
 import "core:slice"
+import "core:strings"
 import "core:testing"
 import "kadai:task"
 import "kadai:yaml"
@@ -35,6 +36,12 @@ decode_fields_and_original_source :: proc(t: ^testing.T) {
 	entry := doc.root.entries[len(doc.root.entries)-1]
 	testing.expect_value(t, raw_header[entry.key.span.start:entry.key.span.end], "'future key'")
 	testing.expect_value(t, raw_header[entry.value.span.start:entry.value.span.end], "{note: \"olá\"}")
+	if testing.expect_value(t, len(doc.diagnostics), 1) {
+		d := doc.diagnostics[0]
+		testing.expect_value(t, d.code, "unknown_top_level_key")
+		testing.expect_value(t, d.field, "future key")
+		testing.expect_value(t, doc.source[d.location.span.start:d.location.span.end], "'future key'")
+	}
 }
 
 @(test)
@@ -61,12 +68,19 @@ decode_nulls_and_schema_envelope :: proc(t: ^testing.T) {
 	testing.expect_value(t, unsupported.fields.schema_version, yaml.Integer{"2", 10, false})
 	testing.expect_value(t, unsupported.fields.status, "")
 	testing.expect_value(t, len(unsupported.field_errors), 0)
+	if testing.expect_value(t, len(unsupported.diagnostics), 1) {
+		d := unsupported.diagnostics[0]
+		testing.expect_value(t, d.code, "unsupported_task_schema")
+		testing.expect_value(t, d.field, "schema_version")
+		testing.expect_value(t, d.location.line, 6)
+	}
 
 	ordinary_inputs := []string{"# note", "---\n---", "---\ncustom: {kadai: task}\n---", "---\nkadai: note\n---"}
 	for input in ordinary_inputs {
 		ordinary := decode_task(input)
 		defer destroy(&ordinary)
 		testing.expect_value(t, ordinary.status, .Non_Task)
+		testing.expect_value(t, len(ordinary.diagnostics), 0)
 	}
 }
 
@@ -137,5 +151,73 @@ field_validation :: proc(t: ^testing.T) {
 		testing.expect(t, slice.equal(doc.field_errors[:], []Field_Error{{c.field, c.reason}}))
 		testing.expect_value(t, doc.fields.id, "T")
 		testing.expect_value(t, len(doc.fields.tags) + len(doc.fields.depends_on), 0)
+	}
+}
+
+@(test)
+diagnostics_locate_the_original_markdown :: proc(t: ^testing.T) {
+	path :: "tasks/nested/ação.md"
+	duplicate :: "\uFEFF---\r\n# ação\r\ncustom: {grupos: [{café: 1, \"caf\\u00e9\": 2}]}\n---"
+	cases := []struct {
+		source, code, field: string,
+		line, column: int,
+		token, advice: string,
+	}{
+		{duplicate, "duplicate_mapping_key", "custom.grupos[0].café", 3, 29, "\"caf\\u00e9\"", "single entry"},
+		{"---\nkadai: task\ncustom: {a.b: [*bad]}\n---", "unsupported_alias", "custom[\"a.b\"][0]", 3, 16, "*bad", "explicit value"},
+		{"---\r\nkadai: task\ntags: [\"é\", }\r\n---", "yaml_syntax", "tags", 3, 13, "}", "expected node content"},
+		{"---\nkadai: task\ntitle: \"open\n---", "yaml_syntax", "title", 4, 1, "", "quoted scalar"},
+		{"---\nkadai: task\npriority:\n@bad: 1\n---", "yaml_syntax", "", 4, 1, "@", "cannot start any token"},
+		{"---\r\nkadai: task\n---\nα\xff", "invalid_utf8", "", 4, 2, "\xff", "UTF-8"},
+		{"\uFEFF---\u2028", "unsupported_line_break", "", 1, 4, "\u2028", "LF or CRLF"},
+		{"---\nkadai: task", "frontmatter_missing_close", "", 2, 12, "", "closing ---"},
+		{"---\nkadai: task\nid: A\ntitle: x\nstatus: todo\ntags: [cli, cli]\n---", "duplicate_tag", "tags", 6, 13, "cli", "only once"},
+	}
+	for c in cases {
+		doc := decode_task(c.source, path = path)
+		defer destroy(&doc)
+		if !testing.expect_value(t, len(doc.diagnostics), 1) do continue
+		d := doc.diagnostics[0]
+		testing.expect_value(t, d.path, path)
+		testing.expect_value(t, d.code, c.code)
+		testing.expect_value(t, d.field, c.field)
+		testing.expect_value(t, d.location.line, c.line)
+		testing.expect_value(t, d.location.column, c.column)
+		testing.expect_value(t, c.source[d.location.span.start:d.location.span.end], c.token)
+		testing.expect(t, strings.contains(d.message, c.advice))
+		if c.source == duplicate do testing.expect_value(t, d.location.span, Byte_Range{47, 58})
+	}
+
+	doc := decode_task("---\nkadai: task\nid: A\n---", path = path)
+	defer destroy(&doc)
+	if !testing.expect_value(t, len(doc.diagnostics), 2) do return
+	for d, i in doc.diagnostics {
+		testing.expect_value(t, d.code, "missing_required_field")
+		testing.expect_value(t, d.field, "title" if i == 0 else "status")
+		testing.expect_value(t, d.location, yaml.Location{})
+	}
+}
+
+@(test)
+diagnostics_report_observed_limits :: proc(t: ^testing.T) {
+	source :: "---\n{a: [b]}\n---"
+	cases := []struct {file_bytes: int, limits: yaml.Limits, field: string, observed, limit: int, code: string}{
+		{8, {16, 8, 8}, "task_source_bytes", len(source), 8, "limit_exceeded"},
+		{64, {4, 8, 8}, "yaml_document_bytes", 5, 4, "limit_exceeded"},
+		{64, {16, 3, 8}, "yaml_nodes_document", 4, 3, "limit_exceeded"},
+		{64, {16, 8, 2}, "yaml_depth", 3, 2, "limit_exceeded"},
+		{64, {16, 8, 0}, "yaml_depth", 0, yaml.MAX_LIMITS.depth, "invalid_limit"},
+	}
+	for c in cases {
+		doc := decode_task(source, task_source_bytes = c.file_bytes, yaml_limits = c.limits, path = "tasks/A.md")
+		defer destroy(&doc)
+		if !testing.expect_value(t, len(doc.diagnostics), 1) do continue
+		d := doc.diagnostics[0]
+		testing.expect_value(t, d.code, c.code)
+		testing.expect_value(t, d.path, "tasks/A.md")
+		testing.expect_value(t, d.field, c.field)
+		testing.expect_value(t, d.observed, c.observed)
+		testing.expect_value(t, d.limit, c.limit)
+		if c.code == "invalid_limit" do testing.expect_value(t, d.location, yaml.Location{})
 	}
 }
