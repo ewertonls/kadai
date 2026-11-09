@@ -12,7 +12,7 @@ The last column lists allowed direct imports within Kadai. Add an import when an
 | `app` | Own the application version and coordinate queries and mutations, including the lock scope across discovery, validation, and persistence | `project`, `task`, `document`, `storage`, and eventually `graph`, `identity` |
 | `task` | Define task fields, status rules, ID syntax, and single-task validation in memory | None |
 | `document` | Locate Markdown frontmatter and body, decode task fields, and patch supported fields while preserving unrelated bytes | `yaml`, `task` |
-| `yaml` | Expose YAML parsing, events, and source spans for both project config and task documents. Parser selection belongs to KAD-013. | None |
+| `yaml` | Own YAML parsing, events, and source spans for both project config and task documents. See the [KAD-013 parser comparison](yaml-parser.md). | None |
 | `project` | Resolve config and roots, discover documents, and build the transient collection index | `yaml`, `storage`, `document`, `task` |
 | `storage` | Handle physical path safety, file I/O, locks, atomic replacement, and recovery using paths and bytes | None |
 

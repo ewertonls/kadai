@@ -3,7 +3,7 @@
 > **Status:** Accepted specification, not implemented.
 > **Milestone:** v0.1. **Owner task:** KAD-006. **Recorded:** 2026-11-07.
 > **Depends on:** [KAD-001 product scope](KAD-001-v0.1-scope.md), [KAD-002 task frontmatter v1](KAD-002-frontmatter-v1.md), [KAD-003 project configuration v1](KAD-003-project-config-v1.md), [KAD-004 task identity v1](KAD-004-task-identity-v1.md), and [KAD-005 hierarchy and dependencies v1](KAD-005-hierarchy-dependencies-v1.md).
-> **Scope:** Accepted YAML representations, task recognition under parse failures, scalar interpretation, deterministic parser/scan budgets, eligibility for byte-preserving edits and their failure behavior. This is a behavioral contract, not a choice of parser implementation.
+> **Scope:** Accepted YAML representations, task recognition under parse failures, scalar interpretation, deterministic parser/scan budgets, eligibility for byte-preserving edits and their failure behavior.
 
 ## 1. Principles and boundaries
 
@@ -21,19 +21,21 @@ Passing an earlier gate never implies passing a later one. A successfully parsed
 
 **Precedence:** KAD-002 governs task fields, typing and defaults; KAD-003 governs project configuration and collection selection; KAD-004/KAD-005 govern identity/graph safety. KAD-006 supplies the narrower syntax, limits and source-mutation mechanics without changing those contracts. Atomic storage, metadata preservation, durable journals and cross-collection coordination belong to KAD-026/KAD-029/KAD-030. KAD-007 Section 7 governs minimal test implementation, not product semantics.
 
-The YAML syntax reference for v1 is [YAML 1.2.2](https://yaml.org/spec/1.2.2/). KAD-013 evaluates maintained parsers, including LibYAML via Odin/C FFI; v1 does **not** require writing a parser from scratch.
+Kadai v1 uses the LibYAML event parser for task frontmatter and project configuration. LibYAML 0.2.5 is the syntax baseline. Sections 2 and 4 further restrict the accepted input. Kadai resolves scalar types from the event text and style under Section 3.1, including YAML 1.2 Core types for `custom`. [KAD-013 parser decision](../development/yaml-parser.md).
 
 ## 2. Supported YAML syntax
 
 ### 2.1 Accepted representations
 
-Subject to resource limits, accept the ordinary YAML 1.2 syntax below in task frontmatter and `.kadai.yaml`:
+Within the resource limits, accept the following LibYAML representations in task frontmatter and `.kadai.yaml`.
 
 - Block and flow mappings and sequences, including nested combinations and empty collections (`{}`, `[]`).
-- Plain, single-quoted and double-quoted scalars; YAML-defined escaping; literal and folded block scalars (`|` and `>`), with their indentation/chomping indicators.
+- Plain, single-quoted and double-quoted scalars, escapes supported by LibYAML, and literal and folded block scalars (`|` and `>`) with their indentation and chomping indicators.
 - Quoted mapping keys, Unicode scalar content, blank lines, inline and standalone comments, and ordinary indentation.
 - One document with a mapping root, subject to the schema's key rules.
 - Optional UTF-8 BOM only at the beginning of task source; LF or CRLF line endings. Preserve original bytes, including mixed LF/CRLF, when reading or patching. A lone CR line break is unsupported.
+
+In a flow sequence, write `custom: {labels: [":start"]}` for a list containing the string `:start`. LibYAML rejects the unquoted spelling `[:start]`.
 
 A YAML representation can be syntactically accepted but fail field validation: e.g. a multiline `title`, an object where `status` must be a scalar, an unknown v1 top-level key, or a non-string nested `custom` key.
 
@@ -45,6 +47,8 @@ Reject, with diagnostics and no mutation:
 - YAML directives (`%YAML`, `%TAG`), multiple documents, complex/non-scalar mapping keys, and malformed syntax.
 - Indentation using tabs, unsupported line breaks, invalid UTF-8, and duplicate mapping keys at any depth.
 - A root other than a mapping or any mapping key that does not satisfy the enclosing schema's string-key requirement.
+
+Check the bounded YAML bytes for unsupported line breaks before parsing. Reject a bare CR and literal U+0085, U+2028 or U+2029, including inside quoted scalars. LibYAML treats these characters as line breaks and can fold U+0085 into a space. A double-quoted escape such as `"a\u0085b"` preserves that code point where the field permits it. This check applies only to the YAML header or configuration file. The Markdown body stays opaque.
 
 The literal key `<<` is **not** a merge directive under the v1 contract; where schema-permitted, it is just a string key. Quoted `"<<"` is likewise a string key. No implicit merging is performed. Anchors/aliases that often accompany YAML merge patterns remain unsupported.
 
@@ -241,10 +245,10 @@ KAD-007 represents these distinct behaviors with compact parameterized cases and
 
 **Acceptance for KAD-006 (design only):**
 
-- [x] YAML 1.2 accepted forms and explicitly unsupported constructs defined.
+- [x] LibYAML syntax baseline, accepted forms and unsupported constructs defined.
 - [x] Strict scalar/key semantics, version handling and conservative malformed-task recognition defined.
 - [x] Numeric parser/scan budgets, bounded internal-state reads and CLI-only override policy specified.
 - [x] Incomplete-inventory failure, minimum/optional source patch coverage, directed repair and phase-specific failure conditions defined.
 - [x] Necessary implementation tests delegated to KAD-007, KAD-013 through KAD-030, KAD-047 and KAD-050/KAD-051 under KAD-007's minimal-testing policy.
 
-No parser, patcher or cross-platform implementation is claimed complete. KAD-007 contains declarative data and agent test rules; the runner and actual behavior tests remain implementation work.
+KAD-013 verified the Odin bindings and scalar source marks. KAD-015 owns field decoding and the reader's check for unsupported literal line breaks. Its tests should distinguish a raw U+0085 in YAML from an escaped U+0085 in a permitted string value.

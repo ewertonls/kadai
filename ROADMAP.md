@@ -63,7 +63,7 @@
 
 **Depends on:** Phases 0-1. **Done when:** Changing one supported metadata field preserves the body and all unrelated bytes; unsafe edits report an error.
 
-- [ ] **KAD-013** Spike YAML implementation options. _Acceptance:_ Compare a maintained parser, including LibYAML via Odin/C FFI, with licensing and cross-platform linking costs. Do not write a YAML parser from scratch.
+- [x] **KAD-013** Spike YAML implementation options. _Acceptance:_ Compare a maintained parser, including LibYAML via Odin/C FFI, with licensing and cross-platform linking costs. Do not write a YAML parser from scratch. _Reference:_ [Parser comparison and native probe](docs/development/yaml-parser.md).
 - [ ] **KAD-014** Extract frontmatter boundaries. _Acceptance:_ Separate opening/closing delimiters and raw body; specify BOM, missing delimiters, and empty headers.
 - [ ] **KAD-015** Parse known YAML fields. _Acceptance:_ Decode supported scalar and sequence fields while preserving unrecognized keys for round-trip editing.
 - [ ] **KAD-016** Report useful YAML errors. _Acceptance:_ Include filename, line/column where available, field, and actionable diagnostics.
@@ -218,7 +218,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 
 ## Technical decisions pending
 
-- **YAML parser:** Validate a library such as [LibYAML](https://github.com/yaml/libyaml) via Odin/C FFI; decide static vs dynamic linkage and bundle/licensing approach before locking it in. Parsing YAML and preserving original formatting during edits are distinct tasks.
+- **YAML distribution:** KAD-013 selected LibYAML. Release packaging still needs to verify native linking and include the appropriate license notices for each target. [Development link options](docs/development/yaml-parser.md#licensing-and-linking).
 - **ID generation:** KAD-002 fixes collection-local case-insensitive sequential IDs with optional prefix and durable used-ID history; KAD-004 owns the record format, post-merge repair, filenames and collision details.
 - **Deletion:** Specify whether v0.1 removes files outright, moves them to a project-local trash directory, or requires explicit `--force`.
 - **YAML patch scope:** Specify readable-but-uneditable YAML constructs, parser resource limits, v1 deadline grammar and lossless JSON numeric handoff.

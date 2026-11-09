@@ -76,14 +76,14 @@ Upstream: [official Odin installation guide](https://odin-lang.org/docs/install/
 
 ## Native development workflow
 
-Run these commands from the repository root. The flag `-collection:kadai=src` resolves imports such as `kadai:task` against `src/`.
+Run these commands from the repository root. `-collection:kadai=src` resolves imports such as `kadai:task`. `-collection:third_party=third_party` resolves the vendored bindings used by the [YAML parser probe](yaml-parser.md).
 
-For editor support, open the repository root as the workspace. [ols.json](../../ols.json) gives the Odin Language Server (OLS) the same collection mapping. Restart the language server to pick up a configuration change. Direct `odin` commands still need the collection flag.
+For editor support, open the repository root as the workspace. [ols.json](../../ols.json) gives the Odin Language Server (OLS) the same collections. Direct `odin` commands take the flags shown below.
 
 ### Check a package
 
 ```sh
-odin check src/app -collection:kadai=src -no-entry-point -vet
+odin check src/app -collection:kadai=src -collection:third_party=third_party -no-entry-point -vet
 ```
 
 Replace `src/app` with the package directory you are working on. Odin checks that package and its imports. Use `-no-entry-point` for library packages and `-vet` to enable vetting. A successful check exits with status 0.
@@ -93,10 +93,10 @@ Replace `src/app` with the package directory you are working on. Odin checks tha
 From the repository root, run the fixture helpers' unit and filesystem integration tests together:
 
 ```sh
-odin test tests/fixture_runner -collection:kadai=src
+odin test tests/fixture_runner -collection:kadai=src -collection:third_party=third_party
 ```
 
-For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, run `odin test src/cli -collection:kadai=src` to test CLI dispatch and error handling.
+For a product test, place a `*_test.odin` file in the package it exercises. Use `#+test`, import `core:testing`, and mark the procedure with `@(test)`. For example, run `odin test src/cli -collection:kadai=src -collection:third_party=third_party` to test CLI dispatch and error handling. The [YAML test commands](yaml-parser.md#run-the-probe) include the native linker flags for each target.
 
 The integration test selects `recognition/crlf-bom` from the [fixture catalog](../../tests/fixtures/v1/README.md), prepares its literal inputs in a fresh temporary directory, and verifies that the staged task preserves the source bytes, including the BOM and CRLF. Its `scan` action awaits the scanner.
 
@@ -105,7 +105,7 @@ The integration test selects `recognition/crlf-bom` from the [fixture catalog](.
 Build the executable from the repository root:
 
 ```sh
-odin build cmd/kadai -collection:kadai=src
+odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party
 ```
 
 Run `./kadai --help` or `./kadai --version` (`.\kadai.exe` on Windows). The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.
