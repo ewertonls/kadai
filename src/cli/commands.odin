@@ -98,6 +98,9 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id)
 		case: return "", "unknown recovery mode", 2
 		}
+	case "dep":
+		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep add|remove TASK PREREQUISITE", 2
+		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove")
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {
 			_, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2])

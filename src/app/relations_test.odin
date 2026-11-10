@@ -31,3 +31,23 @@ parent_changes_only_child_metadata :: proc(t: ^testing.T) {
 	data, _ := os.read_entire_file(storage.child(tmp, "c.md"), context.temp_allocator)
 	testing.expect_value(t, string(data), "---\nkadai: task\nid: Child\ntitle: Example\nstatus: todo\nparent: null # keep\n---\nbody")
 }
+
+@(test)
+dependency_patch_preserves_status_and_refuses_back_edge :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-deps-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	opts := Project_Options{tasks_root = "."}
+	testing.expect(t, write_graph_task(tmp, "a.md", "A", "done", "depends_on: [Missing] # keep\n"))
+	testing.expect(t, write_graph_task(tmp, "b.md", "B", "todo", "parent: A\n"))
+	_, issue := change_dependency(tmp, opts, "a", "b")
+	if !testing.expect_value(t, issue, "") do return
+	_, issue = change_dependency(tmp, opts, "A", "b")
+	testing.expect(t, issue != "")
+	_, issue = change_dependency(tmp, opts, "A", "missing", true)
+	testing.expect_value(t, issue, "")
+	_, issue = change_dependency(tmp, opts, "B", "A")
+	testing.expect(t, issue != "")
+	data, _ := os.read_entire_file(storage.child(tmp, "a.md"), context.temp_allocator)
+	testing.expect_value(t, string(data), "---\nkadai: task\nid: A\ntitle: Example\nstatus: done\ndepends_on: [B] # keep\n---\nbody")
+}

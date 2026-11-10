@@ -11,20 +11,6 @@ import "kadai:yaml"
 Parent_Edit :: struct { child: string, parent: Maybe(string) }
 
 @(private)
-check_parent_chain :: proc(view: ^Collection, child, parent: ^project.Candidate) -> string {
-	seen := make(map[^project.Candidate]bool, context.temp_allocator)
-	current := parent
-	for {
-		if current == child do return fmt.tprintf("%s: parent_cycle through %s", child.path, parent.fields.id)
-		if current.fields.parent == "" || current in seen do return ""
-		if _, e := map_insert(&seen, current, true); e != nil do return "cannot verify parent chain"
-		issue: string
-		current, issue = unique_task(view, current.fields.parent)
-		if issue != "" do return issue
-	}
-}
-
-@(private)
 plan_parent :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string) {
 	context.allocator = context.temp_allocator
 	edit := (^Parent_Edit)(data)
@@ -38,7 +24,7 @@ plan_parent :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 		if strings.equal_fold(child.fields.id, id) do return nil, fmt.tprintf("%s: parent_self_link", child.path)
 		target, target_err := unique_task(view, id)
 		if target_err != "" do return nil, target_err
-		if issue = check_parent_chain(view, child, target); issue != "" do return nil, issue
+		if issue = check_new_link(view, child, target, .Parent); issue != "" do return nil, issue
 		if strings.equal_fold(child.fields.parent, id) do return nil, ""
 		value = target.fields.id
 	}
