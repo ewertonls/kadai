@@ -10,7 +10,7 @@ import "kadai:yaml"
 Update :: struct {
 	id, field: string,
 	values: []string,
-	unset: bool,
+	unset, force: bool,
 }
 
 @(private)
@@ -60,6 +60,13 @@ plan_update :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 		}
 	}
 	if problem := patch_issue(e); problem != "" do return nil, problem
+	if op.force && (field != .Status || op.unset) do return nil, "force applies only to a status transition"
+	if field == .Status && !op.unset && !op.force && category(&view.config, item.fields.status) != "done" &&
+	   category(&view.config, op.values[0]) == "done" {
+		if ready := task_readiness(view, item); ready != .Ready {
+			return nil, fmt.tprintf("%s: prerequisites are %v; completing this task requires --force", item.path, ready)
+		}
+	}
 	if edited == source do return nil, ""
 	change := make([]storage.Change, 1)
 	change[0] = {kind = .Replace, path = item.path, expected = item.version, data = transmute([]byte)edited}

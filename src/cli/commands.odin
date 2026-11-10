@@ -13,7 +13,7 @@ Arguments :: struct {
 	words: [dynamic]string,
 	body_file, destination: string,
 	status: Maybe(string),
-	stdin: bool,
+	stdin, force: bool,
 }
 
 @(private)
@@ -26,6 +26,7 @@ parse_command :: proc(args: []string) -> (a: Arguments, problem: string) {
 		name := args[i]
 		if positional || !strings.has_prefix(name, "--") { append(&a.words, name); continue }
 		if name == "--" { positional = true; continue }
+		if name == "--force" && (a.command == "status" || a.command == "set") { a.force = true; continue }
 		if name == "--stdin" && a.command == "add" { a.stdin = true; continue }
 		if i+1 >= len(args) { return a, fmt.tprintf("missing value for %s", name) }
 		i += 1
@@ -68,9 +69,12 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
 		output = strings.to_string(b)
+	case "status":
+		if len(a.words) != 2 do return "", "status requires an ID and status", 2
+		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force)
 	case "set", "unset":
 		if len(a.words) < 2 || a.command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
-		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = a.command == "unset"})
+		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = a.command == "unset", force = a.force})
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", 2
 		result, problem := app.get_task(cwd, a.project, a.words[0])
