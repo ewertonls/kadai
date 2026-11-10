@@ -5,3 +5,17 @@ import "kadai:project"
 
 Project_Options :: project.Options
 initialize :: project.initialize
+
+Collection :: struct {
+	config: project.Config,
+	index: project.Index,
+}
+
+// Invocation-local view, including diagnostics from an incomplete inventory.
+read_collection :: proc(cwd: string, options := Project_Options{}, limits := project.DEFAULT_SCAN_LIMITS) -> (view: Collection, issue: string) {
+	if !project.valid_scan_limits(limits) do return {}, "invalid scan limits"
+	view.config, issue = project.resolve(cwd, options, limits.yaml)
+	if issue != "" do return
+	view.index = project.build_index(project.scan(view.config, limits))
+	return view, view.index.problem
+}
