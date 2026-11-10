@@ -79,6 +79,23 @@ collection, so its exclusions and duplicate-ID quarantine apply to every query.
 Rows follow ascending byte order of the full collection-relative path, with
 `/` as the separator.
 
+## Terminal output
+
+`list` prints one row per match, for example `T-002  [todo]  Review notes  (docs/review.md)`.
+`tree` indents direct children beneath their parent and marks unresolved parents and
+cycle members. For levels deeper than 16 it prints the depth beside the task.
+`ready` shows the task's stored status and labels its derived readiness separately.
+Task summaries and validation findings escape tabs, line breaks and terminal control characters.
+
+`dep show` groups immediate prerequisites and dependents. Every arrow points from
+prerequisite to dependent. An unresolved prerequisite keeps its written ID and
+shows the reason. When several files claim that ID, their paths appear beneath the edge.
+
+`validate` prints the source path and available line and column alongside each
+finding, followed by its severity, code and message. Related files and cycle
+edges appear on indented lines. The report names incomplete checks and gives
+error and warning counts when it finds issues.
+
 ## Project overrides
 
 | Option | Meaning |
@@ -134,7 +151,7 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-Refined terminal formatting, stable JSON/exit-code contracts and
-the full cross-platform workflow matrix remain KAD-049 through KAD-054. The
+Stable JSON/exit-code contracts and
+the full cross-platform workflow matrix remain KAD-050 through KAD-054. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.

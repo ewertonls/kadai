@@ -20,7 +20,8 @@ manual_save_between_commands :: proc(t: ^testing.T) {
 	testing.expect(t, os.write_entire_file(save, manual) == nil)
 	testing.expect(t, os.rename(save, path) == nil)
 	testing.expect(t, strings.contains(invoke_cli(t, {"show", "0001", "--project", tmp}, 1).stderr, "unknown task ID"))
-	testing.expect_value(t, invoke_cli(t, {"list", "--project", tmp}).stdout, "HAND\ttodo\tEditor title\t0001.md\n")
+	row := invoke_cli(t, {"list", "--project", tmp}).stdout
+	for value in ([]string{"HAND", "[todo]", "Editor title", "0001.md"}) do testing.expect(t, strings.contains(row, value), row)
 	testing.expect_value(t, invoke_cli(t, {"show", "hand", "--project", tmp}).stdout, fmt.tprintf("0001.md\n%s", manual))
 	_ = invoke_cli(t, {"status", "HAND", "in_progress", "--project", tmp})
 	testing.expect_value(t, invoke_cli(t, {"list", "--project", tmp, "--status", "todo"}).stdout, "")

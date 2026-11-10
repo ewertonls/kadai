@@ -59,6 +59,7 @@ commands_forward_config_limits :: proc(t: ^testing.T) {
 		append(&args, "--project", tmp, fmt.tprintf("--limit=yaml_document_bytes=%d", len(config)-1))
 		out := invoke_cli(t, args[:], 1)
 		testing.expect(t, strings.contains(out.stdout if command[0] == "validate" else out.stderr, ".kadai.yaml"), out.stderr)
+		if command[0] == "validate" do testing.expect(t, strings.contains(out.stdout, "Task scan incomplete."), out.stdout)
 	}
 	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks", tmp)))
 	// Exactly N config bytes passes, N-1 above failed. init re-reads persisted

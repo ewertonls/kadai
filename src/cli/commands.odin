@@ -17,7 +17,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		if len(a.words) != 0 do return "", "validate takes no positional arguments", 2
 		report, problem := app.validate_project(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
-		return validation_text(report), "", 1 if report.errors != 0 else 0
+		return validation_text(report), "", 1 if report.errors != 0 || !validation_complete(report) else 0
 	case "ready":
 		if len(a.words) > 1 do return "", "ready accepts an optional task ID", 2
 		id: Maybe(string)
@@ -32,33 +32,24 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 			case .Blocked: label = "blocked"
 			case .Unresolved: label = "unresolved"
 			}
-			fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", row.item.fields.id, label, row.item.fields.status, row.item.fields.title)
+			write_task_label(&b, row.item.fields.id, row.item.fields.status, row.item.fields.title)
+			fmt.sbprintf(&b, "  (readiness: %s)\n", label)
 		}
 		output = strings.to_string(b)
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", 2
 		rows, problem := app.task_tree(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
-		b := strings.builder_make(context.temp_allocator)
-		for row in rows {
-			// Keep text output linear in the number of tasks, even for a long chain.
-			for _ in 0..<min(row.depth, 16) do strings.write_string(&b, "  ")
-			if row.depth > 16 do fmt.sbprintf(&b, "[depth %d] ", row.depth)
-			fmt.sbprintf(&b, "%s %s", row.item.fields.id, row.item.fields.title)
-			switch row.position {
-			case .Unresolved_Parent: fmt.sbprintf(&b, " [unresolved parent: %s]", row.item.fields.parent)
-			case .Parent_Cycle: fmt.sbprintf(&b, " [parent cycle: %s]", row.item.fields.parent)
-			case .Root, .Child:
-			}
-			strings.write_byte(&b, '\n')
-		}
-		output = strings.to_string(b)
+		output = tree_text(rows)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
 		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter)
 		if problem != "" do return "", problem, 1
 		b := strings.builder_make(context.temp_allocator)
-		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
+		for item in items {
+			write_task_label(&b, item.fields.id, item.fields.status, item.fields.title)
+			fmt.sbprintf(&b, "  (%s)\n", terminal_field(item.path))
+		}
 		output = strings.to_string(b)
 	case "remove":
 		if len(a.words) != 1 do return "", "remove requires an ID", 2
@@ -87,21 +78,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		if len(a.words) == 2 && a.words[0] == "show" {
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, 1
-			b := strings.builder_make(context.temp_allocator)
-			id := view.task.fields.id
-			fmt.sbprintf(&b, "Prerequisites of %s (prerequisite -> dependent)\n", id)
-			if len(view.prerequisites) == 0 do strings.write_string(&b, "  (none)\n")
-			for ref in view.prerequisites {
-				if ref.status == .Resolved {
-					fmt.sbprintf(&b, "  %s -> %s\n", ref.candidates[0].fields.id, id)
-				} else {
-					fmt.sbprintf(&b, "  %s -> %s [%v]\n", ref.written_id, id, ref.status)
-				}
-			}
-			fmt.sbprintf(&b, "Dependents of %s\n", id)
-			if len(view.dependents) == 0 do strings.write_string(&b, "  (none)\n")
-			for other in view.dependents do fmt.sbprintf(&b, "  %s -> %s\n", id, other.fields.id)
-			return strings.to_string(b), "", 0
+			return dependency_text(view), "", 0
 		}
 		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", 2
 		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
