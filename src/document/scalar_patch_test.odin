@@ -1,6 +1,7 @@
 #+test
 package document
 
+import "core:strings"
 import "core:testing"
 import "kadai:task"
 import "kadai:yaml"
@@ -19,6 +20,12 @@ scalar_patch_changes_only_the_requested_token :: proc(t: ^testing.T) {
 		{block + "Old" + end, .Title, "New", block + "New" + end},
 		{string(#load(fixtures + "scalar-status-comment/input/project/tasks/T.md")), .Status, "done",
 		 string(#load(fixtures + "scalar-status-comment/expected/T.md"))},
+		{string(#load(fixtures + "crlf-bom/input/project/tasks/T.md")), .Status, "done",
+		 string(#load(fixtures + "crlf-bom/expected/T.md"))},
+		{string(#load(fixtures + "mixed-line-endings/input/project/tasks/T.md")), .Status, "done",
+		 string(#load(fixtures + "mixed-line-endings/expected/T.md"))},
+		{string(#load(fixtures + "no-final-newline/input/project/tasks/T.md")), .Status, "done",
+		 string(#load(fixtures + "no-final-newline/expected/T.md"))},
 		{string(#load(fixtures + "quoted-title/input/project/tasks/T.md")), .Title, "New title",
 		 string(#load(fixtures + "quoted-title/expected/T.md"))},
 		{string(#load(fixtures + "scalar-quoted-escape/input/project/tasks/T.md")), .Title, "New title",
@@ -35,9 +42,13 @@ scalar_patch_changes_only_the_requested_token :: proc(t: ^testing.T) {
 		{prefix + "\"\\x41\"" + suffix, .Title, "A", prefix + "\"\\x41\"" + suffix},
 	}
 	for c in cases {
-		edited, err := plan_scalar_patch(c.source, c.field, c.value)
+		// A same-length replacement can match the golden even if it overwrites its input.
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_scalar_patch(source, c.field, c.value)
 		defer delete(edited)
-		if !testing.expect(t, err == nil) {
+		testing.expect_value(t, source, c.source)
+		if !testing.expectf(t, err == nil, "%v", err) {
 			if d, ok := err.(yaml.Diagnostic); ok {
 				yaml.destroy_diagnostic(&d)
 			}
@@ -45,6 +56,39 @@ scalar_patch_changes_only_the_requested_token :: proc(t: ^testing.T) {
 		}
 		testing.expect_value(t, edited, c.expected)
 	}
+}
+
+@(test)
+required_quoting_preserves_bytes_outside_the_scalar :: proc(t: ^testing.T) {
+	source := string(#load("../../tests/fixtures/v1/cases/patch/quote-required/input/project/tasks/T.md"))
+	title :: "A: B # text"
+	prefix, old, suffix := strings.partition(source, "Old")
+	if !testing.expect_value(t, old, "Old") {
+		return
+	}
+	input := strings.clone(source)
+	defer delete(input)
+	edited, err := plan_scalar_patch(input, .Title, title)
+	defer delete(edited)
+	testing.expect_value(t, input, source)
+	if !testing.expectf(t, err == nil, "%v", err) {
+		if d, ok := err.(yaml.Diagnostic); ok {
+			yaml.destroy_diagnostic(&d)
+		}
+		return
+	}
+	doc := decode_task(edited)
+	defer destroy(&doc)
+	if !testing.expect_value(t, doc.status, .Decoded) {
+		return
+	}
+	if !testing.expect_value(t, doc.fields.title, title) {
+		return
+	}
+	token := yaml.lookup(&doc.root, "title")
+	span := markdown_location(doc.parts.header, token.location).span
+	testing.expect_value(t, edited[:span.start], prefix)
+	testing.expect_value(t, edited[span.end:], suffix)
 }
 
 @(test)
@@ -72,8 +116,11 @@ scalar_patch_refuses_unsafe_or_invalid_changes :: proc(t: ^testing.T) {
 		{"---\n{kadai: task, id: T, status: todo, title: T}\n---", .Title, "X", "unsafe_source_patch"},
 	}
 	for c in cases {
-		edited, err := plan_scalar_patch(c.source, c.field, c.value, path = "tasks/T.md")
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_scalar_patch(source, c.field, c.value, path = "tasks/T.md")
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		testing.expect_value(t, edited, "")
 		d, ok := err.(yaml.Diagnostic)
 		if !testing.expect(t, ok) {

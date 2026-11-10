@@ -9,14 +9,11 @@ import "kadai:yaml"
 
 @(test)
 metadata_edit_preserves_markdown_body :: proc(t: ^testing.T) {
-	no_newline := string(#load("../../tests/fixtures/v1/cases/patch/no-final-newline/input/project/tasks/T.md"))
-	no_newline_expected := string(#load("../../tests/fixtures/v1/cases/patch/no-final-newline/expected/T.md"))
 	prefix :: "\uFEFF---\r\nkadai: task\nid: T\r\ntitle: Café\nstatus: "
 	suffix :: " # keep\r\n---"
 	body :: "\r\n# Heading  \r\n\n[link](./café.md)\t \n\n```yaml\r\n---\nstatus: todo\n```\r\n" +
 	        "opaque\rtext\u0085\u2028\u2029\r\n\r\n"
 	cases := []struct {source, value, expected: string}{
-		{no_newline, "done", no_newline_expected},
 		{prefix + "todo" + suffix + "\r\n" + body, "in_progress", prefix + "in_progress" + suffix + "\r\n" + body},
 		{prefix + "in_progress" + suffix, "todo", prefix + "todo" + suffix},
 	}
