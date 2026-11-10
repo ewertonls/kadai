@@ -31,6 +31,8 @@ Candidate :: struct {
 	diagnostics: []yaml.Diagnostic,
 	info: os.File_Info,
 	version: string,
+	id_location: yaml.Location,
+	references: []document.Task_Reference,
 }
 
 Inventory :: struct {
@@ -132,7 +134,13 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	}
 	if doc.status == .Non_Task do return ""
 	if (doc.status == .Boundary_Error || doc.status == .YAML_Error) && !doc.probe.matched do return ""
-	if _, add_err := append(&inv.candidates, Candidate{relative, doc.status, doc.fields, doc.diagnostics[:], now, storage.file_version(now, source)}); add_err != nil {
+	id_loc, refs, loc_err := document.reference_locations(&doc)
+	if loc_err != nil do return "cannot allocate reference locations"
+	candidate := Candidate{
+		path = relative, status = doc.status, fields = doc.fields, diagnostics = doc.diagnostics[:],
+		info = now, version = storage.file_version(now, source), id_location = id_loc, references = refs[:],
+	}
+	if _, add_err := append(&inv.candidates, candidate); add_err != nil {
 		return "candidate allocation failed"
 	}
 	return ""
