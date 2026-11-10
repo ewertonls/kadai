@@ -41,7 +41,7 @@ directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, l
 	for part in strings.split_iterator(&input, "/") {
 		if part == "" || part == "." do continue
 		if part == ".." {
-			path = slash(os.dir(path))
+			if parent := slash(os.dir(path)); parent != "" { path = parent }
 			continue
 		}
 		path = child(path, part)
@@ -56,18 +56,6 @@ directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, l
 		path = physical(path, .Directory) or_return
 	}
 	return
-}
-
-physical :: proc(path: string, kind: os.File_Type) -> (result: string, err: os.Error) {
-	when ODIN_OS == .Windows {
-		f := os.open(path) or_return
-		defer os.close(f)
-		info := os.fstat(f, context.temp_allocator) or_return
-	} else {
-		info := os.stat(path, context.temp_allocator) or_return
-	}
-	if info.type != kind do return "", .Invalid_File
-	return slash(info.fullpath), nil
 }
 
 read_bounded :: proc(f: ^os.File, limit: int) -> (data: []byte, err: os.Error) {
