@@ -61,6 +61,24 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
 		_, issue = app.initialize(cwd, a.project)
+	case "list":
+		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
+		items, problem := app.list_tasks(cwd, a.project)
+		if problem != "" do return "", problem, 1
+		b := strings.builder_make(context.temp_allocator)
+		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
+		output = strings.to_string(b)
+	case "show":
+		if len(a.words) != 1 do return "", "show requires an ID", 2
+		result, problem := app.get_task(cwd, a.project, a.words[0])
+		if problem != "" do return "", problem, 1
+		if result.item.status != .Decoded {
+			b := strings.builder_make(context.temp_allocator)
+			fmt.sbprintf(&b, "%s (%s)", result.item.fields.id, result.item.path)
+			for d in result.item.diagnostics do fmt.sbprintf(&b, "\n%s: %s", d.code, d.message)
+			return "", strings.to_string(b), 1
+		}
+		output = fmt.tprintf("%s\n%s", result.item.path, result.source)
 	case "add":
 		if len(a.words) != 1 do return "", "add requires a title", 2
 		body := ""
