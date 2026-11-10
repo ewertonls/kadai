@@ -4,25 +4,11 @@ package cli
 import "core:flags"
 import "core:fmt"
 import "core:io"
-import "core:strings"
 import "kadai:app"
 
 @(private)
 Options :: struct {
 	version: bool `usage:"Print the Kadai version."`,
-}
-
-@(private)
-help_text :: proc() -> string {
-	text := strings.builder_make(context.temp_allocator)
-	strings.write_string(
-		&text,
-		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n       kadai list | show ID | tree | ready [ID] | validate\n       kadai set ID FIELD [VALUE ...] | unset ID FIELD\n       kadai status ID STATUS [--force]\n       kadai parent add CHILD PARENT | parent remove CHILD\n       kadai dep show ID | dep add|remove TASK PREREQUISITE\n       kadai edit ID\n       kadai move [--directory] SOURCE DEST\n       kadai remove ID [--detach] [--dry-run] [--plan TOKEN]\n       kadai recover resume|rollback [OPERATION]\n",
-	)
-	flags.write_usage(strings.to_writer(&text), Options, style = .Unix)
-	// Help is reserved by core:flags, so it has no field in Options.
-	strings.write_string(&text, "\t-h, --help  | Show this help.\n")
-	return strings.to_string(text)
 }
 
 @(private)
@@ -59,23 +45,26 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 	return "no operation selected", false
 }
 
+@(private)
+write_stdout :: proc(message: string, stdout, stderr: io.Writer) -> int {
+	n, err := io.write_string(stdout, message)
+	if err != .None || n != len(message) {
+		_, _ = io.write_string(stderr, "kadai: could not write to stdout.\n")
+		return 1
+	}
+	return 0
+}
+
 run :: proc(args: []string, stdout, stderr: io.Writer, stdin := io.Reader{}) -> int {
 	if len(args) > 0 {
-		switch args[0] {
-		case "init", "add", "list", "show", "set", "unset", "status", "edit", "move", "remove", "recover", "parent", "dep", "tree", "ready", "validate": return run_command(args, stdout, stderr, stdin)
+		if command, ok := find_command(args[0]); ok {
+			return run_command(command, args[1:], stdout, stderr, stdin)
 		}
 	}
 	message, ok := dispatch(args)
-	if !ok {
-		message = fmt.tprintf("kadai: %s. See 'kadai --help'.\n", message)
-	}
-	output := stdout if ok else stderr
-	n, err := io.write_string(output, message)
-	if err != .None || n != len(message) {
-		if ok {
-			_, _ = io.write_string(stderr, "kadai: could not write to stdout.\n")
-		}
-		return 1
-	}
-	return 0 if ok else 2
+	if ok do return write_stdout(message, stdout, stderr)
+
+	message = fmt.tprintf("kadai: %s. See 'kadai --help'.\n", message)
+	n, err := io.write_string(stderr, message)
+	return 2 if err == .None && n == len(message) else 1
 }

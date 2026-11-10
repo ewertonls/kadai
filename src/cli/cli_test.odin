@@ -1,6 +1,7 @@
 #+test
 package cli
 
+import "core:slice"
 import "core:strings"
 import "core:testing"
 import "kadai:app"
@@ -17,6 +18,11 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"--version=invalid"}, 2, "invalid argument"},
 		{{"--help", "extra"}, 2, "unexpected argument"},
 		{{"--version", "--help"}, 2, "unexpected argument"},
+		{{"add", "--help"}, 0, "--body-file"},
+		{{"list", "--force"}, 2, "force"},
+		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
+		{{"list", "--exclude", ""}, 2, "exclude"},
+		{{"list", "--clear-excludes", "--exclude", "archive/"}, 2, "--clear-excludes"},
 	}
 	for c in cases {
 		out, err: strings.Builder
@@ -30,6 +36,29 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		}
 		testing.expect(t, strings.contains(result, c.contains), result)
 		testing.expect_value(t, other, "")
+	}
+}
+
+@(test)
+set_operands_keep_order_around_flags :: proc(t: ^testing.T) {
+	a, err := parse_options(Status_Flags, {"0001", "--project=repo", "tags", "cli", "--", "-draft", "--help"})
+	if !testing.expect(t, err == nil) do return
+	testing.expect_value(t, a.project.project, "repo")
+	testing.expect(t, slice.equal(a.words, []string{"0001", "tags", "cli", "-draft", "--help"}))
+}
+
+@(test)
+project_exclusion_options :: proc(t: ^testing.T) {
+	cases := []struct{args: []string, override: bool, patterns: []string}{
+		{nil, false, nil},
+		{{"--exclude", "archive/", "--exclude=drafts/"}, true, {"archive/", "drafts/"}},
+		{{"--clear-excludes"}, true, nil},
+	}
+	for c in cases {
+		a, err := parse_options(Project_Flags, c.args)
+		if !testing.expect(t, err == nil) do continue
+		testing.expect_value(t, a.project.override_exclude, c.override)
+		testing.expect(t, slice.equal(a.project.exclude, c.patterns))
 	}
 }
 

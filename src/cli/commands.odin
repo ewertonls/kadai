@@ -1,5 +1,6 @@
 package cli
 
+import "core:flags"
 import "core:fmt"
 import "core:io"
 import "core:os"
@@ -7,64 +8,8 @@ import "core:strings"
 import "kadai:app"
 
 @(private)
-Arguments :: struct {
-	command: string,
-	project: app.Project_Options,
-	words: [dynamic]string,
-	body_file, destination, plan: string,
-	status: Maybe(string),
-	stdin, force, directory, detach, dry_run: bool,
-}
-
-@(private)
-parse_command :: proc(args: []string) -> (a: Arguments, problem: string) {
-	context.allocator = context.temp_allocator
-	a.command = args[0]
-	excludes: [dynamic]string
-	positional := false
-	for i := 1; i < len(args); i += 1 {
-		name := args[i]
-		if positional || !strings.has_prefix(name, "--") { append(&a.words, name); continue }
-		if name == "--" { positional = true; continue }
-		if a.command == "remove" && name == "--detach" { a.detach = true; continue }
-		if a.command == "remove" && name == "--dry-run" { a.dry_run = true; continue }
-		if name == "--directory" && a.command == "move" { a.directory = true; continue }
-		if name == "--force" && (a.command == "status" || a.command == "set") { a.force = true; continue }
-		if name == "--stdin" && a.command == "add" { a.stdin = true; continue }
-		if i+1 >= len(args) { return a, fmt.tprintf("missing value for %s", name) }
-		i += 1
-		value := args[i]
-		if value == "" && name != "--exclude" do return a, fmt.tprintf("empty value for %s", name)
-		switch name {
-		case "--plan":
-			if a.command != "remove" do return a, "unexpected --plan"
-			a.plan = value
-		case "--project": a.project.project = value
-		case "--tasks-root": a.project.tasks_root = value
-		case "--boards-root": a.project.boards_root = value
-		case "--id-prefix": a.project.id_prefix = value
-		case "--timezone": a.project.timezone = value
-		case "--exclude":
-			a.project.override_exclude = true
-			if value != "" do append(&excludes, value)
-		case "--status", "--body-file", "--path":
-			if a.command != "add" do return a, fmt.tprintf("unexpected %s option %s", a.command, name)
-			switch name {
-			case "--status": a.status = value
-			case "--body-file": a.body_file = value
-			case "--path": a.destination = value
-			}
-		case: return a, fmt.tprintf("unknown %s option %s", a.command, name)
-		}
-	}
-	a.project.exclude = excludes[:]
-	if a.stdin && a.body_file != "" do return a, "choose one body source"
-	return
-}
-
-@(private)
-execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: string, code: int) {
-	switch a.command {
+execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: string, code: int) {
+	switch command {
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
 		_, issue = app.initialize(cwd, a.project)
@@ -176,8 +121,8 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		if len(a.words) != 2 do return "", "status requires an ID and status", 2
 		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force)
 	case "set", "unset":
-		if len(a.words) < 2 || a.command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
-		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = a.command == "unset", force = a.force})
+		if len(a.words) < 2 || command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
+		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = command == "unset", force = a.force})
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", 2
 		result, problem := app.get_task(cwd, a.project, a.words[0])
@@ -210,19 +155,40 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 }
 
 @(private)
-run_command :: proc(args: []string, stdout, stderr: io.Writer, stdin: io.Reader) -> int {
-	a, problem := parse_command(args)
-	if problem != "" { fmt.wprintf(stderr, "kadai: %s\n", problem); return 2 }
+run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer, stdin: io.Reader) -> int {
+	a: Arguments
+	parse_err: flags.Error
+	switch command.flag_type {
+	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
+	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
+	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
+	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
+	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)
+	case: unreachable()
+	}
+
+	switch err in parse_err {
+	case flags.Help_Request:
+		return write_stdout(command_help(command), stdout, stderr)
+	case flags.Parse_Error:
+		fmt.wprintf(stderr, "kadai %s: %s\n", command.name, err.message)
+		return 2
+	case flags.Validation_Error:
+		fmt.wprintf(stderr, "kadai %s: %s\n", command.name, err.message)
+		return 2
+	case flags.Open_File_Error:
+		fmt.wprintf(stderr, "kadai %s: could not open %q\n", command.name, err.filename)
+		return 2
+	}
 	cwd, e := os.getwd(context.temp_allocator)
 	if e != nil { fmt.wprintf(stderr, "kadai: %s\n", os.error_string(e)); return 1 }
 	warnings: []string
 	a.project.resolved_warnings = &warnings
-	output, issue, code := execute(cwd, a, stdin)
+	output, issue, code := execute(command.name, cwd, a, stdin)
 	for w in warnings do fmt.wprintf(stderr, "kadai: %s\n", w)
 	if issue != "" { fmt.wprintf(stderr, "kadai: %s\n", issue); return code }
 	if output != "" {
-		n, err := io.write_string(stdout, output)
-		if err != .None || n != len(output) { fmt.wprintf(stderr, "kadai: could not write to stdout.\n"); return 1 }
+		if write_stdout(output, stdout, stderr) != 0 do return 1
 	}
 	return code
 }
