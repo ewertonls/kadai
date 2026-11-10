@@ -7,7 +7,8 @@ import "core:strings"
 
 slash :: proc(s: string) -> string {
 	when ODIN_OS == .Windows {
-		return strings.replace_all(s, "\\", "/", context.temp_allocator)
+		result, _ := strings.replace_all(s, "\\", "/", context.temp_allocator)
+		return result
 	}
 	return s
 }

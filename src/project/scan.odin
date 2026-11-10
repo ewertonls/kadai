@@ -70,7 +70,7 @@ same_identity :: proc(a, b: os.File_Info) -> bool {
 read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relative: string, limits: Scan_Limits) -> string {
 	inv.markdown += 1
 	if inv.markdown > limits.candidates do return "markdown_candidates limit exceeded"
-	f, err := os.open(storage.child(cfg.tasks, relative))
+	f, err := storage.read_file(storage.child(cfg.tasks, relative))
 	if err != nil do return os.error_string(err)
 	defer os.close(f)
 	now, stat_err := os.fstat(f, context.temp_allocator)
@@ -130,9 +130,10 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 @(private)
 walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_Info, limits: Scan_Limits) -> string {
 	path := cfg.tasks if relative == "" else storage.child(cfg.tasks, relative)
-	f, err := os.open(path)
+	dir, err := storage.open_dir(path)
 	if err != nil do return fmt.tprintf("%s: %s", path, os.error_string(err))
-	defer os.close(f)
+	defer storage.close_dir(&dir)
+	f := dir.file
 	actual, stat_err := os.fstat(f, context.temp_allocator)
 	if stat_err != nil || !same_identity(expected, actual) do return fmt.tprintf("%s: directory changed", path)
 	skip, boundary_err := boundary(cfg, path)

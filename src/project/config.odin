@@ -112,7 +112,7 @@ resolve :: proc(cwd: string, options := Options{}, limits := yaml.DEFAULT_LIMITS
 		target, e := storage.physical(path, .Regular)
 		if e != nil || !storage.within(cfg.project, target) do return cfg, "unsafe .kadai.yaml target"
 		if info.type == .Symlink do append(&cfg.warnings, fmt.tprintf("%s resolves to %s", path, target))
-		f, open_err := os.open(target)
+		f, open_err := storage.read_file(target)
 		if open_err != nil do return cfg, os.error_string(open_err)
 		defer os.close(f)
 		data, read_err := storage.read_bounded(f, limits.bytes)

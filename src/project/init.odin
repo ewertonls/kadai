@@ -2,6 +2,7 @@ package project
 
 import "core:fmt"
 import "core:os"
+import "kadai:yaml"
 import "core:slice"
 import "core:strings"
 import "kadai:storage"
@@ -39,19 +40,14 @@ initialize :: proc(cwd: string, options := Options{}) -> (cfg: Config, problem: 
 		   !slice.equal(cfg.exclude, persisted.exclude) { return cfg, "init options conflict with existing .kadai.yaml" }
 	} else {
 		source := initial_config(cfg)
-		path := storage.child(cfg.project, ".kadai.yaml")
-		stage, e := os.create_temp_file(cfg.project, ".kadai-init-*")
+		if len(source) > yaml.DEFAULT_LIMITS.bytes { return cfg, "initial config exceeds YAML byte limit" }
+		dir, e := storage.open_dir(cfg.project)
 		if e != nil do return cfg, os.error_string(e)
-		staged := strings.clone(os.name(stage), context.temp_allocator)
-		defer os.remove(staged)
-		n, write_err := os.write(stage, transmute([]byte)source)
-		if write_err == nil && n != len(source) do write_err = .Short_Write
-		if write_err == nil do write_err = os.sync(stage)
-		close_err := os.close(stage)
-		if write_err != nil do return cfg, os.error_string(write_err)
-		if close_err != nil do return cfg, os.error_string(close_err)
-		if publish_err := os.link(staged, path); publish_err != nil do return cfg, os.error_string(publish_err)
+		defer storage.close_dir(&dir)
+		if e = storage.create_file(&dir, ".kadai.yaml", transmute([]byte)source); e != nil do return cfg, os.error_string(e)
 	}
-	if err := os.mkdir_all(cfg.tasks); err != nil do return cfg, os.error_string(err)
+	dir, err := storage.open_dir(cfg.tasks, create = true)
+	if err != nil do return cfg, os.error_string(err)
+	storage.close_dir(&dir)
 	return
 }
