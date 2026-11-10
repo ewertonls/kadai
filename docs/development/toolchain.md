@@ -113,7 +113,7 @@ odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -
 
 On Windows, run `.\kadai.exe --help`. Use `--version` to print the version. The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.
 
-The current CLI only implements help and version. Because it does not import the parser yet, Odin reports `Warning: given -define:YAML_STATIC is unused in the project`. The build succeeds. The [YAML package tests](yaml-parser.md#run-the-probe) exercise both link modes.
+Run `kadai init` to initialize the selected project. The CLI uses LibYAML to validate project configuration.
 
 On macOS ARM64, the binding expects `third_party/odin-yaml/lib/macos/aarch64/libyaml.a`. If your checkout lacks that archive, copy it from an ARM64 Homebrew installation of LibYAML 0.2.5 before building packages that use YAML.
 

@@ -80,7 +80,7 @@
 
 **Depends on:** Phases 0 and 2. **Done when:** Tasks in arbitrary nested directories are discovered; safe file operations and conflict detection work without a DB.
 
-- [ ] **KAD-023** Implement optional `kadai init`. _Acceptance:_ Create minimal project-local config and effective task directory only on explicit invocation, support safe idempotent recovery, and never overwrite existing files.
+- [x] **KAD-023** Implement optional `kadai init`. _Acceptance:_ Create minimal project-local config and effective task directory only on explicit invocation, support safe idempotent recovery, and never overwrite existing files.
 - [ ] **KAD-024** Implement project/collection root resolution. _Acceptance:_ Default project to exact CWD, support exact `--project` and independent `--tasks-root`, resolve physical paths, enforce containment and effective config precedence per KAD-003; never discover a Git root implicitly.
 - [ ] **KAD-025** Scan nested directories. _Acceptance:_ Distinguish indexed valid tasks, diagnostic-only invalid candidates and unsupported-schema documents; exclude ordinary Markdown, boards, `.kadai/`, nested projects/repos, symlinks and configured globs while reporting malformed task-like files.
 - [ ] **KAD-026** Define path and symlink safety. _Acceptance:_ Define safe path resolution and handling for symlinks/hardlinks, root escapes and OS-specific filesystem metadata; refuse unsafe mutations.

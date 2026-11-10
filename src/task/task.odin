@@ -46,7 +46,6 @@ valid_tag :: proc(s: string) -> bool {
 	return s != ""
 }
 
-@(private)
 valid_slug :: proc(s: string) -> bool {
 	if s == "" || s[0] < 'a' || s[0] > 'z' do return false
 	for c in s[1:] {
