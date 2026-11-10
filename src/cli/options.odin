@@ -15,6 +15,7 @@ Project_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 }
 
@@ -27,6 +28,7 @@ List_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	status:    string `usage:"Match the exact stored status, including configured statuses."`,
@@ -44,6 +46,7 @@ Add_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	status:    string `usage:"Set the initial task status."`,
@@ -61,6 +64,7 @@ Status_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	force: bool `usage:"Allow a blocked or unresolved task to transition to done."`,
@@ -75,6 +79,7 @@ Move_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	directory: bool `usage:"Move a directory within the collection."`,
@@ -89,6 +94,7 @@ Remove_Flags :: struct {
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
 	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	detach:  bool   `usage:"Remove references to this task."`,
@@ -103,7 +109,7 @@ Arguments :: struct {
 	words: []string,
 	body_file, destination, plan: string,
 	status: Maybe(string),
-	stdin, force, directory, detach, dry_run: bool,
+	stdin, force, directory, detach, dry_run, json: bool,
 }
 
 parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.Error) {
@@ -127,6 +133,7 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 		override_exclude = options.clear_excludes || len(options.exclude) > 0,
 	}
 	a.words = options.overflow[:]
+	a.json = options.json
 
 	when T == List_Flags {
 		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}

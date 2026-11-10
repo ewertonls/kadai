@@ -2,7 +2,7 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports task creation, metadata edits, moves, removal, recovery, hierarchy, dependencies and read-only validation. JSON output is scheduled for phase 6.
+> **Status:** Early development. The CLI supports task creation, metadata edits, moves, removal, recovery, hierarchy, dependencies and read-only validation. Queries and mutations support [versioned JSON output](docs/development/cli.md#json-output-v1) with `--json`.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 
@@ -34,7 +34,7 @@ odin test tests -all-packages -collection:kadai=src -collection:third_party=thir
 - **Plain text and CLI stay in sync.** Editing a task manually or through the CLI changes the same Markdown file. There is no separate authoritative database.
 - **Hierarchy and dependencies are separate.** A task can have a parent and depend on other tasks independently of where its file lives.
 - **Kanban is optional.** Create multiple boards, include only selected tasks, and remove cards without deleting their tasks. Boards are Markdown files too.
-- **Built for agents.** A scriptable CLI with machine-readable output will let AI coding agents discover, create, update, and relate tasks without needing an MCP server.
+- **Built for agents.** A scriptable CLI with machine-readable output lets AI coding agents discover, create, update, and relate tasks without needing an MCP server.
 - **Local and offline.** No account, remote service or authoritative task-state DB. Markdown owns task state; each task collection keeps a durable used-ID record so CLI-generated IDs are not reused after task deletion while its history is retained. Optional indexes remain rebuildable.
 - **Version control is optional.** Track tasks and history in Git if useful, or keep collections untracked, per-worktree or ephemeral. Kadai does not manage `.gitignore`.
 

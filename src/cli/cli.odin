@@ -46,10 +46,14 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 }
 
 @(private)
-write_stdout :: proc(message: string, stdout, stderr: io.Writer) -> int {
+write_stdout :: proc(message: string, stdout, stderr: io.Writer, completed := "") -> int {
 	n, err := io.write_string(stdout, message)
 	if err != .None || n != len(message) {
-		_, _ = io.write_string(stderr, "kadai: could not write to stdout.\n")
+		if completed != "" {
+			fmt.wprintf(stderr, "kadai: %s, but could not write the response to stdout.\n", completed)
+		} else {
+			_, _ = io.write_string(stderr, "kadai: could not write to stdout.\n")
+		}
 		return 1
 	}
 	return 0

@@ -12,6 +12,7 @@ Finding :: struct {
 	severity: Severity,
 	code, path, id, field, target_id, message: string,
 	location: yaml.Location,
+	observed, limit: int,
 	related: []^project.Candidate,
 	edges: []Cycle_Edge, // Declaring task -> stored reference within a cyclic component.
 }

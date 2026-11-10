@@ -1,6 +1,7 @@
 #+test
 package cli
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -38,4 +39,12 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	for detail in ([]string{"B.md:7:17: error [missing_prerequisite]", "target=Lost", "warning [completed_with_unmet_prerequisites]", "1 error, 1 warning"}) {
 		testing.expect(t, strings.contains(report, detail), report)
 	}
+	// A nonzero validation exit still delivers the structured finding on stdout.
+	machine := invoke_cli(t, {"validate", "--json", "--project", root, "--tasks-root", "."}, 1)
+	findings := parse_result(t, machine.stdout).(json.Object)["findings"].(json.Array)
+	if !testing.expect_value(t, len(findings), 2) do return
+	missing := findings[0].(json.Object)
+	testing.expect_value(t, missing["code"].(string), "missing_prerequisite")
+	testing.expect_value(t, missing["target_id"].(string), "Lost")
+	testing.expect_value(t, missing["location"].(json.Object)["column"].(i64), 17)
 }

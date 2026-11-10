@@ -227,6 +227,6 @@ Byte-for-byte mutation tests, complex YAML edge cases, collection-scoped discove
 - [x] **KAD-007:** Declarative fixture corpus and minimal-testing policy recorded; execution remains pending.
 
 - [ ] **KAD-026/KAD-029/KAD-030:** File security metadata, link safety, writer coordination and recovery implementation.
-- [ ] **KAD-050:** Lossless JSON handling for YAML-only numeric scalars.
+- [x] **KAD-050:** [Lossless JSON handling for YAML numeric scalars](../development/cli.md#custom-yaml-values).
 
 **Completion criterion:** KAD-002 is finished as a **design/specification** task. No parser, CLI behavior or passing automated tests are claimed implemented.

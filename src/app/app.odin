@@ -3,7 +3,13 @@ package app
 
 import "kadai:project"
 import "kadai:identity"
+import "kadai:graph"
+import "kadai:yaml"
 
+Task_Candidate :: project.Candidate
+Readiness :: graph.Readiness
+Source_Span :: yaml.Byte_Range
+Custom_Node :: yaml.Node
 Project_Options :: project.Options
 Scan_Limits :: project.Scan_Limits
 DEFAULT_SCAN_LIMITS :: project.DEFAULT_SCAN_LIMITS

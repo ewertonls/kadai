@@ -5,10 +5,15 @@ import "core:fmt"
 import "core:io"
 import "core:os"
 import "core:strings"
+import "core:unicode/utf8"
 import "kadai:app"
 
+@(private, rodata)
+READINESS_LABELS := [app.Readiness]string{.Ready = "ready", .Blocked = "blocked", .Unresolved = "unresolved"}
+
 @(private)
-execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: string, code: int) {
+execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed: ^string) -> (output, issue: string, code: int) {
+	operation: string
 	switch command {
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
@@ -17,86 +22,86 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		if len(a.words) != 0 do return "", "validate takes no positional arguments", 2
 		report, problem := app.validate_project(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
-		return validation_text(report), "", 1 if report.errors != 0 || !validation_complete(report) else 0
+		code = 1 if report.errors != 0 || !validation_complete(report) else 0
+		if a.json do return json_result(report, code)
+		return validation_text(report), "", code
 	case "ready":
 		if len(a.words) > 1 do return "", "ready accepts an optional task ID", 2
 		id: Maybe(string)
 		if len(a.words) == 1 do id = a.words[0]
 		rows, problem := app.ready_tasks(cwd, a.project, id, a.limits)
 		if problem != "" do return "", problem, 1
+		if a.json do return json_result(rows)
 		b := strings.builder_make(context.temp_allocator)
 		for row in rows {
-			label := "ready"
-			switch row.readiness {
-			case .Ready:
-			case .Blocked: label = "blocked"
-			case .Unresolved: label = "unresolved"
-			}
 			write_task_label(&b, row.item.fields.id, row.item.fields.status, row.item.fields.title)
-			fmt.sbprintf(&b, "  (readiness: %s)\n", label)
+			fmt.sbprintf(&b, "  (readiness: %s)\n", READINESS_LABELS[row.readiness])
 		}
-		output = strings.to_string(b)
+		return strings.to_string(b), "", 0
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", 2
 		rows, problem := app.task_tree(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
-		output = tree_text(rows)
+		if a.json do return json_result(rows)
+		return tree_text(rows), "", 0
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
 		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter)
 		if problem != "" do return "", problem, 1
+		if a.json do return json_result(items)
 		b := strings.builder_make(context.temp_allocator)
 		for item in items {
 			write_task_label(&b, item.fields.id, item.fields.status, item.fields.title)
 			fmt.sbprintf(&b, "  (%s)\n", terminal_field(item.path))
 		}
-		output = strings.to_string(b)
+		return strings.to_string(b), "", 0
 	case "remove":
 		if len(a.words) != 1 do return "", "remove requires an ID", 2
 		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
 		if a.dry_run {
 			preview, problem := app.preview_removal(cwd, a.project, remove, a.limits)
 			if problem != "" do return "", problem, 1
+			if a.json do return json_result(preview)
 			b := strings.builder_make(context.temp_allocator)
 			for edit in preview.edits do fmt.sbprintf(&b, "%s\t%q\t%s\t%d..%d\n", edit.id, edit.path, edit.field, edit.span.start, edit.span.end)
 			fmt.sbprintf(&b, "plan %s\n", preview.token)
-			output = strings.to_string(b)
-		} else {
-			operation, problem := app.remove_task(cwd, a.project, remove, a.limits)
-			if problem != "" do return "", problem, 1
-			output = fmt.tprintf("%s\n", operation)
+			return strings.to_string(b), "", 0
 		}
+		operation, issue = app.remove_task(cwd, a.project, remove, a.limits)
+		output = fmt.tprintf("%s\n", operation)
 	case "recover":
 		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume or rollback and an optional operation ID", 2
 		id := a.words[1] if len(a.words) == 2 else ""
 		switch a.words[0] {
-		case "resume": _, issue = app.recover_collection(cwd, a.project, .Resume, id, a.limits)
-		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id, a.limits)
+		case "resume": operation, issue = app.recover_collection(cwd, a.project, .Resume, id, a.limits)
+		case "rollback": operation, issue = app.recover_collection(cwd, a.project, .Rollback, id, a.limits)
 		case: return "", "unknown recovery mode", 2
 		}
 	case "dep":
 		if len(a.words) == 2 && a.words[0] == "show" {
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, 1
+			if a.json do return json_result(view)
 			return dependency_text(view), "", 0
 		}
 		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", 2
-		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
+		operation, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {
-			_, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2], a.limits)
+			operation, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2], a.limits)
 		} else if len(a.words) == 2 && a.words[0] == "remove" {
-			_, issue = app.set_parent(cwd, a.project, a.words[1], nil, a.limits)
+			operation, issue = app.set_parent(cwd, a.project, a.words[1], nil, a.limits)
 		} else { return "", "expected parent add CHILD PARENT or parent remove CHILD", 2 }
 	case "move":
 		if len(a.words) != 2 do return "", "move requires a source and destination", 2
-		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
+		operation, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", 2
-		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator), a.limits)
+		editor_out := os.stderr if a.json else os.stdout
+		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator), a.limits, editor_out)
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", 2
-		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
+		operation, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
 	case "set", "unset":
 		if len(a.words) < 2 || command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
 		field := a.words[1]
@@ -108,7 +113,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		}
 		if command == "set" && field != "tags" && len(a.words) != 3 do return "", "set requires one scalar value", 2
 		if a.force && field != "status" do return "", "force applies only to a status transition", 2
-		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = field, values = a.words[2:], unset = command == "unset", force = a.force}, a.limits)
+		operation, issue = app.update_task(cwd, a.project, {id = a.words[0], field = field, values = a.words[2:], unset = command == "unset", force = a.force}, a.limits)
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", 2
 		result, problem := app.get_task(cwd, a.project, a.words[0], a.limits)
@@ -119,9 +124,11 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 			for d in result.item.diagnostics do fmt.sbprintf(&b, "\n%s: %s", d.code, d.message)
 			return "", strings.to_string(b), 1
 		}
-		output = fmt.tprintf("%s\n%s", result.item.path, result.source)
+		if a.json do return json_result(result)
+		return fmt.tprintf("%s\n%s", result.item.path, result.source), "", 0
 	case "add":
 		if len(a.words) != 1 do return "", "add requires a title", 2
+		if a.json && !utf8.valid_string(a.destination) do return "", "unsupported_output: JSON requires a UTF-8 task path", 1
 		body := ""
 		if a.stdin {
 			if stdin.procedure == nil do return "", "stdin unavailable", 1
@@ -132,12 +139,21 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 			defer os.close(f)
 			body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
 		}
-		if issue == "" {
-			output, issue = app.create_task(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status}, a.limits)
-			output = fmt.tprintf("%s\n", output)
-		}
+		if issue != "" do return "", issue, 1
+		created, problem := app.create_task_result(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status}, a.limits)
+		if problem != "" do return "", problem, 1
+		completed^ = fmt.tprintf("created task %s", created.id)
+		if a.json do return json_result(created)
+		return fmt.tprintf("%s\n", created.id), "", 0
 	}
-	return output, issue, 1 if issue != "" else 0
+	if issue != "" {
+		if operation != "" do issue = fmt.tprintf("operation %s: %s", operation, issue)
+		return "", issue, 1
+	}
+	completed^ = fmt.tprintf("%s completed", command)
+	if operation != "" do completed^ = fmt.tprintf("%s completed (operation %s)", command, operation)
+	if a.json do return json_result(operation)
+	return output, "", 0
 }
 
 @(private)
@@ -182,11 +198,16 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	if e != nil { fmt.wprintf(stderr, "kadai: %s\n", os.error_string(e)); return 1 }
 	warnings: []string
 	a.project.resolved_warnings = &warnings
-	output, issue, code := execute(command.name, cwd, a, stdin)
+	completed: string
+	output, issue, code := execute(command.name, cwd, a, stdin, &completed)
 	for w in warnings do fmt.wprintf(stderr, "kadai: %s\n", w)
-	if issue != "" { fmt.wprintf(stderr, "kadai: %s\n", issue); return code }
+	if issue != "" {
+		if completed != "" do issue = fmt.tprintf("%s, but response failed: %s", completed, issue)
+		fmt.wprintf(stderr, "kadai: %s\n", issue)
+		return code
+	}
 	if output != "" {
-		if write_stdout(output, stdout, stderr) != 0 do return 1
+		if write_stdout(output, stdout, stderr, completed) != 0 do return 1
 	}
 	return code
 }

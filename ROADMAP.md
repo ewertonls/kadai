@@ -128,7 +128,7 @@
 - [x] **KAD-047** Implement core command grammar. _Acceptance:_ Expose optional init; add with `--body-file`/`--stdin`; list, show, set/status, edit, move, remove, parent, dep, tree, ready, validate; and `--project`, `--tasks-root`, `--exclude` and other KAD-003 effective-configuration overrides. _Reference:_ [Command grammar and invocation resource limits](docs/development/cli.md).
 - [x] **KAD-048** Add basic list filters and deterministic ordering. _Acceptance:_ Filter by status, directory, tags, and parent with stable default ordering; advanced predicates and custom sort modes are KAD-080/KAD-081 (v0.1.x). _Reference:_ [List filters and path order](docs/development/cli.md#list-filters).
 - [x] **KAD-049** Make readable terminal output. _Acceptance:_ Show compact task lists, trees, dependency arrows, and clear validation messages. _Reference:_ [Terminal output](docs/development/cli.md#terminal-output).
-- [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Define stable ID/path/status JSON contracts plus reversible encoding (or explicit unsupported-output error) for non-JSON-safe YAML numbers, including large integers and `.nan`/`.inf`.
+- [x] **KAD-050** Add JSON output contracts. _Acceptance:_ Define stable ID/path/status JSON contracts plus reversible encoding (or explicit unsupported-output error) for non-JSON-safe YAML numbers, including large integers and `.nan`/`.inf`. _Reference:_ [JSON output v1](docs/development/cli.md#json-output-v1).
 - [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
 - [ ] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use.
 - [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI.
@@ -216,7 +216,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 - [ ] Moving a file keeps its ID, parent links, and dependency links valid.
 - [ ] Invalid/ambiguous YAML and **detected** concurrent-write conflicts fail safely. Recovery and limitations with non-cooperating editors are documented.
 - [ ] `kadai validate` reports duplicate IDs, broken references, and cycles.
-- [ ] `--json` output is parseable and does not mix in log messages.
+- [x] `--json` output is parseable and does not mix in log messages.
 - [ ] CI exercises builds/tests for macOS, Linux, and Windows.
 - [ ] Real commands, installation steps, and any known limitations are documented before release.
 

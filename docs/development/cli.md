@@ -96,6 +96,67 @@ finding, followed by its severity, code and message. Related files and cycle
 edges appear on indented lines. The report names incomplete checks and gives
 error and warning counts when it finds issues.
 
+## JSON output v1
+
+Pass `--json` after any query or mutation command. Stdout carries one UTF-8 JSON
+object followed by a newline. The integer `version` identifies the response
+contract. The following `kadai list --json` response contains one task in `result`.
+
+```json
+{"version":1,"result":[{"id":"T-002","path":"docs/review.md","status":"todo","title":"Review notes"}]}
+```
+
+A task summary contains the strings `id`, `path`, `status` and `title`. The
+ID keeps its stored spelling. Paths use `/` separators and are relative to the
+effective task root. The status comes from the task file. Arrays retain the command's documented order and can be empty.
+Consumers should look up object fields by name.
+
+| Command | `result` |
+| --- | --- |
+| `list` | Array of task summaries in collection-relative path order, using the same filters as text output. |
+| `add` | Summary of the task created, including the allocated ID and actual destination. |
+| `show` | Task summary plus integer `schema_version`, nullable strings `priority`, `parent` and `due`, string arrays `tags` and `depends_on`, `custom` and the original Markdown `source` including delimiters and line endings. |
+| `tree` | Array of task summaries with nullable `parent`, integer `depth` and `position` (`root`, `child`, `unresolved_parent` or `parent_cycle`). |
+| `ready [ID]` | Array of task summaries with derived `readiness` (`ready`, `blocked` or `unresolved`). |
+| `dep show` | Subject summary in `task`, direct `prerequisites` in source order, and `dependents` as summaries in path order. Each prerequisite has its written `id`, `resolution` (`resolved`, `missing`, `ambiguous`, `invalid` or `unsupported`), and an array of candidate `{id,path}` objects. |
+| `validate` | Counts `errors` and `warnings`, booleans `scan_complete`, `history_complete` and `recovery_complete`, and a `findings` array. A completed report is available on stdout even when findings produce a nonzero exit. |
+| `remove --dry-run` | A `plan` token and an `edits` array with `id`, `path`, `field` and a half-open byte `span` (`start`, `end`) in the original file. |
+| `init`, `set`, `unset`, `status`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |
+
+A validation finding carries `severity` (`error` or `warning`), `code`, `message`,
+and nullable `path`, `id`, `field` and `target_id`. A known `location` contains
+one-based `line` and `column` and a half-open byte `span`. An unknown location is
+null. Resource-limit findings include `observed` and `limit` when available.
+`related` lists ID/path pairs, and `related_count` gives the total. For references
+to an ambiguous ID, the `duplicate_id` finding lists the candidates once. Cycle
+`edges` use `from` for the declaring task and `to` for its stored reference.
+
+### Custom YAML values
+
+`show --json` represents each YAML integer as `{"$integer":"<lexeme>"}` and each
+float as `{"$float":"<lexeme>"}` at every nesting level. The string preserves
+the original numeric spelling, including sign, radix, leading zeros, exponent,
+and YAML infinities and NaN. For example, YAML `[0007, .nan, "0007"]` becomes
+`[{"$integer":"0007"},{"$float":".nan"},"0007"]`.
+
+Custom mappings, arrays, booleans, strings and null otherwise use their native
+JSON types. An absent or null top-level `custom` is null. Every user mapping
+key starting with `$` gains one leading `$`. For example, a literal YAML
+`{"$float": ".inf"}` becomes `{"$$float":".inf"}`. A decoder recognizes the two
+numeric tags and removes one leading dollar from user keys beginning with `$$`.
+
+### Streams and mutation outcomes
+
+Warnings, command errors and editor output go to stderr. A command with no
+result leaves stdout empty. A path containing invalid UTF-8 produces
+`unsupported_output`. For `add --json`, Kadai checks the requested path before
+creating files or reserving an ID. Other write acknowledgements contain only
+a boolean and a generated operation ID or null, independent of custom YAML values.
+
+If delivery fails after a successful write, stderr identifies the completed
+command and the allocated task or operation ID when available. The write
+remains in effect. Inspect the task or operation before retrying.
+
 ## Project overrides
 
 | Option | Meaning |
@@ -151,7 +212,6 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-Stable JSON/exit-code contracts and
-the full cross-platform workflow matrix remain KAD-050 through KAD-054. The
+Exit-code policy and the full cross-platform workflow matrix remain KAD-051 through KAD-054. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.

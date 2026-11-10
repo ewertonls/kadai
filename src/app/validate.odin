@@ -16,7 +16,7 @@ Validation :: struct {
 
 @(private)
 source_finding :: proc(d: yaml.Diagnostic, id := "") -> Finding {
-	return {code = d.code, path = d.path, id = id, field = d.field, location = d.location, message = d.message}
+	return {code = d.code, path = d.path, id = id, field = d.field, location = d.location, message = d.message, observed = d.observed, limit = d.limit}
 }
 
 @(private)

@@ -67,7 +67,7 @@ editor_executable :: proc(cwd, name: string) -> string {
 	return ""
 }
 
-edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS) -> string {
+edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout) -> string {
 	command, issue := editor_arguments(editor)
 	if issue != "" do return issue
 	exe := editor_executable(cwd, command[0])
@@ -88,7 +88,7 @@ edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, lim
 		if item.status != .Decoded && item.status != .Invalid_Fields do return "unsupported task schema"
 		if _, read_err := read_versioned(&view, item, mutation = true); read_err != "" do return read_err
 		append(&command, storage.child(view.config.tasks, item.path))
-		process, err = os.process_start({command = command[:], working_dir = cwd, stdin = os.stdin, stdout = os.stdout, stderr = os.stderr})
+		process, err = os.process_start({command = command[:], working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
 		if err != nil do return fmt.tprintf("launching %s: %s", exe, os.error_string(err))
 	}
 	state, e := os.process_wait(process)
