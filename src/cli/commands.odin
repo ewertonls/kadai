@@ -68,6 +68,24 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
 		_, issue = app.initialize(cwd, a.project)
+	case "tree":
+		if len(a.words) != 0 do return "", "tree takes no positional arguments", 2
+		rows, problem := app.task_tree(cwd, a.project)
+		if problem != "" do return "", problem, 1
+		b := strings.builder_make(context.temp_allocator)
+		for row in rows {
+			// Keep text output linear in the number of tasks, even for a long chain.
+			for _ in 0..<min(row.depth, 16) do strings.write_string(&b, "  ")
+			if row.depth > 16 do fmt.sbprintf(&b, "[depth %d] ", row.depth)
+			fmt.sbprintf(&b, "%s %s", row.item.fields.id, row.item.fields.title)
+			switch row.position {
+			case .Unresolved_Parent: fmt.sbprintf(&b, " [unresolved parent: %s]", row.item.fields.parent)
+			case .Parent_Cycle: fmt.sbprintf(&b, " [parent cycle: %s]", row.item.fields.parent)
+			case .Root, .Child:
+			}
+			strings.write_byte(&b, '\n')
+		}
+		output = strings.to_string(b)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
 		items, problem := app.list_tasks(cwd, a.project)

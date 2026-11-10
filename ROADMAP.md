@@ -114,7 +114,7 @@
 - [x] **KAD-040** Add and remove dependency links. _Acceptance:_ Persist `depends_on` references and define A → B to mean B depends on A.
 - [x] **KAD-041** Detect cycles across relationships. _Acceptance:_ Reject parent cycles and dependency cycles on CLI mutations.
 - [x] **KAD-042** Detect invalid references and IDs. _Acceptance:_ Report missing parents, missing dependencies, self-links, and duplicate task IDs.
-- [ ] **KAD-043** Build a task tree view. _Acceptance:_ Display indented parent/child hierarchy with stable ordering and task IDs.
+- [x] **KAD-043** Build a task tree view. _Acceptance:_ Display indented parent/child hierarchy with stable ordering and task IDs.
 - [ ] **KAD-044** Build a dependency view. _Acceptance:_ Show immediate prerequisites and reverse dependents with explicit arrow direction.
 - [ ] **KAD-045** Derive ready and blocked tasks. _Acceptance:_ Compute `ready`/`blocked`/`unresolved` from direct prerequisites without persisting derived state; invalid or unknown prerequisite status/category/schema yields unresolved.
 - [ ] **KAD-046** Implement project validation. _Acceptance:_ Report all detectable integrity issues; validation itself never modifies files.
