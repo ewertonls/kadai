@@ -51,3 +51,19 @@ dependency_patch_preserves_status_and_refuses_back_edge :: proc(t: ^testing.T) {
 	data, _ := os.read_entire_file(storage.child(tmp, "a.md"), context.temp_allocator)
 	testing.expect_value(t, string(data), "---\nkadai: task\nid: A\ntitle: Example\nstatus: done\ndepends_on: [B] # keep\n---\nbody")
 }
+
+@(test)
+rollback_cannot_restore_a_new_cycle :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-cycle-recovery-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	opts := Project_Options{tasks_root = "."}
+	testing.expect(t, write_graph_task(tmp, "a.md", "A", "todo", "depends_on: [B]\n"))
+	testing.expect(t, write_graph_task(tmp, "b.md", "B", "todo"))
+	op, issue := change_dependency(tmp, opts, "A", "B", true)
+	if !testing.expect_value(t, issue, "") do return
+	_, issue = change_dependency(tmp, opts, "B", "A")
+	if !testing.expect_value(t, issue, "") do return
+	_, issue = recover_collection(tmp, opts, .Rollback, op)
+	testing.expect(t, issue != "" && !os.exists(storage.child(tmp, ".kadai/pending")))
+}

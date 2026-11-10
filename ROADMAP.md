@@ -112,7 +112,7 @@
 
 - [x] **KAD-039** Add and remove parent links. _Acceptance:_ Manage one logical parent per task, independent of file location.
 - [x] **KAD-040** Add and remove dependency links. _Acceptance:_ Persist `depends_on` references and define A → B to mean B depends on A.
-- [ ] **KAD-041** Detect cycles across relationships. _Acceptance:_ Reject parent cycles and dependency cycles on CLI mutations.
+- [x] **KAD-041** Detect cycles across relationships. _Acceptance:_ Reject parent cycles and dependency cycles on CLI mutations.
 - [ ] **KAD-042** Detect invalid references and IDs. _Acceptance:_ Report missing parents, missing dependencies, self-links, and duplicate task IDs.
 - [ ] **KAD-043** Build a task tree view. _Acceptance:_ Display indented parent/child hierarchy with stable ordering and task IDs.
 - [ ] **KAD-044** Build a dependency view. _Acceptance:_ Show immediate prerequisites and reverse dependents with explicit arrow direction.

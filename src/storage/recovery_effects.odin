@@ -2,7 +2,7 @@ package storage
 
 import "core:os"
 
-// Project the remaining membership-changing steps before arming recovery.
+// Project the remaining content and membership changes before arming recovery.
 // The application can validate ID uniqueness and inbound references against
 // the current inventory without storage interpreting task Markdown.
 Recovery_Effect :: struct {
@@ -14,11 +14,12 @@ Recovery_Check :: proc(effects: []Recovery_Effect, data: rawptr) -> string
 
 @(private)
 check_recovery_effects :: proc(root: string, images: ^Directory, steps: []Step, mode: Recovery_Mode, check: Recovery_Check, data: rawptr, l: Journal_Limits, budget: ^i64) -> string {
-	membership := false
+	if check == nil do return ""
+	content_changes := false
 	for s in steps {
-		if s.kind == .Create || s.kind == .Delete { membership = true; break }
+		if s.kind == .Create || s.kind == .Delete || s.kind == .Replace do content_changes = true
 	}
-	if check == nil || !membership do return ""
+	if !content_changes do return ""
 	effects := make([dynamic]Recovery_Effect, context.temp_allocator)
 	for s, i in steps {
 		if s.kind == .Move || s.kind == .Move_Directory do return "cannot verify a mixed move and membership recovery"

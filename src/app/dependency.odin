@@ -6,9 +6,6 @@ import "kadai:document"
 import "kadai:project"
 import "kadai:storage"
 
-@(private)
-Relation :: enum {Parent, Prerequisite}
-
 // A new subject -> target reference closes a cycle exactly when the target
 // already reaches the subject by references of the same kind.
 @(private)

@@ -15,6 +15,7 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 	remaining := make(map[string]^project.Candidate, len(inv.candidates))
 	for &item in inv.candidates do remaining[item.path] = &item
 	removed, restored: map[string]bool
+	new_links: [dynamic]Recovered_Link
 	for effect in effects {
 		item := remaining[effect.path]
 		if _, issue := project.task_path(view.config, effect.path, item == nil); issue != "" do return issue
@@ -31,6 +32,7 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 		} else if !strings.equal_fold(item.fields.id, doc.fields.id) { return "unexpected identity change in recovery" }
 		replacement := new(project.Candidate)
 		replacement^ = {path = effect.path, status = doc.status, fields = doc.fields, diagnostics = doc.diagnostics[:]}
+		if issue := collect_new_links(item, replacement, &new_links); issue != "" do return issue
 		remaining[effect.path] = replacement
 	}
 	counts: map[string]int
@@ -47,6 +49,42 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 		for dep in item.fields.depends_on {
 			if strings.to_lower(dep) in removed do return fmt.tprintf("%s: recovery would leave a missing prerequisite", item.path)
 		}
+	}
+	if len(new_links) > 0 {
+		projected := project.Inventory{complete = true}
+		for _, item in remaining {
+			if _, e := append(&projected.candidates, item^); e != nil do return "cannot verify recovered graph"
+		}
+		view.index = project.build_index(projected)
+		if !view.index.complete do return view.index.problem
+		for edge in new_links {
+			subject, issue := unique_task(view, edge.source)
+			if issue != "" do return issue
+			target, problem := unique_task(view, edge.target)
+			if problem != "" do return problem
+			if issue = check_new_link(view, subject, target, edge.kind); issue != "" do return issue
+		}
+	}
+	return ""
+}
+
+@(private)
+Recovered_Link :: struct {source, target: string, kind: Relation}
+
+@(private)
+collect_new_links :: proc(old, next: ^project.Candidate, edges: ^[dynamic]Recovered_Link) -> string {
+	if next.fields.parent != "" && (old == nil || !strings.equal_fold(old.fields.parent, next.fields.parent)) {
+		if _, e := append(edges, Recovered_Link{next.fields.id, next.fields.parent, .Parent}); e != nil do return "cannot verify recovered parent"
+	}
+	previous: map[string]bool
+	if old != nil {
+		for ref in old.fields.depends_on {
+			if _, e := map_insert(&previous, strings.to_lower(ref), true); e != nil do return "cannot verify recovered prerequisites"
+		}
+	}
+	for ref in next.fields.depends_on {
+		if strings.to_lower(ref) in previous do continue
+		if _, e := append(edges, Recovered_Link{next.fields.id, ref, .Prerequisite}); e != nil do return "cannot verify recovered prerequisite"
 	}
 	return ""
 }
