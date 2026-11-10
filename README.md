@@ -2,7 +2,7 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports `kadai init`, `kadai add`, `kadai --help`, and `kadai --version`. The task-management examples below describe planned features.
+> **Status:** Early development. The CLI supports task creation, reads, metadata edits, moves, removal, and recovery. Relationship commands and JSON output are scheduled in later phases.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 
@@ -123,7 +123,7 @@ Selected tasks for this milestone.
 
 A board references tasks by ID. It does not own or duplicate their status: moving a card to another column updates the task's frontmatter. Removing a task from a board does not remove its Markdown file.
 
-Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md), and project configuration v1 is accepted in [KAD-003](docs/specs/KAD-003-project-config-v1.md). Task identity allocation (KAD-004), hierarchy (KAD-005), and YAML patch limitations (KAD-006) remain pending. Kadai-coordinated writes check for conflicts and keep recovery copies, but a non-cooperating external editor can still save during the final check/replacement interval.
+Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md), and project configuration v1 is accepted in [KAD-003](docs/specs/KAD-003-project-config-v1.md). Generated IDs use collection-local, durable [reservation markers](docs/specs/KAD-004-task-identity-v1.md). Kadai-coordinated writes check for conflicts and keep recovery copies, but a non-cooperating external editor can still save during the final check/replacement interval.
 
 ## CLI-first workflow
 
@@ -131,22 +131,23 @@ The CLI is the primary interface for developers and coding agents. Direct Markdo
 
 `kadai edit ID` opens the task file in `$EDITOR` and waits for the editor process. For a GUI editor, use its wait flag, for example `EDITOR="code --wait"`. Quote paths or arguments containing spaces. Saves made in the editor appear on the next Kadai read.
 
-The following commands are **proposed examples**, not an available or finalized CLI:
+In a fresh collection, the first generated ID is `0001`. Task destinations are relative to the effective task root.
 
 ```sh
-kadai init # optional, creates project configuration explicitly
-kadai add "Implement syntax highlighting" --dir editor
-kadai add "Write tests" --body-file ./tests.md
-cat ./notes.md | kadai add "Investigate" --stdin
-kadai list --json
-kadai status T-003 in_progress
-kadai dep add T-003 T-002
-kadai tree
-kadai ready --json
-kadai validate
+kadai add "Implement syntax highlighting" --path editor/parser.md
+kadai list
+kadai show 0001
+kadai set 0001 tags parser cli
+kadai set 0001 priority high
+kadai unset 0001 priority
+kadai status 0001 in_progress
+kadai move 0001 editor/highlight.md
+kadai edit 0001
 ```
 
-The goal is to provide predictable commands, machine-readable output, and useful exit codes without requiring a daemon, a hosted backend, or an MCP server.
+`add --body-file PATH` and `add --stdin` preserve the supplied Markdown body. `move --directory SOURCE DEST` renames a directory after checking its contents and destination. Moves preserve frontmatter IDs.
+
+`remove ID` checks inbound parent and prerequisite references. Preview explicit detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. The removal returns an operation ID for `recover rollback OPERATION`. Use `recover resume` or `recover rollback` for an interrupted operation in the same collection.
 
 ## Roadmap
 
