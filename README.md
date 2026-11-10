@@ -129,6 +129,8 @@ Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.
 
 The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create collection-local history under `<tasks.root>/.kadai/` without creating `.kadai.yaml`. Kadai never modifies `.gitignore`.
 
+`kadai edit ID` opens the task file in `$EDITOR` and waits for the editor process. For a GUI editor, use its wait flag, for example `EDITOR="code --wait"`. Quote paths or arguments containing spaces. Saves made in the editor appear on the next Kadai read.
+
 The following commands are **proposed examples**, not an available or finalized CLI:
 
 ```sh

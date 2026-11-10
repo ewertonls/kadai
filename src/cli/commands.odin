@@ -69,6 +69,9 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
 		output = strings.to_string(b)
+	case "edit":
+		if len(a.words) != 1 do return "", "edit requires an ID", 2
+		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator))
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", 2
 		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force)

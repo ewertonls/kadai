@@ -99,7 +99,7 @@
 - [x] **KAD-032** Get and list tasks. _Acceptance:_ Resolve a task by ID and return deterministic listing data, including path and parsed metadata.
 - [x] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
 - [x] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
-- [ ] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
+- [x] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
 - [ ] **KAD-036** Move and rename tasks. _Acceptance:_ Keep ID-based references intact when the underlying Markdown file changes path.
 - [ ] **KAD-037** Remove tasks safely. _Acceptance:_ Require explicit deletion and reference checking; preserve used-ID/tombstone history before removing files so allocated IDs cannot be silently reused.
 - [ ] **KAD-038** Test editor/CLI equivalence. _Acceptance:_ Manually edit a task between commands and verify subsequent reads reflect the changed source file.
