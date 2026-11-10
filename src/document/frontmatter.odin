@@ -144,3 +144,38 @@ boundary_diagnostic :: proc(
 	}
 	return {}, nil
 }
+
+// Used before reading a Markdown body. Ten bytes cover BOM, delimiter and
+// the longest relevant UTF-8 line break. EOF is also a delimiter boundary.
+potential_header :: proc(prefix: string) -> bool {
+	_, status := delimiter(strings.trim_prefix(prefix, "\uFEFF"))
+	return status != .Absent
+}
+
+// Recover only a parser-proven discriminator when extraction fails. Stop at
+// the closing delimiter or the first invalid line. Never inspect body text.
+probe_broken_header :: proc(source: string, limits: yaml.Limits) -> (probe: yaml.Mapping_Probe, bytes: int, failure: yaml.Parse_Failure) {
+	s := strings.trim_prefix(source, "\uFEFF")
+	start, status := delimiter(s)
+	if status != .Present do return
+	s = s[start:min(len(s), start + limits.bytes)]
+	for pos := 0; pos < len(s); {
+		_, closing := delimiter(s[pos:])
+		if closing == .Present do break
+		lf := strings.index_byte(s[pos:], '\n')
+		end := pos + lf + 1 if lf >= 0 else len(s)
+		line := s[pos:end]
+		if _, invalid := yaml.first_invalid_utf8(line); invalid do break
+		invalid := false
+		for r, i in line {
+			if yaml.unsupported_line_break(r, line[i:]) { invalid = true; break }
+		}
+		if invalid do break
+		bytes, pos = end, end
+	}
+	probe = {key = "kadai", value = "task"}
+	node: yaml.Node
+	node, failure = yaml.parse_mapping_checked(s[:bytes], limits, probe = &probe)
+	yaml.destroy(&node)
+	return
+}

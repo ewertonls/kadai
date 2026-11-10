@@ -46,6 +46,7 @@ Task_Document :: struct {
 	status:             Decode_Status,
 	boundary_status:    Frontmatter_Status,
 	yaml_error:         yaml.Error,
+	probe:              yaml.Mapping_Probe,
 	field_errors:       [dynamic]Field_Error,
 	diagnostics:        [dynamic]yaml.Diagnostic,
 }
@@ -105,11 +106,13 @@ decode_fields :: proc(doc: ^Task_Document, vocabulary: task.Vocabulary, yaml_lim
 	}
 	header := doc.parts.header
 	parse_err: yaml.Parse_Failure
+	doc.probe = {key = "kadai", value = "task"}
 	doc.root, parse_err = yaml.parse_mapping_checked(
 		source[header.start:header.end],
 		yaml_limits,
 		&failure,
 		path,
+		&doc.probe,
 	)
 	switch e in parse_err {
 	case runtime.Allocator_Error:

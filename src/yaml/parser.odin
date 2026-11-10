@@ -29,8 +29,17 @@ unsupported_line_break :: proc(r: rune, suffix: string) -> bool {
 	       (r == '\r' && !strings.has_prefix(suffix, "\r\n"))
 }
 
+// Record parser work even on rejection. A match comes only from a fully
+// decoded scalar pair in the root mapping.
+Mapping_Probe :: struct {
+	key, value: string,
+	matched: bool,
+	nodes: int,
+}
+
 @(private)
 Reader :: struct {
+	probe: ^Mapping_Probe,
 	parser:     oyaml.parser,
 	event:      oyaml.event,
 	source:     string,
@@ -170,6 +179,10 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> 
 			_ = map_insert(&seen, pair.key.text, true) or_return
 			advance(r) or_return
 			read_node(r, &pair.value, depth + 1, child_indent) or_return
+			if depth == 1 && r.probe != nil && pair.key.kind == .String && pair.value.kind == .String &&
+			   pair.key.text == r.probe.key && pair.value.text == r.probe.value {
+				r.probe.matched = true
+			}
 			pop(&r.field)
 			advance(r) or_return
 		}
@@ -233,8 +246,9 @@ parse_input :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 
 // The caller owns a successful tree (Absent for an empty stream). Syntax and
 // policy failures populate report. Allocation failures return the allocator error.
-parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "") -> (Node, Parse_Failure) {
-	r := Reader{source = source, limits = limits, bad_offset = -1}
+parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "", probe: ^Mapping_Probe = nil) -> (Node, Parse_Failure) {
+	r := Reader{source = source, limits = limits, bad_offset = -1, probe = probe}
+	defer if probe != nil { probe.nodes = r.node_count }
 	defer {
 		delete(r.field)
 		if r.initialized {
