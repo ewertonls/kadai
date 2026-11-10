@@ -36,8 +36,11 @@ sequence_patch_preserves_source_and_item_order :: proc(t: ^testing.T) {
 		 base + "tags: [cli]\r\ndue: tomorrow\r\n" + body},
 	}
 	for c in cases {
-		edited, err := plan_sequence_patch(c.source, c.field, c.edit, c.item)
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_sequence_patch(source, c.field, c.edit, c.item)
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		if !testing.expectf(t, err == nil, "%v", err) {
 			if d, ok := err.(yaml.Diagnostic); ok {
 				yaml.destroy_diagnostic(&d)
@@ -64,8 +67,11 @@ sequence_patch_refuses_invalid_or_ambiguous_items :: proc(t: ^testing.T) {
 	for c in cases {
 		source := strings.concatenate({base, c.header, "---"})
 		defer delete(source)
+		original := strings.clone(source)
+		defer delete(original)
 		edited, err := plan_sequence_patch(source, c.field, c.edit, c.item, path = "tasks/T.md")
 		defer delete(edited)
+		testing.expect_value(t, source, original)
 		testing.expect_value(t, edited, "")
 		d, ok := err.(yaml.Diagnostic)
 		if testing.expect(t, ok) {
@@ -79,20 +85,28 @@ sequence_patch_refuses_invalid_or_ambiguous_items :: proc(t: ^testing.T) {
 @(test)
 sequence_patch_keeps_item_comments_or_refuses :: proc(t: ^testing.T) {
 	fixtures :: "../../tests/fixtures/v1/cases/patch/"
-	base :: "---\nkadai: task\nid: T\ntitle: T\nstatus: todo\n"
-	cases := []struct {source, comment, suffix: string}{
-		{string(#load(fixtures + "unsafe-comment-removal/input/project/tasks/T.md")), "# owner note", "  - cli\n---\n"},
-		{string(#load(fixtures + "unsupported-flow-comment/input/project/tasks/T.md")), "# ambiguous", "  cli]\n---\n"},
+	cases := []struct {source, removed: string}{
+		{string(#load(fixtures + "unsafe-comment-removal/input/project/tasks/T.md")), "  - backend "},
+		{string(#load(fixtures + "unsupported-flow-comment/input/project/tasks/T.md")), "backend, "},
 	}
 	for c in cases {
-		edited, err := plan_sequence_patch(c.source, .Tags, .Remove, "backend")
+		prefix, item, suffix := strings.partition(c.source, c.removed)
+		if !testing.expect(t, item != "" && strings.has_prefix(suffix, "#")) {
+			continue
+		}
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_sequence_patch(source, .Tags, .Remove, "backend")
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		if err == nil {
-			testing.expect(t, strings.has_prefix(edited, base + "tags:"))
-			testing.expect(t, strings.has_suffix(edited, c.suffix))
-			testing.expect_value(t, strings.count(edited, c.comment), 1)
+			// Only horizontal whitespace may remain where the item preceded the comment.
+			if testing.expect(t, strings.has_prefix(edited, prefix)) {
+				testing.expect_value(t, strings.trim_left(edited[len(prefix):], " \t"), suffix)
+			}
 			doc := decode_task(edited)
 			defer destroy(&doc)
+			testing.expect_value(t, doc.status, .Decoded)
 			if testing.expect_value(t, len(doc.fields.tags), 1) {
 				testing.expect_value(t, doc.fields.tags[0], "cli")
 			}

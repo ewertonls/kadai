@@ -1,6 +1,7 @@
 #+test
 package document
 
+import "core:strings"
 import "core:testing"
 import "kadai:yaml"
 
@@ -30,8 +31,11 @@ key_patch_changes_only_the_requested_entry :: proc(t: ^testing.T) {
 		 "---\nkadai: task\nid: T\ntitle: 'A: B'\nstatus: todo\ndue: tomorrow\n---"},
 	}
 	for c in cases {
-		edited, err := plan_key_patch(c.source, c.field, c.edit)
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_key_patch(source, c.field, c.edit)
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		if !testing.expectf(t, err == nil, "%v", err) {
 			if d, ok := err.(yaml.Diagnostic); ok {
 				yaml.destroy_diagnostic(&d)
@@ -64,8 +68,11 @@ key_patch_refuses_collisions_and_invalid_proposals :: proc(t: ^testing.T) {
 		{prefix + "custom:\n  note: |+\n    text\npriority: low\n\n---", .Priority, Unset_Field{}, "unsafe_source_patch"},
 	}
 	for c in cases {
-		edited, err := plan_key_patch(c.source, c.field, c.edit, path = "tasks/T.md")
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_key_patch(source, c.field, c.edit, path = "tasks/T.md")
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		testing.expect_value(t, edited, "")
 		d, ok := err.(yaml.Diagnostic)
 		if testing.expect(t, ok) {
@@ -88,8 +95,11 @@ key_patch_preserves_ambiguous_boundaries_or_refuses :: proc(t: ^testing.T) {
 		 "comment_ownership_ambiguous", comment + "---\n", ""},
 	}
 	for c in cases {
-		edited, err := plan_key_patch(c.source, .Priority, c.edit)
+		source := strings.clone(c.source)
+		defer delete(source)
+		edited, err := plan_key_patch(source, .Priority, c.edit)
 		defer delete(edited)
+		testing.expect_value(t, source, c.source)
 		if err == nil {
 			testing.expect(t, edited != "" && (edited == c.expected || edited == c.alternate))
 			continue
