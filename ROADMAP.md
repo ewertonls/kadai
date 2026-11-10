@@ -72,7 +72,7 @@
 - [x] **KAD-019** Insert and remove top-level metadata keys. _Acceptance:_ Support a missing field or explicit unset without resaving the whole YAML document. _Reference:_ [Top-level key edits](docs/development/yaml-parser.md#inserting-and-removing-task-fields).
 - [x] **KAD-020** Edit known YAML sequences. _Acceptance:_ Safely update `tags` and `depends_on`, preserving other fields and refusing ambiguous layouts. _Reference:_ [Sequence edits and tests](docs/development/yaml-parser.md#editing-sequence-items).
 - [x] **KAD-021** Handle YAML edge cases defensively. _Acceptance:_ Test quoted keys, inline comments, block scalars, aliases/anchors, duplicate keys, line endings, and unsupported edits. _Reference:_ [YAML edge cases and regression tests](docs/development/yaml-parser.md#yaml-edge-cases).
-- [ ] **KAD-022** Add byte-level golden tests. _Acceptance:_ Assert that metadata mutations change only intended spans; malformed or unsupported cases never produce destructive output.
+- [x] **KAD-022** Add byte-level golden tests. _Acceptance:_ Assert that metadata mutations change only intended spans; malformed or unsupported cases never produce destructive output. _Reference:_ [Byte-level patch tests](docs/development/yaml-parser.md#byte-level-patch-tests).
 
 ### 3. Project storage and filesystem
 

@@ -77,6 +77,12 @@ Block indentation uses spaces. The reader reports `invalid_indentation` at a tab
 
 A folded scalar can contain lines that look like keys, comments, anchors or a frontmatter delimiter. An edit to a separate quoted key preserves those lines and their original line endings. Real anchors, aliases and duplicate decoded keys produce diagnostics, including when an edit would introduce an alias into a previously valid document. [Scalar patch tests](../../src/document/scalar_patch_test.odin), [key patch tests](../../src/document/key_patch_test.odin).
 
+### Byte-level patch tests
+
+The scalar, key and sequence tests compare the complete proposed Markdown against the checked-in `expected/T.md` files. These comparisons include the BOM, LF and CRLF bytes, comments and the body's final newline or its absence. The `quote-required` case checks the decoded title and compares the bytes on both sides of its scalar token, allowing either valid quote style. [Patch fixtures](../../tests/fixtures/v1/cases/patch).
+
+Refusal tests check the diagnostic, the empty candidate and the original input bytes. Run them with the [full test suite](toolchain.md#run-tests).
+
 ### Diagnostics
 
 Pass the known filename to `document.decode_task(source, path = "tasks/example.md")`. Each entry in `doc.diagnostics` carries the supplied path, a stable code, the field when identifiable, and a message explaining how to correct the problem. A duplicate mapping key names its full path, such as `custom.nested.x`. A duplicate tag points to the repeated list item. LibYAML syntax errors retain the parser's explanation. [Diagnostic tests](../../src/document/decode_test.odin).
