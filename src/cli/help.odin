@@ -5,29 +5,104 @@ import "core:flags"
 import "core:fmt"
 import "core:strings"
 
+Help_Flags :: struct {
+	command: string `args:"pos=0,hidden"`,
+}
+
 Command :: struct {
-	name, operands: string,
+	name: string,
 	flag_type: typeid,
+	summary, details: string,
+	operands, examples: []string,
 }
 
 @(rodata)
 COMMANDS := [?]Command{
-	{"init", "", Project_Flags},
-	{"add", "TITLE", Add_Flags},
-	{"list", "", Project_Flags},
-	{"show", "ID", Project_Flags},
-	{"tree", "", Project_Flags},
-	{"ready", "[ID]", Project_Flags},
-	{"validate", "", Project_Flags},
-	{"set", "ID FIELD [VALUE ...]", Status_Flags},
-	{"unset", "ID FIELD", Project_Flags},
-	{"status", "ID STATUS", Status_Flags},
-	{"parent", "(add CHILD PARENT | remove CHILD)", Project_Flags},
-	{"dep", "(show ID | (add|remove) TASK PREREQUISITE)", Project_Flags},
-	{"edit", "ID", Project_Flags},
-	{"move", "SOURCE DEST", Move_Flags},
-	{"remove", "ID", Remove_Flags},
-	{"recover", "(resume|rollback) [OPERATION]", Project_Flags},
+	{
+		"init", Project_Flags, "Create the project configuration and task directory.",
+		"Run in the project directory or select an existing directory with --project.",
+		{""}, {"kadai init --id-prefix KAD"},
+	},
+	{
+		"add", Add_Flags, "Create a Markdown task and print its ID.",
+		"New tasks start in todo by default. Supply the body with --body-file or --stdin.",
+		{"TITLE"}, {"kadai add \"Write release notes\"", "kadai add \"Review changes\" --body-file notes.md"},
+	},
+	{
+		"list", Project_Flags, "List tasks with their ID, status, title and path.",
+		"Rows are ordered by path relative to the task directory.",
+		{""}, {"kadai list --project ../my-project"},
+	},
+	{
+		"show", Project_Flags, "Print a task's file path and Markdown contents.",
+		"Look up the task by its frontmatter ID.",
+		{"ID"}, {"kadai show 0001"},
+	},
+	{
+		"tree", Project_Flags, "Display tasks in their parent-child hierarchy.",
+		"Indentation follows parent links. The tree marks unresolved parents and cycles.",
+		{""}, {"kadai tree"},
+	},
+	{
+		"ready", Project_Flags, "List tasks ready to work on, or check one task by ID.",
+		"With an ID, the result is ready, blocked or unresolved.",
+		{"[ID]"}, {"kadai ready", "kadai ready 0001"},
+	},
+	{
+		"validate", Project_Flags, "Check configuration, task files, relationships and history.",
+		"Exit status is 1 for errors or incomplete checks, and 0 otherwise.",
+		{""}, {"kadai validate"},
+	},
+	{
+		"set", Status_Flags, "Set a task's title, status, priority, due date or tags.",
+		"Use due for a due date. Pass a single value for a scalar or one value per tag.",
+		{"ID FIELD [VALUE ...]"}, {"kadai set 0001 priority high", "kadai set 0001 tags docs release"},
+	},
+	{
+		"unset", Project_Flags, "Remove an optional field from a task.",
+		"The supported fields are priority, due and tags.",
+		{"ID FIELD"}, {"kadai unset 0001 due"},
+	},
+	{
+		"status", Status_Flags, "Change a task's workflow status.",
+		"Moving a task to done requires satisfied prerequisites unless you pass --force.",
+		{"ID STATUS"}, {"kadai status 0001 in_progress"},
+	},
+	{
+		"parent", Project_Flags, "Set or clear a task's parent.",
+		"Pass the child ID first. Removing its parent makes the child a root task.",
+		{"add CHILD PARENT", "remove CHILD"}, {"kadai parent add 0002 0001", "kadai parent remove 0002"},
+	},
+	{
+		"dep", Project_Flags, "Show, add or remove task dependencies.",
+		"Use show to list direct prerequisites and dependents.\nWith add or remove, TASK depends on PREREQUISITE.",
+		{"show ID", "add TASK PREREQUISITE", "remove TASK PREREQUISITE"},
+		{"kadai dep add 0002 0001", "kadai dep show 0002"},
+	},
+	{
+		"edit", Project_Flags, "Open a task's Markdown file in $EDITOR.",
+		"Kadai waits for the editor to exit. For VS Code, set EDITOR to 'code --wait'.",
+		{"ID"}, {"kadai edit 0001"},
+	},
+	{
+		"move", Move_Flags, "Move a task file or directory within the collection.",
+		"Pass a task ID and a destination relative to the task directory.\nWith --directory, both paths are relative to the task directory.",
+		{"ID DEST", "--directory SOURCE DEST"}, {"kadai move 0001 docs/release.md", "kadai move --directory drafts archive"},
+	},
+	{
+		"remove", Remove_Flags, "Delete a task after checking references from other tasks.",
+		"Use --detach to clear incoming references.\nWith --dry-run, Kadai prints the affected edits and a plan token.",
+		{"ID"}, {"kadai remove 0001 --detach --dry-run"},
+	},
+	{
+		"recover", Project_Flags, "Resume an interrupted write or roll back an operation.",
+		"Omit the operation ID to select the pending write.\nTo undo a completed removal, pass the operation ID printed by remove.",
+		{"resume [OPERATION]", "rollback [OPERATION]"}, {"kadai recover resume"},
+	},
+	{
+		"help", Help_Flags, "Show the command list or help for one command.",
+		"", {"[COMMAND]"}, {"kadai help add"},
+	},
 }
 
 find_command :: proc(name: string) -> (Command, bool) {
@@ -37,29 +112,41 @@ find_command :: proc(name: string) -> (Command, bool) {
 	return {}, false
 }
 
-command_synopsis :: proc(command: Command) -> string {
-	if command.operands == "" do return command.name
-	return fmt.tprintf("%s %s", command.name, command.operands)
-}
-
 write_flag_help :: proc(text: ^strings.Builder, flag_type: typeid) {
-	flags.write_usage(strings.to_writer(text), flag_type, style = .Unix)
+	if flag_type == Help_Flags {
+		strings.write_string(text, "Flags:\n")
+	} else {
+		flags.write_usage(strings.to_writer(text), flag_type, style = .Unix)
+	}
 	// Help is reserved by core:flags.
 	strings.write_string(text, "\t-h, --help  | Show this help.\n")
 }
 
 help_text :: proc() -> string {
 	text := strings.builder_make(context.temp_allocator)
-	strings.write_string(&text, "Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai COMMAND [args] [options]\n\nCommands:\n")
-	for command in COMMANDS do fmt.sbprintf(&text, "  %s\n", command_synopsis(command))
-	strings.write_string(&text, "\nRun 'kadai COMMAND --help' for command options.\n\n")
+	strings.write_string(&text, "Kadai tracks tasks in project-local Markdown files.\n\nUsage:\n  kadai COMMAND [arguments] [options]\n  kadai [option]\n\nCommands:\n")
+	width := 0
+	for command in COMMANDS do width = max(width, len(command.name))
+	for command in COMMANDS do fmt.sbprintf(&text, "  %-*s  %s\n", width, command.name, command.summary)
+	strings.write_string(&text, "\n")
 	write_flag_help(&text, Options)
+	strings.write_string(&text, "\nFor command help, run 'kadai help COMMAND' or 'kadai COMMAND --help'.\n")
 	return strings.to_string(text)
 }
 
 command_help :: proc(command: Command) -> string {
 	text := strings.builder_make(context.temp_allocator)
-	fmt.sbprintf(&text, "Usage: kadai %s [options]\n\n", command_synopsis(command))
+	fmt.sbprintf(&text, "%s\n\nUsage:\n", command.summary)
+	for operands in command.operands {
+		fmt.sbprintf(&text, "  kadai %s", command.name)
+		if operands != "" do fmt.sbprintf(&text, " %s", operands)
+		strings.write_string(&text, " [options]")
+		strings.write_byte(&text, '\n')
+	}
+	if command.details != "" do fmt.sbprintf(&text, "\n%s\n", command.details)
+	strings.write_string(&text, "\nExamples:\n")
+	for example in command.examples do fmt.sbprintf(&text, "  %s\n", example)
+	strings.write_byte(&text, '\n')
 	write_flag_help(&text, command.flag_type)
 	return strings.to_string(text)
 }

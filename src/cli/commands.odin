@@ -164,6 +164,17 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
 	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)
+	case Help_Flags:
+		topic: Help_Flags
+		parse_err = flags.parse(&topic, args, .Unix, allocator = context.temp_allocator)
+		if parse_err == nil {
+			if topic.command == "" do return write_stdout(help_text(), stdout, stderr)
+			if target, ok := find_command(topic.command); ok {
+				return write_stdout(command_help(target), stdout, stderr)
+			}
+			fmt.wprintf(stderr, "kadai help: unknown command %q. Run 'kadai help' to list commands.\n", topic.command)
+			return 2
+		}
 	case: unreachable()
 	}
 

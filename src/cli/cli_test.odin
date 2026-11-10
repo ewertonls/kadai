@@ -9,7 +9,7 @@ import "kadai:app"
 @(test)
 dispatch_arguments :: proc(t: ^testing.T) {
 	cases := []struct {args: []string, code: int, contains: string}{
-		{nil, 0, "--help"},
+		{nil, 0, "Create a Markdown task and print its ID."},
 		{{"--help"}, 0, "--version"},
 		{{"-h"}, 0, "--help"},
 		{{"--version"}, 0, "kadai " + app.VERSION + "\n"},
@@ -19,6 +19,10 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"--help", "extra"}, 2, "unexpected argument"},
 		{{"--version", "--help"}, 2, "unexpected argument"},
 		{{"add", "--help"}, 0, "--body-file"},
+		{{"help"}, 0, "Commands:"},
+		{{"help", "dep"}, 0, "kadai dep add 0002 0001"},
+		{{"help", "missing"}, 2, "unknown command"},
+		{{"help", "add", "extra"}, 2, "extra"},
 		{{"list", "--force"}, 2, "force"},
 		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
 		{{"list", "--exclude", ""}, 2, "exclude"},

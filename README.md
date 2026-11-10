@@ -129,7 +129,7 @@ Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.
 
 The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create collection-local history under `<tasks.root>/.kadai/` without creating `.kadai.yaml`. Kadai never modifies `.gitignore`.
 
-Use `kadai COMMAND --help` to see a command's operands and flags. Flags can appear anywhere after the command and before `--`. Both `--project DIR` and `--project=DIR` select a project. Use `--` before a positional argument that starts with a hyphen, as in `kadai add -- -draft`.
+Run `kadai` for a short description of each command. Use `kadai help add` or `kadai add --help` for usage, examples and flags. Flags can appear anywhere after the command and before `--`. Both `--project DIR` and `--project=DIR` select a project. Use `--` before a positional argument that starts with a hyphen, as in `kadai add -- -draft`.
 
 Commands use the configured exclusion list by default. Supply `--exclude GLOB` once per replacement pattern, for example `kadai list --exclude 'archive/**' --exclude 'drafts/**'`. To clear the configured list, use `--clear-excludes` in place of the former `--exclude ""` syntax. Combining `--clear-excludes` with `--exclude` is an error. Kadai's mandatory internal exclusions still apply.
 
