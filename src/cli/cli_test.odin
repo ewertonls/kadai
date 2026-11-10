@@ -1,6 +1,7 @@
 #+test
 package cli
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:io"
 import "core:os"
@@ -113,6 +114,46 @@ stdout_write_failure :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(strings.to_string(err), "stdout"))
 }
 
+@(test)
+destructive_commands_require_explicit_flags :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-automation-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	reader: strings.Reader
+	input := strings.to_reader(&reader, "yes\n")
+	created := invoke_cli(t, {"add", "Keep", "--project", tmp}, stdin = input)
+	if !testing.expect_value(t, created.stdout, "0001\n") do return
+	path := fmt.tprintf("%s/tasks/0001.md", tmp)
+	for args in ([][]string{
+		{"remove", "0001", "--project", tmp},
+		{"remove", "0001", "--detach", "--json", "--project", tmp},
+		{"recover", "resume", "--project", tmp},
+	}) {
+		out := invoke_cli(t, args, 2, input)
+		testing.expect_value(t, out.stdout, "")
+		testing.expect(t, strings.contains(out.stderr, "--yes"))
+	}
+	testing.expect_value(t, strings.reader_length(&reader), len("yes\n"))
+	if !testing.expect(t, os.exists(path)) do return
+
+	preview := invoke_cli(t, {"remove", "0001", "--project", tmp, "--yes", "--dry-run", "--json"})
+	token := parse_result(t, preview.stdout).(json.Object)["plan"].(string)
+	if !testing.expect(t, token != "" && os.exists(path)) do return
+	stale := invoke_cli(t, {"remove", "0001", "--project", tmp, "--yes", "--plan", "stale"}, 1)
+	testing.expect(t, strings.contains(stale.stderr, "stale removal plan") && os.exists(path))
+	deleted := invoke_cli(t, {"remove", "0001", "--project", tmp, "--plan", token})
+	operation := strings.trim_space(deleted.stdout)
+	if !testing.expect(t, operation != "" && !os.exists(path)) do return
+	_ = invoke_cli(t, {"recover", "rollback", operation, "--project", tmp}, 2)
+	empty := invoke_cli(t, {"recover", "rollback", "", "--yes", "--project", tmp}, 2)
+	testing.expect(t, strings.contains(empty.stderr, "operation ID cannot be empty"))
+	testing.expect(t, !os.exists(path))
+	_ = invoke_cli(t, {"recover", "rollback", operation, "--project", tmp, "--yes"})
+	testing.expect(t, os.exists(path))
+	_ = invoke_cli(t, {"remove", "0001", "--project", tmp, "--yes"})
+	testing.expect(t, !os.exists(path))
+}
+
 // The same lookup must report ambiguity in either format. In JSON mode even
 // an explicit symlink warning on a successful scan belongs on stderr.
 @(test)
@@ -146,7 +187,7 @@ incomplete_write_exit_tracks_filesystem_effects :: proc(t: ^testing.T) {
 	defer os.remove_all(tmp)
 	recovery := fmt.tprintf("%s/tasks/.kadai/recovery", tmp)
 	_ = invoke_cli(t, {"add", "T", "--project", tmp, "--limit=yaml_document_bytes=96"}, 1)
-	_ = invoke_cli(t, {"recover", "rollback", "ffffffffffffffffffffffffffffffff", "--project", tmp}, 1)
+	_ = invoke_cli(t, {"recover", "rollback", "ffffffffffffffffffffffffffffffff", "--project", tmp, "--yes"}, 1)
 	testing.expect(t, !os.exists(recovery))
 	out := invoke_cli(t, {"add", "T", "--json", "--project", tmp, "--limit=yaml_document_bytes=100"}, 5)
 	testing.expect_value(t, out.stdout, "")

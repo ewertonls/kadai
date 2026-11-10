@@ -52,7 +52,7 @@ commands_forward_config_limits :: proc(t: ^testing.T) {
 	testing.expect(t, os.write_entire_file(path, config) == nil)
 	// Config loading has separate entry points for init, queries, validation,
 	// mutation planning and recovery. Test one command per path.
-	commands := [][]string{{"init"}, {"list"}, {"validate"}, {"add", "Title"}, {"recover", "resume"}}
+	commands := [][]string{{"init"}, {"list"}, {"validate"}, {"add", "Title"}, {"recover", "resume", "--yes"}}
 	for command in commands {
 		args := make([dynamic]string, context.temp_allocator)
 		append(&args, ..command)

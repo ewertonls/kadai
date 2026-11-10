@@ -92,13 +92,13 @@ COMMANDS := [?]Command{
 	},
 	{
 		"remove", Remove_Flags, "Delete a task after checking references from other tasks.",
-		"Use --detach to clear incoming references.\nWith --dry-run, Kadai prints the affected edits and a plan token.",
-		{"ID"}, {"kadai remove 0001 --detach --dry-run"},
+		"Preview the affected files with --dry-run. To delete, pass --yes or the matching --plan token.\nAdd --detach to clear incoming references.",
+		{"ID --dry-run", "ID --yes", "ID --plan TOKEN"}, {"kadai remove 0001 --detach --dry-run", "kadai remove 0001 --yes"},
 	},
 	{
-		"recover", Project_Flags, "Resume an interrupted write or roll back an operation.",
+		"recover", Recover_Flags, "Resume an interrupted write or roll back an operation.",
 		"Omit the operation ID to select the pending write.\nTo undo a completed removal, pass the operation ID printed by remove.",
-		{"resume [OPERATION]", "rollback [OPERATION]"}, {"kadai recover resume"},
+		{"resume [OPERATION] --yes", "rollback [OPERATION] --yes"}, {"kadai recover resume --yes"},
 	},
 	{
 		"help", Help_Flags, "Show the command list or help for one command.",

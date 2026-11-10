@@ -64,7 +64,9 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history, started)
 }
 
-recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.Recovery_Mode, operation := "", limits := project.DEFAULT_SCAN_LIMITS) -> (id, issue: string) {
+Recovery_Mode :: storage.Recovery_Mode
+
+recover_collection :: proc(cwd: string, options: Project_Options, mode: Recovery_Mode, operation := "", limits := project.DEFAULT_SCAN_LIMITS) -> (id, issue: string) {
 	if !project.valid_scan_limits(limits) do return "", "invalid recovery limits"
 	w, e := storage.begin_writer()
 	if e != nil do return "", os.error_string(e)

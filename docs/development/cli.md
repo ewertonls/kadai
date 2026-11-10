@@ -33,7 +33,7 @@ All commands below accept the common project and resource options.
 | `edit ID` | Open the source file using `$EDITOR` and wait for exit. |
 | `move ID DEST` | Move/rename one task to a collection-relative file path. |
 | `move --directory SOURCE DEST` | Move a collection-relative directory, preserving task identities and discoverability. |
-| `remove ID` | Check references before deletion. `--detach` clears inbound reserved references, `--dry-run` prints a complete preview and plan token, and `--plan TOKEN` requires that exact plan. Prints an operation ID on deletion. |
+| `remove ID` | Preview with `--dry-run`. Delete with `--yes` or `--plan TOKEN`. Add `--detach` to clear inbound parent and dependency references. Prints an operation ID on deletion. |
 | `parent add CHILD PARENT` | Set or replace the child's logical parent. |
 | `parent remove CHILD` | Clear the child's parent. |
 | `dep add TASK PREREQUISITE` | Add a direct prerequisite. A duplicate case-insensitive reference is an error. |
@@ -42,8 +42,8 @@ All commands below accept the common project and resource options.
 | `tree` | No operands. Show the logical parent hierarchy. |
 | `ready [ID]` | Without an ID, list actionable ready tasks; with an ID, report `ready`, `blocked` or `unresolved`. |
 | `validate` | No operands. Read-only validation of config, tasks, relationships and internal state. |
-| `recover resume [OPERATION]` | Resume the pending operation or the selected operation. |
-| `recover rollback [OPERATION]` | Roll back the pending operation or the selected operation. |
+| `recover resume [OPERATION] --yes` | Resume the pending operation or the selected operation. |
+| `recover rollback [OPERATION] --yes` | Roll back the pending operation or the selected operation. |
 
 Task IDs are looked up case-insensitively. Relationship commands use IDs, not
 paths. Directory placement does not assign parents. Status overrides never
@@ -54,10 +54,35 @@ Body bytes from files/stdin are preserved, including line endings and the final
 newline. `--path` and move destinations are relative to the effective task root
 and must remain discoverable. Parent directories may be created as needed.
 
-`remove ID --detach --dry-run` does not mutate files. Use the printed token with
-`remove ID --detach --plan TOKEN` to reject changes to the plan after the preview. The
-operation ID from removal can be passed to `recover rollback OPERATION`.
-Recovery verifies recorded state before modifying files.
+## Noninteractive use
+
+Kadai never prompts for missing arguments or confirmation. Commands behave the
+same in a terminal and in a pipeline. Only `add --stdin` reads task data from
+standard input. A title-only `add` creates an empty body even with piped input.
+Only `edit` launches `$EDITOR` and waits for it, so scripts using `edit` should
+configure an editor that runs unattended.
+
+`remove ID --yes` deletes an unreferenced task. Inbound references block
+deletion unless the invocation also includes `--detach`. To review and apply
+a specific set of edits from a script with `jq`, save the preview and use its
+`result.plan` token.
+
+```sh
+kadai remove 0001 --detach --dry-run --json > preview.json
+# After reviewing result.edits in preview.json
+plan=$(jq -er '.result.plan' preview.json) && kadai remove 0001 --detach --plan "$plan"
+```
+
+The dry run is read-only, even with `--yes`. A supplied token must still
+match when the writer rechecks the plan, including when `--yes` is present.
+Omit `--detach` from both commands to keep references protected.
+
+Both recovery modes require `--yes` because replaying or reversing a journal
+can remove or replace files. To undo a completed removal, use
+`kadai recover rollback OPERATION --yes` with the operation ID returned by
+`remove`. Omit the ID to select the pending operation. An explicitly empty ID
+is a usage error. Recovery verifies recorded state before modifying files. Missing
+authorization for deletion or recovery exits with code 2 before opening the project.
 
 ## List filters
 
@@ -232,6 +257,6 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-The remaining phase 6 CLI and cross-platform checks are tracked in KAD-052 through KAD-054. The
+The remaining phase 6 CLI and cross-platform checks are tracked in KAD-053 and KAD-054. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.

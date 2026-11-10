@@ -99,7 +99,23 @@ Remove_Flags :: struct {
 
 	detach:  bool   `usage:"Remove references to this task."`,
 	dry_run: bool   `usage:"Preview removal and print its plan token."`,
-	plan:    string `usage:"Require the removal plan to match this token."`,
+	plan:    string `usage:"Authorize only the removal matching this preview token."`,
+	yes:     bool   `usage:"Authorize deletion after checking inbound references."`,
+}
+
+Recover_Flags :: struct {
+	project:        string           `usage:"Select the project directory."`,
+	tasks_root:     string           `usage:"Select the task collection root."`,
+	boards_root:    string           `usage:"Select the boards directory under the task root."`,
+	id_prefix:      string           `usage:"Set the prefix for generated task IDs."`,
+	timezone:       string           `usage:"Set the project time zone."`,
+	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
+	overflow:       [dynamic]string  `args:"hidden"`,
+
+	yes: bool `usage:"Authorize applying the selected recovery operation."`,
 }
 
 Arguments :: struct {
@@ -109,7 +125,7 @@ Arguments :: struct {
 	words: []string,
 	body_file, destination, plan: string,
 	status: Maybe(string),
-	stdin, force, directory, detach, dry_run, json: bool,
+	stdin, force, directory, detach, dry_run, json, yes: bool,
 }
 
 parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.Error) {
@@ -134,6 +150,9 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	}
 	a.words = options.overflow[:]
 	a.json = options.json
+	when T == Remove_Flags || T == Recover_Flags {
+		a.yes = options.yes
+	}
 
 	when T == List_Flags {
 		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}

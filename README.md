@@ -153,7 +153,7 @@ kadai edit 0001
 
 `add --body-file PATH` and `add --stdin` preserve the supplied Markdown body. `move --directory SOURCE DEST` renames a directory after checking its contents and destination. Moves preserve frontmatter IDs.
 
-`remove ID` checks inbound parent and prerequisite references. Preview explicit detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. The removal returns an operation ID for `recover rollback OPERATION`. Use `recover resume` or `recover rollback` for an interrupted operation in the same collection.
+`remove ID --yes` deletes an unreferenced task. Preview detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. Removal returns an operation ID for `recover rollback OPERATION --yes`. For an interrupted operation in the same collection, use `recover resume --yes` or `recover rollback --yes`. These commands run without prompts. [Noninteractive use](docs/development/cli.md#noninteractive-use).
 
 Use `kadai parent add CHILD PARENT` to set a parent and `kadai parent remove CHILD` to clear it. `kadai tree` shows the hierarchy and identifies broken parent links and cycles.
 

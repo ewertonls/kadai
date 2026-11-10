@@ -67,16 +67,26 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			fmt.sbprintf(&b, "plan %s\n", preview.token)
 			return strings.to_string(b), "", .Success
 		}
+		if !a.yes && a.plan == "" {
+			return "", "remove requires --yes or --plan TOKEN to delete a task. Use --dry-run to preview", .Usage
+		}
 		operation, issue = app.remove_task(cwd, a.project, remove, a.limits)
 		output = fmt.tprintf("%s\n", operation)
 	case "recover":
 		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume or rollback and an optional operation ID", .Usage
-		id := a.words[1] if len(a.words) == 2 else ""
+		id := ""
+		if len(a.words) == 2 {
+			id = a.words[1]
+			if id == "" do return "", "recovery operation ID cannot be empty", .Usage
+		}
+		mode: app.Recovery_Mode
 		switch a.words[0] {
-		case "resume": operation, issue = app.recover_collection(cwd, a.project, .Resume, id, a.limits)
-		case "rollback": operation, issue = app.recover_collection(cwd, a.project, .Rollback, id, a.limits)
+		case "resume": mode = .Resume
+		case "rollback": mode = .Rollback
 		case: return "", "unknown recovery mode", .Usage
 		}
+		if !a.yes do return "", "recover requires --yes to apply the operation", .Usage
+		operation, issue = app.recover_collection(cwd, a.project, mode, id, a.limits)
 	case "dep":
 		if len(a.words) == 2 && a.words[0] == "show" {
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
@@ -167,6 +177,7 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
 	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)
+	case Recover_Flags: a, parse_err = parse_options(Recover_Flags, args)
 	case Help_Flags:
 		topic: Help_Flags
 		parse_err = flags.parse(&topic, args, .Unix, allocator = context.temp_allocator)
