@@ -30,6 +30,7 @@ Candidate :: struct {
 	fields: document.Task_Fields,
 	diagnostics: []yaml.Diagnostic,
 	info: os.File_Info,
+	version: string,
 }
 
 Inventory :: struct {
@@ -42,8 +43,17 @@ Inventory :: struct {
 
 @(private)
 excluded :: proc(cfg: Config, relative: string, dir: bool) -> bool {
-	name := os.base(relative)
-	if dir && (name == ".git" || name == ".kadai" || storage.within(cfg.boards, storage.child(cfg.tasks, relative))) do return true
+	if dir {
+		path := storage.child(cfg.tasks, relative)
+		name := os.base(relative)
+		if name == ".git" || name == ".kadai" || storage.within(cfg.boards, path) do return true
+		for reserved in ([]string{".git", ".kadai"}) {
+			if strings.equal_fold(name, reserved) {
+				other, err := storage.physical(storage.child(storage.slash(os.dir(path)), reserved), .Directory)
+				if err == nil && other == path do return true
+			}
+		}
+	}
 	for p in cfg.exclude {
 		if matches(p, relative, dir) do return true
 	}
@@ -73,18 +83,19 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	f, err := storage.read_file(storage.child(cfg.tasks, relative))
 	if err != nil do return os.error_string(err)
 	defer os.close(f)
-	now, stat_err := os.fstat(f, context.temp_allocator)
+	now, stat_err := storage.file_info(f)
 	if stat_err != nil || !same_identity(info, now) do return "candidate identity changed"
 	prefix: [10]byte
-	n, read_err := os.read_at(f, prefix[:], 0)
+	n, read_err := os.read(f, prefix[:])
 	if read_err != nil && read_err != .EOF do return os.error_string(read_err)
-	if !document.potential_header(string(prefix[:n])) do return ""
 	if n != int(min(now.size, i64(len(prefix)))) do return "candidate size changed"
+	if !document.potential_header(string(prefix[:n])) do return ""
 	if now.size > i64(limits.source_bytes) do return "task_source_bytes limit exceeded"
+	if _, seek_err := os.seek(f, 0, .Start); seek_err != nil do return os.error_string(seek_err)
 	source, e := storage.read_bounded(f, limits.source_bytes, context.allocator)
 	if e != nil do return os.error_string(e)
 	defer delete(source)
-	after, after_err := os.fstat(f, context.temp_allocator)
+	after, after_err := storage.file_info(f)
 	if after_err != nil || after.size != now.size || after.modification_time != now.modification_time {
 		return "candidate changed during read"
 	}
@@ -121,7 +132,7 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	}
 	if doc.status == .Non_Task do return ""
 	if (doc.status == .Boundary_Error || doc.status == .YAML_Error) && !doc.probe.matched do return ""
-	if _, add_err := append(&inv.candidates, Candidate{relative, doc.status, doc.fields, doc.diagnostics[:], now}); add_err != nil {
+	if _, add_err := append(&inv.candidates, Candidate{relative, doc.status, doc.fields, doc.diagnostics[:], now, storage.file_version(now, source)}); add_err != nil {
 		return "candidate allocation failed"
 	}
 	return ""
@@ -134,8 +145,11 @@ walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_I
 	if err != nil do return fmt.tprintf("%s: %s", path, os.error_string(err))
 	defer storage.close_dir(&dir)
 	f := dir.file
-	actual, stat_err := os.fstat(f, context.temp_allocator)
-	if stat_err != nil || !same_identity(expected, actual) do return fmt.tprintf("%s: directory changed", path)
+	actual, stat_err := storage.file_info(f)
+	if stat_err != nil || actual.type != .Directory || actual.inode == 0 ||
+	   (relative != "" || expected.inode != 0) && !same_identity(expected, actual) {
+		return fmt.tprintf("%s: directory changed", path)
+	}
 	skip, boundary_err := boundary(cfg, path)
 	if boundary_err != nil do return fmt.tprintf("%s: %s", path, os.error_string(boundary_err))
 	if skip do return ""

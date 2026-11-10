@@ -23,7 +23,7 @@ close_dir :: proc(d: ^Directory) {
 component :: proc(name: string) -> bool {
 	if !valid_path_text(name) || name == "." || name == ".." || strings.contains(name, "/") do return false
 	when ODIN_OS == .Windows {
-		if strings.contains_any(name, "\\:*?\"<>|") || os.is_reserved_name(name) ||
+		if strings.contains_any(name, "\\:*?\"<>|") || os.is_reserved_name(name) || os.is_reserved_name(strings.split_n(name, ".", 2, context.temp_allocator)[0]) ||
 		   strings.has_suffix(name, ".") || strings.has_suffix(name, " ") { return false }
 	}
 	return true

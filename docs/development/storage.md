@@ -14,3 +14,14 @@ On macOS, descriptor-based metadata copying preserves ownership, permissions, AC
 On Windows, new files use a protected owner-rights DACL. Recovery directories require the protected owner-only inheritable DACL. Replacement supports regular files whose security descriptor and backup security stream match the staged file. Alternate streams, extended attributes, unsupported file attributes and differing security descriptors cause refusal. This includes externally created files with an ACL that the staged file cannot reproduce.
 
 Transaction images and their destinations must support same-filesystem rename. Kadai refuses a change across mount points. Staging or sync failures after persistence starts can retain recovery material. Automatic pruning is deferred.
+
+
+## Coordination and restart
+
+`app.mutate_collection` acquires the native writer-domain lock before loading config and holds it while its planner scans, validates, and commits. POSIX uses an exclusive `flock` on the namespace root directory. Windows uses a global named mutex and a process mutex to prevent recursive acquisition. Domain acquisition times out after two seconds. Each writer then locks the collection's stable `.kadai/writer.lock` with `flock` or `LockFileEx`. Process exit releases the handles. Init uses the domain lock and creates no collection lock file.
+
+This serializes decisions across overlapping collections in the same local OS namespace, including decisions about different task files. The cost is that unrelated writers may also wait. Network filesystems, independent mount namespaces and independent clones are outside the coordination boundary. External editors can change a source after its final check and before rename. Readers can observe individual steps of a multi-file operation.
+
+Before publishing a change, storage syncs an immutable plan under `.kadai/recovery/<operation-id>/`. Two intent records point to its ID and SHA-256. Either surviving record blocks a new mutation. Writers check ancestors and descendant collection roots for intent, including descendants excluded from task discovery. A missing, conflicting or oversized required record causes refusal. A preparation failure before intent publication can leave unused private images. After publication, a failure may leave some changes applied.
+
+`app.recover_collection` resumes or rolls back an interrupted operation under the same locks. It validates the plan and verifies each affected path before proceeding, then rechecks each step as it runs. Rollback proceeds in reverse and records its direction durably. A later edit, a recreated destination or a corrupt snapshot stops recovery. Successful completion records a synced receipt before clearing intent. An explicit rollback of a committed operation requires its ID, receipt and matching on-disk state.

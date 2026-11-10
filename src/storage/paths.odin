@@ -60,12 +60,15 @@ directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, l
 }
 
 read_bounded :: proc(f: ^os.File, limit: int, allocator := context.temp_allocator) -> (data: []byte, err: os.Error) {
-	info := os.fstat(f, context.temp_allocator) or_return
+	info := file_info(f) or_return
 	if info.type != .Regular || info.size < 0 do return nil, .Invalid_File
 	if info.size > i64(limit) do return nil, .Short_Buffer
-	data = make([]byte, int(info.size), allocator) or_return
+	buf := make([]byte, int(info.size), allocator) or_return
+	defer if err != nil { delete(buf, allocator) }
+	data = buf
 	if len(data) > 0 {
-		_ = os.read_at_least(f, data, len(data)) or_return
+		n := os.read_full(f, data) or_return
+		if n != len(data) do return nil, .Unexpected_EOF
 	}
 	probe: [1]byte
 	n, end := os.read(f, probe[:])

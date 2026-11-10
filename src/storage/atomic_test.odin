@@ -23,8 +23,8 @@ atomic_replace_preserves_metadata_and_verified_rollback :: proc(t: ^testing.T) {
 	defer close_dir(&images)
 	f, ferr := regular(&d, "T.md")
 	if !testing.expect(t, ferr == nil) do return
-	info, _ := os.fstat(f, context.temp_allocator)
-	when ODIN_OS != .Windows { test_xattr(t, f) }
+	info, _ := file_info(f)
+	when ODIN_OS != .Windows { set_test_security_metadata(t, f) }
 	os.close(f)
 	version := file_version(info, {1, 2})
 	step, prep := prepare_step(root, &images, 0, {kind = .Replace, path = "T.md", expected = version, data = {3}}, 100)

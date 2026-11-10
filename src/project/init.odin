@@ -2,10 +2,10 @@ package project
 
 import "core:fmt"
 import "core:os"
-import "kadai:yaml"
 import "core:slice"
 import "core:strings"
 import "kadai:storage"
+import "kadai:yaml"
 
 @(private)
 initial_config :: proc(cfg: Config) -> string {
@@ -30,8 +30,12 @@ initial_config :: proc(cfg: Config) -> string {
 
 initialize :: proc(cwd: string, options := Options{}) -> (cfg: Config, problem: string) {
 	context.allocator = context.temp_allocator
+	writer, lock_err := storage.begin_writer()
+	if lock_err != nil do return {}, fmt.tprintf("writer lock: %s", os.error_string(lock_err))
+	defer storage.end_writer(&writer)
 	cfg, problem = resolve(cwd, options)
 	if problem != "" do return
+	if problem = storage.check_pending(&writer, cfg.project, DEFAULT_SCAN_LIMITS.entries); problem != "" do return
 	if cfg.existing {
 		persisted, issue := resolve(cwd, Options{project = options.project})
 		if issue != "" do return cfg, issue

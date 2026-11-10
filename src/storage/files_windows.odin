@@ -102,3 +102,12 @@ remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 
 // MoveFileExW requests write-through when publishing the name.
 sync_dir :: proc(d: ^Directory) -> os.Error { return nil }
+
+@(private)
+windows_file_id :: proc(f: ^os.File, info: ^os.File_Info) -> os.Error {
+	id: w.FILE_ID_INFO
+	if !w.GetFileInformationByHandleEx(w.HANDLE(os.fd(f)), .FileIdInfo, &id, size_of(id)) do return native_error()
+	info.device = id.VolumeSerialNumber
+	info.inode = transmute(u128)id.FileId
+	return nil
+}

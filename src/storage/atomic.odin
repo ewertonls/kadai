@@ -30,7 +30,7 @@ relative_file :: proc(path: string) -> bool {
 
 @(private)
 state :: proc(f: ^os.File, limit: int) -> (value: string, err: os.Error) {
-	info := os.fstat(f, context.temp_allocator) or_return
+	info := file_info(f) or_return
 	if info.size < 0 || info.size > i64(limit) do return "", .Short_Buffer
 	version := stream_version(f, info, limit) or_return
 	attributes := metadata(f) or_return
@@ -40,11 +40,16 @@ state :: proc(f: ^os.File, limit: int) -> (value: string, err: os.Error) {
 // "-" denotes verified absence. Every existing input must be a regular,
 // single-link file, including recovery images.
 @(private)
-entry_state :: proc(dir: ^Directory, name: string, limit: int) -> (value: string, err: os.Error) {
+entry_state :: proc(dir: ^Directory, name: string, limit: int, budget: ^i64 = nil) -> (value: string, err: os.Error) {
 	f, e := regular(dir, name, mutation = true)
 	if e == os.General_Error.Not_Exist do return "-", nil
 	if e != nil do return "", e
 	defer os.close(f)
+	if budget != nil {
+		info := file_info(f) or_return
+		if info.size < 0 || info.size > budget^ do return "", .Short_Buffer
+		budget^ -= info.size
+	}
 	return state(f, limit)
 }
 
@@ -91,7 +96,7 @@ prepare_step :: proc(root: string, images: ^Directory, slot: int, c: Change, lim
 		if version != step.before do return {}, .Invalid_File
 		bytes := read_bounded(original, limit, context.allocator) or_return
 		defer delete(bytes)
-		info := os.fstat(original, context.temp_allocator) or_return
+		info := file_info(original) or_return
 		if file_version(info, bytes) != c.expected do return {}, .Invalid_File
 		step.backup = save_image(images, image_name(slot, "original"), bytes, original, limit) or_return
 		if payload_signature(step.backup) != payload_signature(step.before) do return {}, .Invalid_File
@@ -105,6 +110,8 @@ prepare_step :: proc(root: string, images: ^Directory, slot: int, c: Change, lim
 	if c.kind == .Create || c.kind == .Replace {
 		step.after = save_image(images, image_name(slot, "next"), c.data, original, limit) or_return
 	} else if c.kind == .Move {
+		dst_dir := open_dir(slash(os.dir(child(root, c.destination))), create = true) or_return
+		close_dir(&dst_dir)
 		step.after = step.before
 	}
 	sync_dir(images) or_return
@@ -112,29 +119,36 @@ prepare_step :: proc(root: string, images: ^Directory, slot: int, c: Change, lim
 }
 
 @(private)
-apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, rollback: bool, limit: int) -> (err: os.Error) {
+apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, rollback: bool, limit: int, verify_only := false, budget: ^i64 = nil, replay := true) -> (err: os.Error) {
 	path := child(root, step.path)
 	d := open_dir(slash(os.dir(path))) or_return
 	defer close_dir(&d)
 	name := os.base(path)
+	target_dir := file_info(d.file) or_return
+	staging_dir := file_info(images.file) or_return
+	if target_dir.device != staging_dir.device do return .Unsupported
 	if step.before != "-" {
-		backup := entry_state(images, image_name(slot, "original"), limit) or_return
+		backup := entry_state(images, image_name(slot, "original"), limit, budget) or_return
 		if backup != step.backup do return .Invalid_File
 	}
 	if step.kind == .Move {
 		dst := child(root, step.destination)
-		to := open_dir(slash(os.dir(dst)), create = true) or_return
+		to := open_dir(slash(os.dir(dst))) or_return
 		defer close_dir(&to)
+		dest_info := file_info(to.file) or_return
+		if dest_info.device != target_dir.device do return .Unsupported
 		from_dir, to_dir := &d, &to
 		old, new_name := name, os.base(dst)
 		if rollback { from_dir, to_dir = to_dir, from_dir; old, new_name = new_name, old }
 		target := entry_state(to_dir, new_name, limit) or_return
 		source := entry_state(from_dir, old, limit) or_return
-		if source == "-" && target == step.before {
+		if replay && source == "-" && target == step.before {
+			if verify_only do return
 			sync_dir(to_dir) or_return
 			return sync_dir(from_dir)
 		}
 		if source != step.before || target != "-" do return .Invalid_File
+		if verify_only do return
 		publish(from_dir, old, to_dir, new_name, false) or_return
 		sync_dir(to_dir) or_return
 		return sync_dir(from_dir)
@@ -142,13 +156,19 @@ apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, roll
 	from, to, image := step.before, step.after, image_name(slot, "next")
 	if rollback { from, to, image = step.after, step.restored, image_name(slot, "restore") }
 	current := entry_state(&d, name, limit) or_return
-	if current == to || rollback && current == step.before { return sync_dir(&d) }
+	if replay && (current == to || rollback && current == step.before) {
+		if verify_only do return
+		sync_dir(&d) or_return
+		return sync_dir(images)
+	}
 	if current != from do return .Invalid_File
 	if to == "-" {
+		if verify_only do return
 		remove_entry(&d, name) or_return
 	} else {
-		staged := entry_state(images, image, limit) or_return
+		staged := entry_state(images, image, limit, budget) or_return
 		if staged != to do return .Invalid_File
+		if verify_only do return
 		// Re-open the target after reading the staged image, immediately before rename.
 		current = entry_state(&d, name, limit) or_return
 		if current != from do return .Invalid_File
