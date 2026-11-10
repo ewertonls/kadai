@@ -71,7 +71,8 @@ recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.
 	cfg, problem := project.resolve(cwd, options, limits.yaml)
 	if problem != "" do return "", problem
 	if e = storage.lock_collection(&w, cfg.tasks); e != nil do return "", os.error_string(e)
-	return storage.recover(&w, mode, operation, journal_limits(limits))
+	view := Collection{config = cfg, limits = limits}
+	return storage.recover(&w, mode, operation, journal_limits(limits), check_recovery_membership, &view)
 }
 
 @(private)

@@ -226,7 +226,7 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, befor
 	return id, os.error_string(finish(&state, &dir, .Resume, ptr))
 }
 
-recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_JOURNAL_LIMITS) -> (id, issue: string) {
+recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_JOURNAL_LIMITS, check: Recovery_Check = nil, data: rawptr = nil) -> (id, issue: string) {
 	if w.collection == nil || !domain_held(w.domain) do return "", "writer coordination required"
 	if issue = check_pending(w, w.root, l.entries, allow_own = true); issue != "" do return
 	state, e := open_dir(child(w.root, ".kadai"))
@@ -257,7 +257,9 @@ recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_J
 	image_budget := l.total_bytes
 	tx := Transaction{id, steps}
 	if issue = run_steps(w.root, &dir, tx, mode, l, true, &image_budget); issue != "" do return
-	if image_budget < l.total_bytes-image_budget do return id, "verification exceeds recovery byte limit"
+	apply_bytes := l.total_bytes-image_budget
+	if issue = check_recovery_effects(w.root, &dir, steps, mode, check, data, l, &image_budget); issue != "" do return
+	if image_budget < apply_bytes do return id, "verification exceeds recovery byte limit"
 	if ptr == "" {
 		receipt, receipt_err := control(&dir, "committed", l.record, &budget)
 		if receipt_err != nil || receipt != expected do return id, "missing commit receipt"
