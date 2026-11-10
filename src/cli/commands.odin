@@ -98,6 +98,12 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id)
 		case: return "", "unknown recovery mode", 2
 		}
+	case "parent":
+		if len(a.words) == 3 && a.words[0] == "add" {
+			_, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2])
+		} else if len(a.words) == 2 && a.words[0] == "remove" {
+			_, issue = app.set_parent(cwd, a.project, a.words[1], nil)
+		} else { return "", "expected parent add CHILD PARENT or parent remove CHILD", 2 }
 	case "move":
 		if len(a.words) != 2 do return "", "move requires a source and destination", 2
 		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory})
