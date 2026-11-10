@@ -52,6 +52,31 @@ fits_plan :: proc(count: int, l: Journal_Limits) -> bool {
 }
 
 @(private)
+file_stamp :: proc(s: string) -> bool {
+	parts := strings.split_n(s, ".", 4, context.temp_allocator)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" ||
+	   strings.trim_left(parts[0], "0123456789") != "" || strings.trim_left(parts[1], "0123456789") != "" { return false }
+	hashes := parts[2]
+	return len(hashes) == 129 && hashes[64] == ':' && hex_digest(hashes[:64]) && hex_digest(hashes[65:])
+}
+
+@(private)
+valid_stamps :: proc(s: Step) -> bool {
+	switch s.kind {
+	case .Create: return s.before == "-" && s.backup == "-" && s.restored == "-" && file_stamp(s.after)
+	case .Move_Directory:
+		valid_backup := hex_digest(s.backup) || len(s.backup) == 129 && s.backup[64] == '.' && hex_digest(s.backup[:64]) && hex_digest(s.backup[65:])
+		return hex_digest(s.before) && s.before == s.after && valid_backup && s.restored == "-"
+	case .Replace, .Delete, .Move:
+		if !file_stamp(s.before) || !file_stamp(s.backup) || payload_signature(s.before) != payload_signature(s.backup) do return false
+		if s.kind == .Move do return s.after == s.before && s.restored == "-"
+		if !file_stamp(s.restored) || payload_signature(s.before) != payload_signature(s.restored) do return false
+		return s.after == "-" if s.kind == .Delete else file_stamp(s.after)
+	}
+	unreachable()
+}
+
+@(private)
 parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, bool) {
 	input := src
 	line, _ := strings.split_iterator(&input, "\n")
@@ -62,6 +87,7 @@ parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, bool) {
 		v := strings.split_n(row, " ", 8, context.temp_allocator)
 		if len(v) != 7 || len(v[0]) != 1 || v[0][0] < '0' || v[0][0] > '4' do return nil, false
 		s := Step{kind = Change_Kind(v[0][0]-'0'), before = v[3], after = v[4], backup = v[5], restored = v[6]}
+		if !valid_stamps(s) do return nil, false
 		directory := s.kind == .Move_Directory
 		path, ok := decode_path(v[1], directory)
 		dest, valid := decode_path(v[2], directory)
@@ -204,7 +230,7 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, befor
 			tree: Tree
 			tree, err = inspect_tree(child(w.root, c.path), l, &dir, capture = true)
 			if err == nil && tree.version != c.expected do err = .Invalid_File
-			tx.steps[i] = {c.kind, c.path, c.destination, tree.version, tree.version, tree.backup, "-"}
+			tx.steps[i] = {c.kind, c.path, c.destination, tree.version, tree.version, fmt.tprintf("%s.%s", tree.backup, tree.image_digest), "-"}
 			if err == nil do err = sync_dir(&dir)
 		} else {
 			tx.steps[i], err = prepare_step(w.root, &dir, i, c, l.source)

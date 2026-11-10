@@ -19,7 +19,7 @@
         "category": "parent_self_link",
         "path": "tasks/A.md",
         "field": "parent",
-        "target_id": "A"
+        "target_id": "a"
       }
     ]
   }

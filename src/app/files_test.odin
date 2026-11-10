@@ -1,6 +1,7 @@
 #+test
 package app
 
+import "core:fmt"
 import "core:os"
 import "core:testing"
 import "kadai:project"
@@ -71,4 +72,12 @@ directory_move_preserves_members_and_guards_rollback :: proc(t: ^testing.T) {
 	_, issue = recover_collection(tmp, opts, .Rollback, op)
 	testing.expect_value(t, issue, "")
 	testing.expect(t, os.exists(extra) && !os.exists(storage.child(root, "new")))
+	report: Validation
+	report, problem = validate_project(tmp, opts)
+	if !testing.expect(t, problem == "" && report.errors == 0) do return
+	archive := storage.child(storage.child(root, ".kadai/recovery"), op)
+	name := fmt.tprintf("original-%s", storage.digest(transmute([]byte)string("note.txt")))
+	if !testing.expect(t, os.remove(storage.child(archive, name)) == nil) do return
+	report, problem = validate_project(tmp, opts)
+	testing.expect(t, problem == "" && count_finding(report, "corrupt_snapshot") == 1)
 }

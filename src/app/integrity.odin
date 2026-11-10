@@ -85,6 +85,47 @@ graph_findings :: proc(view: ^Collection) -> (out: [dynamic]Finding, issue: stri
 		if err != nil do return nil, "cannot build relationship graph"
 		components, e := graph.cycles(g)
 		if e != nil || cycle_findings(&view.index, g, components, kind, &out) != nil do return nil, "cannot inspect graph cycles"
+		if kind == .Prerequisite && completion_findings(view, g, components, &out) != nil do return nil, "cannot inspect completed prerequisites"
+	}
+	return
+}
+
+// Propagate consistency warnings through completed tasks. This never changes
+// their direct readiness or their declared status.
+@(private)
+completion_findings :: proc(view: ^Collection, g: graph.Network, c: graph.Cycles, out: ^[dynamic]Finding) -> (err: runtime.Allocator_Error) {
+	done := done_categories(view) or_return
+	warned := make([]bool, len(done)) or_return
+	queue: [dynamic]int
+	for declared, v in done {
+		if !declared || graph.readiness_at(g, c, done, v) == .Ready do continue
+		item := view.index.valid[v]
+		f := Finding{severity = .Warning, code = "completed_with_unmet_prerequisites",
+			path = item.path, id = item.fields.id, field = "depends_on", message = "Completed task has unresolved or incomplete prerequisites."}
+		for ref in item.references {
+			if ref.field != "depends_on" do continue
+			target, ok := resolve_reference(&view.index, ref.id)
+			if !ok do return .Out_Of_Memory
+			if target.status != .Resolved || category(&view.config, target.candidates[0].fields.status) != "done" {
+				f.target_id, f.location, f.related = ref.id, ref.location, target.candidates
+				break
+			}
+		}
+		warned[v] = true
+		_ = append(out, f) or_return
+		_ = append(&queue, v) or_return
+	}
+	for i := 0; i < len(queue); i += 1 {
+		v := queue[i]
+		for dependent in g.referrers[v] {
+			if !done[dependent] || warned[dependent] do continue
+			item := view.index.valid[dependent]
+			warned[dependent] = true
+			_ = append(out, Finding{severity = .Warning, code = "completed_with_unmet_prerequisites", path = item.path,
+				id = item.fields.id, field = "depends_on", target_id = view.index.valid[v].fields.id,
+				message = "A completed prerequisite has unmet prerequisites of its own."}) or_return
+			_ = append(&queue, dependent) or_return
+		}
 	}
 	return
 }

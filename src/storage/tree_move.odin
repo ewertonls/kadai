@@ -12,7 +12,23 @@ Tree_Entry :: struct {
 }
 Tree :: struct {
 	entries: [dynamic]Tree_Entry,
-	version, backup: string,
+	version, backup, image_digest: string,
+}
+
+@(private)
+Image_Stamp :: struct {name, stamp: string}
+
+@(private)
+image_set_digest :: proc(images: []Image_Stamp) -> string {
+	slice.sort_by(images, proc(a,b: Image_Stamp) -> bool { return a.name < b.name })
+	b := strings.builder_make(context.temp_allocator)
+	for image in images do fmt.sbprintf(&b, "%s %s\n", image.name, image.stamp)
+	return digest(transmute([]byte)strings.to_string(b))
+}
+
+@(private)
+tree_image_name :: proc(relative: string) -> string {
+	return fmt.tprintf("original-%s", digest(transmute([]byte)relative))
 }
 
 @(private)
@@ -59,7 +75,7 @@ sample_tree :: proc(r: ^Tree_Read, tree: ^Tree, relative: string) -> (err: os.Er
 			version := state(f, r.limits.source) or_return
 			backup := "-"
 			if r.images != nil {
-				key := fmt.tprintf("original-%s", digest(transmute([]byte)sub))
+				key := tree_image_name(sub)
 				if r.capture {
 					data := read_bounded(f, r.limits.source, context.allocator) or_return
 					defer delete(data)
@@ -83,17 +99,20 @@ inspect_tree :: proc(root: string, limits: Journal_Limits, images: ^Directory = 
 	sample_tree(&read, &tree, "") or_return
 	slice.sort_by(tree.entries[:], proc(a, b: Tree_Entry) -> bool { return a.path < b.path })
 	content, backups := strings.builder_make(context.temp_allocator), strings.builder_make(context.temp_allocator)
+	stamps := make([dynamic]Image_Stamp, context.temp_allocator) or_return
 	for entry in tree.entries {
+		if images != nil && !entry.directory { _ = append(&stamps, Image_Stamp{tree_image_name(entry.path),entry.backup}) or_return }
 		fmt.sbprintf(&content, "%d:%s %s\n", len(entry.path), entry.path, entry.version)
 		fmt.sbprintf(&backups, "%d:%s %s\n", len(entry.path), entry.path, entry.backup)
 	}
 	tree.version = digest(transmute([]byte)strings.to_string(content))
 	tree.backup = digest(transmute([]byte)strings.to_string(backups))
+	if images != nil do tree.image_digest = image_set_digest(stamps[:])
 	return
 }
 
 @(private)
-apply_tree_move :: proc(root: string, images: ^Directory, step: Step, rollback, verify_only, replay: bool, l: Journal_Limits, budget: ^i64) -> (err: os.Error) {
+apply_tree_move :: proc(root: string, images: ^Directory, step: Step, rollback, verify_only, replay: bool, l: Journal_Limits, budget: ^i64, entries: ^int = nil) -> (err: os.Error) {
 	src, dst := child(root, step.path), child(root, step.destination)
 	if rollback { src, dst = dst, src }
 	from := open_dir(slash(os.dir(src))) or_return
@@ -108,8 +127,14 @@ apply_tree_move :: proc(root: string, images: ^Directory, step: Step, rollback, 
 	already := replay && src_err == os.General_Error.Not_Exist && dst_err == nil
 	if !already && (src_err != nil || dst_err != os.General_Error.Not_Exist) do return .Invalid_File
 	live := dst if already else src
-	tree := inspect_tree(live, l, images, budget = budget) or_return
-	if tree.version != step.before || tree.backup != step.backup do return .Invalid_File
+	limits := l
+	if entries != nil do limits.entries = entries^
+	tree, tree_err := inspect_tree(live, limits, images, budget = budget)
+	if entries != nil do entries^ -= len(tree.entries)
+	if tree_err != nil do return tree_err
+	expected := tree.backup
+	if len(step.backup) != 64 do expected = fmt.tprintf("%s.%s", tree.backup, tree.image_digest)
+	if tree.version != step.before || expected != step.backup do return .Invalid_File
 	if verify_only do return
 	if !already { publish(&from, os.base(src), &to, os.base(dst), false) or_return }
 	sync_dir(&to) or_return

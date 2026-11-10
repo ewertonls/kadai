@@ -168,10 +168,10 @@ decode_fields :: proc(doc: ^Task_Document, vocabulary: task.Vocabulary, yaml_lim
 	if custom := yaml.lookup(&doc.root, "custom"); custom != nil && custom.kind != .Null {
 		if custom.kind != .Mapping {
 			field_error(doc, "custom", .Wrong_Type, custom) or_return
-		} else if key := invalid_custom_key(custom); key != nil {
-			field_error(doc, "custom", .Invalid_Key, key) or_return
 		} else {
-			doc.fields.custom = custom
+			prior := len(doc.field_errors)
+			check_custom_keys(doc, custom) or_return
+			if len(doc.field_errors) == prior do doc.fields.custom = custom
 		}
 	}
 	for &entry in doc.root.entries {
@@ -253,14 +253,15 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (
 		}
 		delete(seen)
 	}
+	first_error := len(doc.field_errors)
 	for &item in node.items {
 		if item.kind == .Mapping || item.kind == .Sequence || item.kind == .Null {
 			field_error(doc, name, .Wrong_Type, &item) or_return
-			return
+			continue
 		}
 		if !valid_item(item.text) {
 			field_error(doc, name, .Invalid_Value, &item) or_return
-			return
+			continue
 		}
 		key := item.text
 		if dependencies {
@@ -273,13 +274,14 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (
 		if key in seen {
 			if dependencies do delete(key)
 			field_error(doc, name, .Duplicate_Item, &item) or_return
-			return
+			continue
 		}
 		if _, insert_err := map_insert(&seen, key, true); insert_err != nil {
 			if dependencies { delete(key) }
 			return insert_err
 		}
 	}
+	if len(doc.field_errors) != first_error do return
 	for item in node.items {
 		_ = append(dst, item.text) or_return
 	}
@@ -287,16 +289,15 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (
 }
 
 @(private)
-invalid_custom_key :: proc(node: ^yaml.Node) -> ^yaml.Node {
+check_custom_keys :: proc(doc: ^Task_Document, node: ^yaml.Node) -> (err: runtime.Allocator_Error) {
 	for &entry in node.entries {
-		if entry.key.kind != .String || entry.key.text == "" do return &entry.key
+		valid := entry.key.kind == .String && entry.key.text != ""
 		for c in entry.key.text {
-			if unicode.is_control(c) do return &entry.key
+			if unicode.is_control(c) { valid = false; break }
 		}
-		if bad := invalid_custom_key(&entry.value); bad != nil do return bad
+		if !valid { field_error(doc, "custom", .Invalid_Key, &entry.key) or_return }
+		check_custom_keys(doc, &entry.value) or_return
 	}
-	for &item in node.items {
-		if bad := invalid_custom_key(&item); bad != nil do return bad
-	}
-	return nil
+	for &item in node.items { check_custom_keys(doc, &item) or_return }
+	return
 }

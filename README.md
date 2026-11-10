@@ -2,7 +2,7 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports task creation, reads, metadata edits, moves, removal, and recovery. Relationship commands and JSON output are scheduled in later phases.
+> **Status:** Early development. The CLI supports task creation, metadata edits, moves, removal, recovery, hierarchy, dependencies and read-only validation. JSON output is scheduled for phase 6.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 
@@ -94,7 +94,7 @@ Add whatever sections, links, or content are useful.
 
 Task IDs remain stable when files move or are renamed. The four required frontmatter keys are `kadai: task`, `id`, `title`, and `status`; the v1 defaults and validation rules are in [KAD-002](docs/specs/KAD-002-frontmatter-v1.md). User-defined metadata belongs under `custom`. Unknown top-level keys produce diagnostics; unrelated YAML and arbitrary Markdown body content must be preserved by the CLI.
 
-**Parent/child is not the same as dependency.** The reserved `parent` field will link tasks into a logical tree, with its precise schema defined in KAD-005. `depends_on: [T-002]` means T-002 must be completed first. In a dependency view, `T-002 → T-003` means T-003 is dependent on T-002.
+The `parent` field links a task to its logical parent. In the example above, `depends_on: [T-002]` means T-002 must be completed before T-003 is ready. The dependency view displays this as `T-002 -> T-003`.
 
 ### Board example
 
@@ -148,6 +148,12 @@ kadai edit 0001
 `add --body-file PATH` and `add --stdin` preserve the supplied Markdown body. `move --directory SOURCE DEST` renames a directory after checking its contents and destination. Moves preserve frontmatter IDs.
 
 `remove ID` checks inbound parent and prerequisite references. Preview explicit detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. The removal returns an operation ID for `recover rollback OPERATION`. Use `recover resume` or `recover rollback` for an interrupted operation in the same collection.
+
+Use `kadai parent add CHILD PARENT` to set a parent and `kadai parent remove CHILD` to clear it. `kadai tree` shows the hierarchy and identifies broken parent links and cycles.
+
+`kadai dep add TASK PREREQUISITE` and `kadai dep remove TASK PREREQUISITE` edit direct prerequisites. `kadai dep show ID` shows both immediate prerequisites and dependents. `kadai ready` lists actionable tasks whose prerequisites are complete. `kadai ready ID` shows an individual task's derived state as `ready`, `blocked` or `unresolved`.
+
+`kadai validate` checks the effective configuration, task files, relationships, used-ID history and recovery records. It reads existing state without creating files or making repairs. Validation exits with 1 for errors or incomplete checks and 0 for a clean result or warnings alone.
 
 ## Roadmap
 

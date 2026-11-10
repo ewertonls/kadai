@@ -28,3 +28,5 @@ Before publishing a change, storage syncs an immutable plan under `.kadai/recove
 
 
 A directory move uses one no-replace rename. The journal records the tree's relative paths, file identities, byte hashes and security metadata, including ordinary files and empty directories. Preparation saves individual pre-move file images. Resume and rollback verify the tree at the expected source or destination and refuse to move a tree containing a later edit. Nested repositories, operational state, excluded paths, links, special files, and trees beyond the invocation budgets are ineligible.
+
+Directory moves also record a checksum of the sorted recovery image names and file versions. This lets `validate` detect a missing or altered image after the live tree changes. Earlier directory journals used only a checksum based on the original relative paths. Validation reports an incomplete recovery check if those paths can no longer be reconstructed from the source or destination.

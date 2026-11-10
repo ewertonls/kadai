@@ -26,50 +26,85 @@ hex_pair :: proc(name: string) -> bool {
 }
 
 @(private)
-read_level :: proc(h: ^History, path: string, depth: int, entries: ^int, bytes: ^i64) -> string {
+Marker_Scan :: struct {
+	h: ^History,
+	entries: int,
+	bytes: i64,
+	audit: storage.State_Audit,
+}
+
+@(private)
+read_level :: proc(scan: ^Marker_Scan, path: string, depth: int) {
 	d, e := storage.open_dir(path)
-	if e == os.General_Error.Not_Exist && depth == 0 do return ""
-	if e != nil do return fmt.tprintf("%s: %s", path, os.error_string(e))
+	if e == os.General_Error.Not_Exist && depth == 0 do return
+	if e != nil {
+		storage.state_problem(&scan.audit, path, "history_incomplete", os.error_string(e), true)
+		return
+	}
 	defer storage.close_dir(&d)
-	it := os.read_directory_iterator_create(d.file)
-	defer os.read_directory_iterator_destroy(&it)
-	for fi in os.read_directory_iterator(&it) {
-		if _, err := os.read_directory_iterator_error(&it); err != nil do break
+	items, err := storage.state_entries(&d, &scan.entries)
+	if err != nil {
+		message := "history filesystem_entries limit exceeded" if err == .Short_Buffer else os.error_string(err)
+		storage.state_problem(&scan.audit, path, "history_incomplete", message, true)
+		return
+	}
+	for fi in items {
 		file := storage.child(path, fi.name)
-		if entries^ == 0 do return fmt.tprintf("%s: history filesystem_entries limit exceeded", path)
-		entries^ -= 1
 		if depth < 2 {
 			expected := fi.name == "v1" if depth == 0 else hex_pair(fi.name)
-			if !expected || fi.type != .Directory do return fmt.tprintf("%s: invalid used-ID directory", file)
-			if problem := read_level(h, file, depth+1, entries, bytes); problem != "" do return problem
+			if !expected || fi.type != .Directory {
+				storage.state_problem(&scan.audit, file, "invalid_used_id_directory", "Unexpected history version, shard or file type.")
+			} else { read_level(scan, file, depth+1) }
 			continue
 		}
 		if fi.type != .Regular || len(fi.name) != 67 || !strings.has_suffix(fi.name, ".id") {
-			return fmt.tprintf("%s: invalid used-ID marker", file)
+			storage.state_problem(&scan.audit, file, "corrupt_used_id_marker", "Invalid marker name or file type.")
+			continue
 		}
 		f, open_err := storage.regular(&d, fi.name, mutation = true)
-		if open_err != nil do return fmt.tprintf("%s: %s", file, os.error_string(open_err))
-		data, read_err := storage.read_bounded(f, int(min(i64(h.record_limit), bytes^)))
+		if open_err != nil {
+			storage.state_problem(&scan.audit, file, "history_incomplete", os.error_string(open_err), true)
+			continue
+		}
+		data, read_err := storage.read_bounded(f, int(min(i64(scan.h.record_limit), scan.bytes)))
 		os.close(f)
-		if read_err != nil do return fmt.tprintf("%s: incomplete used-ID history (%s)", file, os.error_string(read_err))
-		bytes^ -= i64(len(data))
+		if read_err != nil {
+			reason := os.error_string(read_err)
+			if read_err == .Short_Buffer { reason = "used-ID marker exceeds document or aggregate byte limit" }
+			storage.state_problem(&scan.audit, file, "history_incomplete", reason, true)
+			continue
+		}
+		scan.bytes -= i64(len(data))
 		src := string(data)
 		key := strings.trim_suffix(strings.trim_prefix(src, HEADER), "\n")
 		if !strings.has_prefix(src, HEADER) || !strings.has_suffix(src, "\n") || !task.valid_id(key) ||
-		   strings.to_lower(key) != key || storage.digest(transmute([]byte)key) != fi.name[:64] ||
-		   os.base(path) != fi.name[:2] { return fmt.tprintf("%s: corrupt used-ID marker", file) }
-		if _, err := map_insert(&h.recorded, key, true); err != nil do return "history allocation failed"
+		   strings.to_lower(key) != key || storage.digest(transmute([]byte)key) != fi.name[:64] || os.base(path) != fi.name[:2] {
+			storage.state_problem(&scan.audit, file, "corrupt_used_id_marker", "Marker contents or digest do not match its path.")
+			continue
+		}
+		if _, insert_err := map_insert(&scan.h.recorded, key, true); insert_err != nil {
+			storage.state_problem(&scan.audit, file, "history_incomplete", "history allocation failed", true)
+			return
+		}
 	}
-	if bad, err := os.read_directory_iterator_error(&it); err != nil do return fmt.tprintf("%s: %s", bad, os.error_string(err))
-	return ""
 }
 
-load :: proc(root: string, record_limit, entry_limit: int, byte_limit: i64) -> (h: History, issue: string) {
+inspect :: proc(root: string, record_limit, entry_limit: int, byte_limit: i64) -> (h: History, audit: storage.State_Audit) {
 	context.allocator = context.temp_allocator
 	h = {root = storage.child(root, ".kadai/used-ids"), record_limit = record_limit}
-	entries, bytes := entry_limit, byte_limit
-	issue = read_level(&h, h.root, 0, &entries, &bytes)
-	return
+	scan := Marker_Scan{h = &h, entries = entry_limit, bytes = byte_limit}
+	read_level(&scan, h.root, 0)
+	return h, scan.audit
+}
+
+load :: proc(root: string, record_limit, entry_limit: int, byte_limit: i64) -> (History, string) {
+	h, audit := inspect(root, record_limit, entry_limit, byte_limit)
+	if len(audit.problems) != 0 {
+		p := audit.problems[0]
+		return {}, fmt.tprintf("%s: %s: %s", p.path, p.code, p.message)
+	}
+	if audit.incomplete do return {}, "used-ID history inspection incomplete"
+	return h, ""
 }
 
 // Queue observation in memory. Persistence starts only after full preflight.

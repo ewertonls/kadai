@@ -68,6 +68,11 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
 		_, issue = app.initialize(cwd, a.project)
+	case "validate":
+		if len(a.words) != 0 do return "", "validate takes no positional arguments", 2
+		report, problem := app.validate_project(cwd, a.project)
+		if problem != "" do return "", problem, 1
+		return validation_text(report), "", 1 if report.errors != 0 else 0
 	case "ready":
 		if len(a.words) > 1 do return "", "ready accepts an optional task ID", 2
 		id: Maybe(string)
@@ -219,5 +224,5 @@ run_command :: proc(args: []string, stdout, stderr: io.Writer, stdin: io.Reader)
 		n, err := io.write_string(stdout, output)
 		if err != .None || n != len(output) { fmt.wprintf(stderr, "kadai: could not write to stdout.\n"); return 1 }
 	}
-	return 0
+	return code
 }

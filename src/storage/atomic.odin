@@ -120,7 +120,7 @@ prepare_step :: proc(root: string, images: ^Directory, slot: int, c: Change, lim
 }
 
 @(private)
-apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, rollback: bool, limit: int, verify_only := false, budget: ^i64 = nil, replay := true) -> (err: os.Error) {
+apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, rollback: bool, limit: int, verify_only := false, budget: ^i64 = nil, replay := true, live_budget: ^i64 = nil) -> (err: os.Error) {
 	path := child(root, step.path)
 	d := open_dir(slash(os.dir(path))) or_return
 	defer close_dir(&d)
@@ -141,8 +141,8 @@ apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, roll
 		from_dir, to_dir := &d, &to
 		old, new_name := name, os.base(dst)
 		if rollback { from_dir, to_dir = to_dir, from_dir; old, new_name = new_name, old }
-		target := entry_state(to_dir, new_name, limit) or_return
-		source := entry_state(from_dir, old, limit) or_return
+		target := entry_state(to_dir, new_name, limit, live_budget) or_return
+		source := entry_state(from_dir, old, limit, live_budget) or_return
 		if replay && source == "-" && target == step.before {
 			if verify_only do return
 			sync_dir(to_dir) or_return
@@ -156,7 +156,7 @@ apply_step :: proc(root: string, images: ^Directory, slot: int, step: Step, roll
 	}
 	from, to, image := step.before, step.after, image_name(slot, "next")
 	if rollback { from, to, image = step.after, step.restored, image_name(slot, "restore") }
-	current := entry_state(&d, name, limit) or_return
+	current := entry_state(&d, name, limit, live_budget) or_return
 	if replay && (current == to || rollback && current == step.before) {
 		if verify_only do return
 		sync_dir(&d) or_return
