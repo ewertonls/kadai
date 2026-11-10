@@ -53,6 +53,7 @@ open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Di
 		st: p.stat_t
 		if p.fstat(fd, &st) != .OK do return {}, native_error()
 		if st.st_uid != p.geteuid() || u32(transmute(p._mode_t)st.st_mode) & 0o077 != 0 do return {}, .Permission_Denied
+		private_directory_acl(fd) or_return
 	}
 	return Directory{path = path, file = os.new_file(uintptr(fd), path)}, nil
 }

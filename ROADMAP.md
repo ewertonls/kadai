@@ -86,7 +86,7 @@
 - [x] **KAD-026** Define path and symlink safety. _Acceptance:_ Define safe path resolution and handling for symlinks/hardlinks, root escapes and OS-specific filesystem metadata; refuse unsafe mutations.
 - [x] **KAD-027** Build a transient task index. _Acceptance:_ Build a transient ID index, quarantine all case-insensitive duplicate-ID groups (including Git merges) and retain diagnostic-only invalid candidates without choosing arbitrary winners.
 - [x] **KAD-028** Handle creates, moves, and renames. _Acceptance:_ Preserve stable IDs while changing file paths and detect destination collisions.
-- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Stage atomic replacement on the same filesystem, preserve supported ownership/mode/ACLs/xattrs or fail closed, keep private immutable pre-write recovery snapshots and test rollback/durability on all OSes.
+- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Stage atomic replacement on the same filesystem, preserve supported ownership/mode/ACLs/xattrs or fail closed, keep private immutable pre-write recovery snapshots and test rollback/durability on all OSes. _Implementation:_ [storage](docs/development/storage.md). Native macOS and Linux tests pass. Native Windows validation is pending.
 - [ ] **KAD-030** Detect concurrent edits. _Acceptance:_ Coordinate Kadai writes with collection-scoped native locks plus cross-collection coordination for shared physical files (including atomic replacement), verify identity/hash immediately before replacing, reject detected conflicts, document the residual external-editor race and test recovery.
 
 ### 4. Task domain and CRUD

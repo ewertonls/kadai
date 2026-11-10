@@ -29,7 +29,10 @@ win_open :: proc(path: string, dir, create, mutation: bool) -> (f: ^os.File, err
 		share |= w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE
 	}
 	if create { access |= w.GENERIC_WRITE; how = w.CREATE_NEW }
-	h := w.CreateFileW(wide(path), access, share, nil, how, flags, nil)
+	sa := w.SECURITY_ATTRIBUTES{nLength = size_of(w.SECURITY_ATTRIBUTES)}
+	if create { sa.lpSecurityDescriptor = owner_acl(false) or_return }
+	defer if sa.lpSecurityDescriptor != nil { w.LocalFree(sa.lpSecurityDescriptor) }
+	h := w.CreateFileW(wide(path), access, share, &sa, how, flags, nil)
 	if h == w.INVALID_HANDLE_VALUE do return nil, native_error()
 	defer if err != nil { w.CloseHandle(h) }
 	info: w.BY_HANDLE_FILE_INFORMATION
@@ -44,7 +47,7 @@ win_open :: proc(path: string, dir, create, mutation: bool) -> (f: ^os.File, err
 
 open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Directory, err: os.Error) {
 	if len(path) < 3 || path[1:3] != ":/" do return {}, .Invalid_Path
-	if private_leaf do return {}, .Unsupported
+
 	d.path = path[:3]
 	d.file = win_open(d.path, true, false, false) or_return
 	defer if err != nil { close_dir(&d) }
@@ -54,12 +57,19 @@ open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Di
 		d.path = child(d.path, part)
 		f, e := win_open(d.path, true, false, false)
 		if e == os.General_Error.Not_Exist && create {
-			if new_err := os.mkdir(d.path); new_err != nil && new_err != .Exist do return d, new_err
+			sa := w.SECURITY_ATTRIBUTES{nLength = size_of(w.SECURITY_ATTRIBUTES)}
+			if private_leaf && parts == "" { sa.lpSecurityDescriptor = owner_acl(true) or_return }
+			defer if sa.lpSecurityDescriptor != nil { w.LocalFree(sa.lpSecurityDescriptor) }
+			if !w.CreateDirectoryW(wide(d.path), &sa) && w.GetLastError() != w.ERROR_ALREADY_EXISTS do return d, native_error()
 			f, e = win_open(d.path, true, false, false)
 		}
 		if e != nil do return d, e
 		append(&d.parents, d.file)
 		d.file = f
+	}
+	if private_leaf {
+		acl := security_text(w.HANDLE(os.fd(d.file)), w.DACL_SECURITY_INFORMATION) or_return
+		if acl != "D:P(A;OICI;FA;;;OW)" do return d, .Permission_Denied
 	}
 	return
 }
