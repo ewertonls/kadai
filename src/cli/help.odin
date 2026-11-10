@@ -30,9 +30,9 @@ COMMANDS := [?]Command{
 		{"TITLE"}, {"kadai add \"Write release notes\"", "kadai add \"Review changes\" --body-file notes.md"},
 	},
 	{
-		"list", Project_Flags, "List tasks with their ID, status, title and path.",
-		"Rows are ordered by path relative to the task directory.",
-		{""}, {"kadai list --project ../my-project"},
+		"list", List_Flags, "List tasks with their ID, status, title and path.",
+		"Rows match all supplied filters and are ordered by collection-relative path.",
+		{""}, {"kadai list --status todo --directory docs", "kadai list --tag release --parent 0001"},
 	},
 	{
 		"show", Project_Flags, "Print a task's file path and Markdown contents.",

@@ -141,7 +141,7 @@ In a fresh collection, the first generated ID is `0001`. Task destinations are r
 
 ```sh
 kadai add "Implement syntax highlighting" --path editor/parser.md
-kadai list
+kadai list --status todo --directory editor
 kadai show 0001
 kadai set 0001 tags parser cli
 kadai set 0001 priority high

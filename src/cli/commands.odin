@@ -55,7 +55,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		output = strings.to_string(b)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
-		items, problem := app.list_tasks(cwd, a.project, a.limits)
+		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter)
 		if problem != "" do return "", problem, 1
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
@@ -169,6 +169,7 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	parse_err: flags.Error
 	switch command.flag_type {
 	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
+	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)

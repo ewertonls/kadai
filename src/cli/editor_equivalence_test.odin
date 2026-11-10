@@ -23,6 +23,7 @@ manual_save_between_commands :: proc(t: ^testing.T) {
 	testing.expect_value(t, invoke_cli(t, {"list", "--project", tmp}).stdout, "HAND\ttodo\tEditor title\t0001.md\n")
 	testing.expect_value(t, invoke_cli(t, {"show", "hand", "--project", tmp}).stdout, fmt.tprintf("0001.md\n%s", manual))
 	_ = invoke_cli(t, {"status", "HAND", "in_progress", "--project", tmp})
+	testing.expect_value(t, invoke_cli(t, {"list", "--project", tmp, "--status", "todo"}).stdout, "")
 	current, e := os.read_entire_file(path, context.temp_allocator)
 	expected, _ := strings.replace_all(manual, "status: todo", "status: in_progress", context.temp_allocator)
 	testing.expect(t, e == nil && string(current) == expected)

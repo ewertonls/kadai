@@ -39,6 +39,8 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"help", "missing"}, 2, "unknown command"},
 		{{"help", "add", "extra"}, 2, "extra"},
 		{{"list", "--force"}, 2, "force"},
+		{{"help", "list"}, 0, "--parent"},
+		{{"show", "0001", "--tag", "release"}, 2, "tag"},
 		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
 		{{"help", "init"}, 0, "scan_yaml_nodes"},
 		{{"add", "Title", "--body-file", "missing-body.md", "--limit=yaml_depth=0"}, 2, "--limit yaml_depth"},

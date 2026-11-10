@@ -18,6 +18,23 @@ Project_Flags :: struct {
 	overflow:       [dynamic]string  `args:"hidden"`,
 }
 
+List_Flags :: struct {
+	project:        string           `usage:"Select the project directory."`,
+	tasks_root:     string           `usage:"Select the task collection root."`,
+	boards_root:    string           `usage:"Select the boards directory under the task root."`,
+	id_prefix:      string           `usage:"Set the prefix for generated task IDs."`,
+	timezone:       string           `usage:"Set the project time zone."`,
+	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	overflow:       [dynamic]string  `args:"hidden"`,
+
+	status:    string `usage:"Match the exact stored status, including configured statuses."`,
+	directory: string `usage:"Include tasks in this collection-relative directory and its subdirectories."`,
+	tag:       string `usage:"Match one exact tag."`,
+	parent:    string `usage:"List direct children of this task ID (case-insensitive)."`,
+}
+
 Add_Flags :: struct {
 	project:        string           `usage:"Select the project directory."`,
 	tasks_root:     string           `usage:"Select the task collection root."`,
@@ -82,6 +99,7 @@ Remove_Flags :: struct {
 Arguments :: struct {
 	project: app.Project_Options,
 	limits: app.Scan_Limits,
+	list_filter: app.List_Filter,
 	words: []string,
 	body_file, destination, plan: string,
 	status: Maybe(string),
@@ -110,7 +128,9 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	}
 	a.words = options.overflow[:]
 
-	when T == Add_Flags {
+	when T == List_Flags {
+		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}
+	} else when T == Add_Flags {
 		if options.stdin && options.body_file != "" {
 			return a, flags.Validation_Error{"choose one body source: --body-file or --stdin"}
 		}

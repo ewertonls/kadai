@@ -25,7 +25,7 @@ All commands below accept the common project and resource options.
 | --- | --- |
 | `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
-| `list` | No operands. Lists valid, unambiguous tasks ordered by collection-relative path. |
+| `list` | Accepts `--status STATUS`, `--directory DIR`, `--tag TAG` and `--parent ID`. Lists tasks matching all supplied filters. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
 | `unset ID FIELD` | Remove `priority`, `due` or `tags`. Required fields cannot be unset. |
@@ -58,6 +58,26 @@ and must remain discoverable. Parent directories may be created as needed.
 `remove ID --detach --plan TOKEN` to reject changes to the plan after the preview. The
 operation ID from removal can be passed to `recover rollback OPERATION`.
 Recovery verifies recorded state before modifying files.
+
+## List filters
+
+`kadai list --status todo --directory docs` lists todo tasks in `docs/` and
+its subdirectories. Directory names are relative to the effective task root.
+Matching uses the case of the indexed path. `.` selects the whole collection.
+Relative paths are normalized lexically and must stay within the collection.
+
+`--status` matches the stored status exactly, including custom names defined
+in the project. `--tag` matches one whole tag. For example, `--tag cli` matches
+`tags: [cli, release]` and skips a task tagged only `cli/parser`.
+`--parent` selects direct children of a valid, uniquely identified task. Parent
+IDs match case-insensitively. An unknown status or unresolved parent is an
+error. A valid query with no matches succeeds with empty output.
+
+Each filter takes one value. As with other scalar options, repeating a flag
+uses its last value. Results come from the complete index of the effective
+collection, so its exclusions and duplicate-ID quarantine apply to every query.
+Rows follow ascending byte order of the full collection-relative path, with
+`/` as the separator.
 
 ## Project overrides
 
@@ -114,7 +134,7 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-List filters, refined terminal formatting, stable JSON/exit-code contracts and
-the full cross-platform workflow matrix remain KAD-048 through KAD-054. The
+Refined terminal formatting, stable JSON/exit-code contracts and
+the full cross-platform workflow matrix remain KAD-049 through KAD-054. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.

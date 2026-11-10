@@ -2,9 +2,11 @@ package app
 
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strings"
 import "kadai:project"
 import "kadai:storage"
+import "kadai:task"
 
 @(private)
 unique_task :: proc(view: ^Collection, id: string, diagnostic := false) -> (^project.Candidate, string) {
@@ -54,9 +56,59 @@ get_task :: proc(cwd: string, options: Project_Options, id: string, limits := pr
 	return
 }
 
-// The index already orders unique valid tasks by collection-relative path.
-list_tasks :: proc(cwd: string, options: Project_Options, limits := project.DEFAULT_SCAN_LIMITS) -> ([]^project.Candidate, string) {
+List_Filter :: struct {
+	status, directory, tag, parent: string,
+}
+
+@(private)
+list_directory_prefix :: proc(directory: string) -> (string, string) {
+	if directory == "" do return "", ""
+	if os.is_absolute_path(directory) || os.volume_name(directory) != "" {
+		return "", "--directory requires a collection-relative path"
+	}
+	// Compare indexed paths lexically so the filter never follows a link or changes the scan root.
+	path, clean_err := os.clean_path(directory, context.temp_allocator)
+	if clean_err != nil do return "", "cannot normalize directory filter"
+	when ODIN_OS == .Windows {
+		converted, convert_err := os.replace_path_separators(path, '/', context.temp_allocator)
+		if convert_err != nil do return "", "cannot normalize directory filter"
+		path = converted
+	}
+	if path == ".." || strings.has_prefix(path, "../") do return "", "--directory escapes the task root"
+	if path == "." do return "", ""
+	prefix, err := strings.concatenate({path, "/"}, context.temp_allocator)
+	if err != nil do return "", "cannot allocate directory filter"
+	return prefix, ""
+}
+
+list_tasks :: proc(
+	cwd: string,
+	options: Project_Options,
+	limits := project.DEFAULT_SCAN_LIMITS,
+	filter := List_Filter{},
+) -> ([]^project.Candidate, string) {
+	prefix, directory_issue := list_directory_prefix(filter.directory)
+	if directory_issue != "" do return nil, directory_issue
+	if filter.tag != "" && !task.valid_tag(filter.tag) do return nil, fmt.tprintf("invalid tag: %s", filter.tag)
 	view, issue := read_collection(cwd, options, limits)
 	if issue != "" do return nil, issue
-	return view.index.valid[:], ""
+	items := view.index.valid[:]
+	if filter == (List_Filter{}) do return items, ""
+	if filter.status != "" && !task.valid_status(filter.status, view.config.vocabulary) {
+		return nil, fmt.tprintf("unknown status: %s", filter.status)
+	}
+	if filter.parent != "" {
+		if _, problem := unique_task(&view, filter.parent); problem != "" do return nil, problem
+	}
+	// Compact this invocation's pointers in their existing collection-relative path order.
+	n := 0
+	for item in items {
+		if filter.status != "" && item.fields.status != filter.status do continue
+		if !strings.has_prefix(item.path, prefix) do continue
+		if filter.tag != "" && !slice.contains(item.fields.tags[:], filter.tag) do continue
+		if filter.parent != "" && !strings.equal_fold(item.fields.parent, filter.parent) do continue
+		items[n] = item
+		n += 1
+	}
+	return items[:n], ""
 }

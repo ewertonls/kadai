@@ -126,7 +126,7 @@
 **Depends on:** Phases 1-5. **Done when:** The documented commands pass CLI-to-file integration tests on macOS, Linux, and Windows; a tagged pre-release exists.
 
 - [x] **KAD-047** Implement core command grammar. _Acceptance:_ Expose optional init; add with `--body-file`/`--stdin`; list, show, set/status, edit, move, remove, parent, dep, tree, ready, validate; and `--project`, `--tasks-root`, `--exclude` and other KAD-003 effective-configuration overrides. _Reference:_ [Command grammar and invocation resource limits](docs/development/cli.md).
-- [ ] **KAD-048** Add basic list filters and deterministic ordering. _Acceptance:_ Filter by status, directory, tags, and parent with stable default ordering; advanced predicates and custom sort modes are KAD-080/KAD-081 (v0.1.x).
+- [x] **KAD-048** Add basic list filters and deterministic ordering. _Acceptance:_ Filter by status, directory, tags, and parent with stable default ordering; advanced predicates and custom sort modes are KAD-080/KAD-081 (v0.1.x). _Reference:_ [List filters and path order](docs/development/cli.md#list-filters).
 - [ ] **KAD-049** Make readable terminal output. _Acceptance:_ Show compact task lists, trees, dependency arrows, and clear validation messages.
 - [ ] **KAD-050** Add JSON output contracts. _Acceptance:_ Define stable ID/path/status JSON contracts plus reversible encoding (or explicit unsupported-output error) for non-JSON-safe YAML numbers, including large integers and `.nan`/`.inf`.
 - [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
