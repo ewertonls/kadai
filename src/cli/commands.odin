@@ -117,7 +117,26 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		case: return "", "unknown recovery mode", 2
 		}
 	case "dep":
-		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep add|remove TASK PREREQUISITE", 2
+		if len(a.words) == 2 && a.words[0] == "show" {
+			view, problem := app.dependencies(cwd, a.project, a.words[1])
+			if problem != "" do return "", problem, 1
+			b := strings.builder_make(context.temp_allocator)
+			id := view.task.fields.id
+			fmt.sbprintf(&b, "Prerequisites of %s (prerequisite -> dependent)\n", id)
+			if len(view.prerequisites) == 0 do strings.write_string(&b, "  (none)\n")
+			for ref in view.prerequisites {
+				if ref.status == .Resolved {
+					fmt.sbprintf(&b, "  %s -> %s\n", ref.candidates[0].fields.id, id)
+				} else {
+					fmt.sbprintf(&b, "  %s -> %s [%v]\n", ref.written_id, id, ref.status)
+				}
+			}
+			fmt.sbprintf(&b, "Dependents of %s\n", id)
+			if len(view.dependents) == 0 do strings.write_string(&b, "  (none)\n")
+			for other in view.dependents do fmt.sbprintf(&b, "  %s -> %s\n", id, other.fields.id)
+			return strings.to_string(b), "", 0
+		}
+		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", 2
 		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove")
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {

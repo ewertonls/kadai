@@ -17,7 +17,7 @@ help_text :: proc() -> string {
 	text := strings.builder_make(context.temp_allocator)
 	strings.write_string(
 		&text,
-		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n       kadai list | show ID | tree\n       kadai set ID FIELD [VALUE ...] | unset ID FIELD\n       kadai status ID STATUS [--force]\n       kadai parent add CHILD PARENT | parent remove CHILD\n       kadai dep add|remove TASK PREREQUISITE\n       kadai edit ID\n       kadai move [--directory] SOURCE DEST\n       kadai remove ID [--detach] [--dry-run] [--plan TOKEN]\n       kadai recover resume|rollback [OPERATION]\n",
+		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n       kadai list | show ID | tree\n       kadai set ID FIELD [VALUE ...] | unset ID FIELD\n       kadai status ID STATUS [--force]\n       kadai parent add CHILD PARENT | parent remove CHILD\n       kadai dep show ID | dep add|remove TASK PREREQUISITE\n       kadai edit ID\n       kadai move [--directory] SOURCE DEST\n       kadai remove ID [--detach] [--dry-run] [--plan TOKEN]\n       kadai recover resume|rollback [OPERATION]\n",
 	)
 	flags.write_usage(strings.to_writer(&text), Options, style = .Unix)
 	// Help is reserved by core:flags, so it has no field in Options.

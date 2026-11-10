@@ -26,30 +26,28 @@ reference_findings :: proc(index: ^project.Index, out: ^[dynamic]Finding) -> (er
 	for &item in index.candidates {
 		for ref in item.references {
 			parent := ref.field == "parent"
-			group, status := project.lookup(index, ref.id)
-			f := Finding{path = item.path, id = item.fields.id, field = ref.field, target_id = ref.id, location = ref.location, related = group}
+			target, ok := resolve_reference(index, ref.id)
+			if !ok do return .Out_Of_Memory
+			f := Finding{path = item.path, id = item.fields.id, field = ref.field, target_id = ref.id, location = ref.location, related = target.candidates}
 			if strings.equal_fold(item.fields.id, ref.id) {
 				f.code = "parent_self_link" if parent else "dependency_self_link"
 				f.message = "A task references itself."
 				_ = append(out, f) or_return
 			}
-			switch status {
-			case .Valid: continue
+			switch target.status {
+			case .Resolved: continue
 			case .Missing:
 				f.code = "missing_parent" if parent else "missing_prerequisite"
 				f.message = "Target is missing from this collection."
 			case .Ambiguous:
 				f.code = "ambiguous_parent" if parent else "ambiguous_prerequisite"
 				f.message = "Target ID is ambiguous."
-			case .Diagnostic_Only:
-				if group[0].status == .Unsupported_Schema {
-					f.code = "unsupported_parent" if parent else "unsupported_prerequisite"
-					f.message = "Target uses an unsupported schema."
-				} else {
-					f.code = "invalid_parent_target" if parent else "invalid_prerequisite"
-					f.message = "Target is schema-invalid."
-				}
-			case .Incomplete: return .Out_Of_Memory
+			case .Unsupported:
+				f.code = "unsupported_parent" if parent else "unsupported_prerequisite"
+				f.message = "Target uses an unsupported schema."
+			case .Invalid:
+				f.code = "invalid_parent_target" if parent else "invalid_prerequisite"
+				f.message = "Target is schema-invalid."
 			}
 			_ = append(out, f) or_return
 		}

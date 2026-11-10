@@ -67,3 +67,24 @@ rollback_cannot_restore_a_new_cycle :: proc(t: ^testing.T) {
 	_, issue = recover_collection(tmp, opts, .Rollback, op)
 	testing.expect(t, issue != "" && !os.exists(storage.child(tmp, ".kadai/pending")))
 }
+
+@(test)
+dependency_view_exposes_only_immediate_edges :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-edges-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	opts := Project_Options{tasks_root = "."}
+	for c in ([]struct {id, refs: string}{
+		{"P",""}, {"A","depends_on: [missing, p]\n"}, {"B","depends_on: [a]\n"}, {"C","depends_on: [B]\n"},
+	}) {
+		testing.expect(t, write_graph_task(tmp, fmt.tprintf("%s.md", c.id), c.id, "todo", c.refs))
+	}
+	view, issue := dependencies(tmp, opts, "a")
+	if !testing.expect_value(t, issue, "") do return
+	if !testing.expect_value(t, len(view.prerequisites), 2) do return
+	testing.expect_value(t, view.prerequisites[0].status, Target_Status.Missing)
+	testing.expect_value(t, view.prerequisites[1].written_id, "p")
+	testing.expect_value(t, view.prerequisites[1].candidates[0].fields.id, "P")
+	if !testing.expect_value(t, len(view.dependents), 1) do return
+	testing.expect_value(t, view.dependents[0].fields.id, "B")
+}

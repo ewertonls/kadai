@@ -71,3 +71,57 @@ change_dependency :: proc(cwd: string, options: Project_Options, task, prerequis
 	edit := Dependency_Edit{task, prerequisite, remove}
 	return mutate_collection(cwd, options, plan_dependency, &edit, limits)
 }
+
+Target_Status :: enum {Resolved, Missing, Ambiguous, Invalid, Unsupported}
+Target :: struct {
+	written_id: string,
+	status: Target_Status,
+	candidates: []^project.Candidate,
+}
+
+@(private)
+resolve_reference :: proc(index: ^project.Index, id: string) -> (target: Target, ok: bool) {
+	group, state := project.lookup(index, id)
+	target.written_id, target.candidates = id, group
+	switch state {
+	case .Valid: target.status = .Resolved
+	case .Missing: target.status = .Missing
+	case .Ambiguous: target.status = .Ambiguous
+	case .Diagnostic_Only: target.status = .Unsupported if group[0].status == .Unsupported_Schema else .Invalid
+	case .Incomplete: return {}, false
+	}
+	return target, true
+}
+
+Dependency_View :: struct {
+	task: ^project.Candidate,
+	prerequisites: []Target, // Retains frontmatter order, including unresolved references.
+	dependents: []^project.Candidate, // Unique valid tasks, in collection-relative path order.
+}
+
+dependencies :: proc(cwd: string, options: Project_Options, id: string, limits := project.DEFAULT_SCAN_LIMITS) -> (result: Dependency_View, issue: string) {
+	context.allocator = context.temp_allocator
+	view: Collection
+	view, issue = read_collection(cwd, options, limits)
+	if issue != "" do return
+	result.task, issue = unique_task(&view, id)
+	if issue != "" do return
+	g, e := relationship_graph(&view.index, .Prerequisite)
+	if e != nil do return {}, "cannot build dependency view"
+	refs := result.task.fields.depends_on[:]
+	result.prerequisites, e = make([]Target, len(refs))
+	if e != nil do return {}, "cannot allocate prerequisite list"
+	for ref, j in refs {
+		target, ok := resolve_reference(&view.index, ref)
+		if !ok do return {}, "cannot resolve prerequisite"
+		result.prerequisites[j] = target
+	}
+	for item, v in view.index.valid {
+		if item != result.task do continue
+		result.dependents, e = make([]^project.Candidate, len(g.referrers[v]))
+		if e != nil do return {}, "cannot allocate dependent list"
+		for from, j in g.referrers[v] do result.dependents[j] = view.index.valid[from]
+		break
+	}
+	return
+}
