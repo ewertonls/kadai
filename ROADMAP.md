@@ -97,7 +97,7 @@
 
 - [x] **KAD-031** Create tasks with unique IDs. _Acceptance:_ Reserve generated IDs durably before file creation; never reuse recorded IDs after deletion; default to `status: todo` when omitted; support title-only empty-body and `--body-file`/`--stdin`.
 - [x] **KAD-032** Get and list tasks. _Acceptance:_ Resolve a task by ID and return deterministic listing data, including path and parsed metadata.
-- [ ] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
+- [x] **KAD-033** Update core metadata. _Acceptance:_ Set/unset title, status, priority, tags, and other supported fields using the safe writer.
 - [ ] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
 - [ ] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
 - [ ] **KAD-036** Move and rename tasks. _Acceptance:_ Keep ID-based references intact when the underlying Markdown file changes path.

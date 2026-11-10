@@ -1,5 +1,6 @@
 package document
 
+import "core:slice"
 import "kadai:task"
 import "kadai:yaml"
 
@@ -90,7 +91,7 @@ Expected_Field :: struct {
 
 // A nil expectation requires the key to be absent after reparsing.
 @(private)
-Field_Expectation :: union {Expected_Field, Expected_Sequence}
+Field_Expectation :: union {Expected_Field, Expected_Sequence, []string}
 
 @(private)
 verify_field_patch :: proc(
@@ -122,6 +123,8 @@ verify_field_patch :: proc(
 		matches = node != nil && node.span == want.span && matches_value(node, want.value)
 	case Expected_Sequence:
 		matches = sequence_matches(node, want)
+	case []string:
+		matches = node != nil && node.kind == .Sequence && slice.equal(after.fields.tags[:], want)
 	}
 	if !matches || !unrelated_fields_match(before, &after, name) {
 		return yaml.diagnostic(path, "unsafe_source_patch", name, "Use an isolated field edit that preserves unrelated metadata.", loc) or_return

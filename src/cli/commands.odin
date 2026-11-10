@@ -68,6 +68,9 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
 		output = strings.to_string(b)
+	case "set", "unset":
+		if len(a.words) < 2 || a.command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
+		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = a.command == "unset"})
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", 2
 		result, problem := app.get_task(cwd, a.project, a.words[0])
