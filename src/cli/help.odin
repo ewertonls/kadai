@@ -4,6 +4,7 @@ package cli
 import "core:flags"
 import "core:fmt"
 import "core:strings"
+import "kadai:app"
 
 Help_Flags :: struct {
 	command: string `args:"pos=0,hidden"`,
@@ -148,5 +149,12 @@ command_help :: proc(command: Command) -> string {
 	for example in command.examples do fmt.sbprintf(&text, "  %s\n", example)
 	strings.write_byte(&text, '\n')
 	write_flag_help(&text, command.flag_type)
+	if command.flag_type != Help_Flags {
+		strings.write_string(&text, "\nResource budgets (--limit NAME=INTEGER):\n  Positive decimal integers; byte budgets use bytes. Each name may appear once.\n  Overrides apply only to this invocation, including init and recovery.\n\n")
+		defaults := limit_values(app.DEFAULT_SCAN_LIMITS)
+		ceilings := limit_values(app.MAX_SCAN_LIMITS)
+		fmt.sbprintf(&text, "  %-24s %12s %12s\n", "NAME", "DEFAULT", "MAXIMUM")
+		for key in Limit do fmt.sbprintf(&text, "  %-24s %12d %12d\n", LIMIT_NAMES[key], defaults[key], ceilings[key])
+	}
 	return strings.to_string(text)
 }

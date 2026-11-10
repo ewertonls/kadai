@@ -5,6 +5,9 @@ import "kadai:project"
 import "kadai:identity"
 
 Project_Options :: project.Options
+Scan_Limits :: project.Scan_Limits
+DEFAULT_SCAN_LIMITS :: project.DEFAULT_SCAN_LIMITS
+MAX_SCAN_LIMITS :: project.MAX_SCAN_LIMITS
 initialize :: project.initialize
 
 Collection :: struct {

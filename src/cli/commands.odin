@@ -12,17 +12,17 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 	switch command {
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
-		_, issue = app.initialize(cwd, a.project)
+		_, issue = app.initialize(cwd, a.project, a.limits)
 	case "validate":
 		if len(a.words) != 0 do return "", "validate takes no positional arguments", 2
-		report, problem := app.validate_project(cwd, a.project)
+		report, problem := app.validate_project(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
 		return validation_text(report), "", 1 if report.errors != 0 else 0
 	case "ready":
 		if len(a.words) > 1 do return "", "ready accepts an optional task ID", 2
 		id: Maybe(string)
 		if len(a.words) == 1 do id = a.words[0]
-		rows, problem := app.ready_tasks(cwd, a.project, id)
+		rows, problem := app.ready_tasks(cwd, a.project, id, a.limits)
 		if problem != "" do return "", problem, 1
 		b := strings.builder_make(context.temp_allocator)
 		for row in rows {
@@ -37,7 +37,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		output = strings.to_string(b)
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", 2
-		rows, problem := app.task_tree(cwd, a.project)
+		rows, problem := app.task_tree(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
 		b := strings.builder_make(context.temp_allocator)
 		for row in rows {
@@ -55,7 +55,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		output = strings.to_string(b)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", 2
-		items, problem := app.list_tasks(cwd, a.project)
+		items, problem := app.list_tasks(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, 1
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
@@ -64,14 +64,14 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		if len(a.words) != 1 do return "", "remove requires an ID", 2
 		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
 		if a.dry_run {
-			preview, problem := app.preview_removal(cwd, a.project, remove)
+			preview, problem := app.preview_removal(cwd, a.project, remove, a.limits)
 			if problem != "" do return "", problem, 1
 			b := strings.builder_make(context.temp_allocator)
 			for edit in preview.edits do fmt.sbprintf(&b, "%s\t%q\t%s\t%d..%d\n", edit.id, edit.path, edit.field, edit.span.start, edit.span.end)
 			fmt.sbprintf(&b, "plan %s\n", preview.token)
 			output = strings.to_string(b)
 		} else {
-			operation, problem := app.remove_task(cwd, a.project, remove)
+			operation, problem := app.remove_task(cwd, a.project, remove, a.limits)
 			if problem != "" do return "", problem, 1
 			output = fmt.tprintf("%s\n", operation)
 		}
@@ -79,13 +79,13 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume or rollback and an optional operation ID", 2
 		id := a.words[1] if len(a.words) == 2 else ""
 		switch a.words[0] {
-		case "resume": _, issue = app.recover_collection(cwd, a.project, .Resume, id)
-		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id)
+		case "resume": _, issue = app.recover_collection(cwd, a.project, .Resume, id, a.limits)
+		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id, a.limits)
 		case: return "", "unknown recovery mode", 2
 		}
 	case "dep":
 		if len(a.words) == 2 && a.words[0] == "show" {
-			view, problem := app.dependencies(cwd, a.project, a.words[1])
+			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, 1
 			b := strings.builder_make(context.temp_allocator)
 			id := view.task.fields.id
@@ -104,28 +104,37 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 			return strings.to_string(b), "", 0
 		}
 		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", 2
-		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove")
+		_, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {
-			_, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2])
+			_, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2], a.limits)
 		} else if len(a.words) == 2 && a.words[0] == "remove" {
-			_, issue = app.set_parent(cwd, a.project, a.words[1], nil)
+			_, issue = app.set_parent(cwd, a.project, a.words[1], nil, a.limits)
 		} else { return "", "expected parent add CHILD PARENT or parent remove CHILD", 2 }
 	case "move":
 		if len(a.words) != 2 do return "", "move requires a source and destination", 2
-		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory})
+		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", 2
-		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator))
+		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator), a.limits)
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", 2
-		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force)
+		_, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
 	case "set", "unset":
 		if len(a.words) < 2 || command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", 2
-		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = a.words[1], values = a.words[2:], unset = command == "unset", force = a.force})
+		field := a.words[1]
+		switch field {
+		case "title", "status":
+			if command == "unset" do return "", "unset supports only priority, due and tags", 2
+		case "priority", "due", "tags":
+		case: return "", fmt.tprintf("not an editable core field: %s", field), 2
+		}
+		if command == "set" && field != "tags" && len(a.words) != 3 do return "", "set requires one scalar value", 2
+		if a.force && field != "status" do return "", "force applies only to a status transition", 2
+		_, issue = app.update_task(cwd, a.project, {id = a.words[0], field = field, values = a.words[2:], unset = command == "unset", force = a.force}, a.limits)
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", 2
-		result, problem := app.get_task(cwd, a.project, a.words[0])
+		result, problem := app.get_task(cwd, a.project, a.words[0], a.limits)
 		if problem != "" do return "", problem, 1
 		if result.item.status != .Decoded {
 			b := strings.builder_make(context.temp_allocator)
@@ -139,15 +148,15 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader) -> (output
 		body := ""
 		if a.stdin {
 			if stdin.procedure == nil do return "", "stdin unavailable", 1
-			body, issue = app.read_body(stdin)
+			body, issue = app.read_body(stdin, a.limits.source_bytes)
 		} else if a.body_file != "" {
 			f, err := os.open(a.body_file)
 			if err != nil do return "", fmt.tprintf("%s: %s", a.body_file, os.error_string(err)), 1
 			defer os.close(f)
-			body, issue = app.read_body(os.to_reader(f))
+			body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
 		}
 		if issue == "" {
-			output, issue = app.create_task(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status})
+			output, issue = app.create_task(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status}, a.limits)
 			output = fmt.tprintf("%s\n", output)
 		}
 	}

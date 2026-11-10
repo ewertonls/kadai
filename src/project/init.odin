@@ -28,23 +28,27 @@ initial_config :: proc(cfg: Config) -> string {
 	return strings.to_string(b)
 }
 
-initialize :: proc(cwd: string, options := Options{}) -> (cfg: Config, problem: string) {
+initialize :: proc(cwd: string, options := Options{}, limits := DEFAULT_SCAN_LIMITS) -> (cfg: Config, problem: string) {
 	context.allocator = context.temp_allocator
+	if !valid_scan_limits(limits) do return {}, "invalid scan limits"
 	writer, lock_err := storage.begin_writer()
 	if lock_err != nil do return {}, fmt.tprintf("writer lock: %s", os.error_string(lock_err))
 	defer storage.end_writer(&writer)
-	cfg, problem = resolve(cwd, options)
+	cfg, problem = resolve(cwd, options, limits.yaml)
 	if problem != "" do return
-	if problem = storage.check_pending(&writer, cfg.project, DEFAULT_SCAN_LIMITS.entries); problem != "" do return
+	if problem = storage.check_pending(&writer, cfg.project, limits.entries); problem != "" do return
 	if cfg.existing {
-		persisted, issue := resolve(cwd, Options{project = options.project})
+		persisted, issue := resolve(cwd, Options{project = options.project}, limits.yaml)
 		if issue != "" do return cfg, issue
 		if cfg.tasks != persisted.tasks || cfg.boards != persisted.boards ||
 		   cfg.id_prefix != persisted.id_prefix || cfg.timezone != persisted.timezone ||
 		   !slice.equal(cfg.exclude, persisted.exclude) { return cfg, "init options conflict with existing .kadai.yaml" }
 	} else {
 		source := initial_config(cfg)
-		if len(source) > yaml.DEFAULT_LIMITS.bytes { return cfg, "initial config exceeds YAML byte limit" }
+		// Refuse a config that this invocation cannot read back, before creating it.
+		if _, e := yaml.parse_mapping(source, limits.yaml); e != .None {
+			return cfg, fmt.tprintf("initial config exceeds YAML limits: %v", e)
+		}
 		dir, e := storage.open_dir(cfg.project)
 		if e != nil do return cfg, os.error_string(e)
 		defer storage.close_dir(&dir)

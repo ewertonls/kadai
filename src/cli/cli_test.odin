@@ -1,10 +1,25 @@
 #+test
 package cli
 
+import "core:fmt"
+import "core:io"
 import "core:slice"
 import "core:strings"
 import "core:testing"
 import "kadai:app"
+
+@(private)
+CLI_Output :: struct {stdout, stderr: string}
+
+@(private)
+invoke_cli :: proc(t: ^testing.T, args: []string, expected := 0, stdin := io.Reader{}) -> CLI_Output {
+	out, err: strings.Builder
+	defer strings.builder_destroy(&out)
+	defer strings.builder_destroy(&err)
+	code := run(args, strings.to_writer(&out), strings.to_writer(&err), stdin)
+	testing.expect(t, code == expected, fmt.tprintf("%v: exit %d, expected %d: %s", args, code, expected, strings.to_string(err)))
+	return {strings.clone(strings.to_string(out), context.temp_allocator), strings.clone(strings.to_string(err), context.temp_allocator)}
+}
 
 @(test)
 dispatch_arguments :: proc(t: ^testing.T) {
@@ -25,16 +40,34 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"help", "add", "extra"}, 2, "extra"},
 		{{"list", "--force"}, 2, "force"},
 		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
+		{{"help", "init"}, 0, "scan_yaml_nodes"},
+		{{"add", "Title", "--body-file", "missing-body.md", "--limit=yaml_depth=0"}, 2, "--limit yaml_depth"},
 		{{"list", "--exclude", ""}, 2, "exclude"},
 		{{"list", "--clear-excludes", "--exclude", "archive/"}, 2, "--clear-excludes"},
+		{{"init", "extra"}, 2, "no positional arguments"},
+		{{"add"}, 2, "requires a title"},
+		{{"list", "extra"}, 2, "no positional arguments"},
+		{{"show"}, 2, "requires an ID"},
+		{{"set", "0001", "id", "NEW"}, 2, "not an editable core field"},
+		{{"set", "0001", "title"}, 2, "one scalar value"},
+		{{"set", "0001", "title", "too", "many"}, 2, "one scalar value"},
+		{{"set", "0001", "tags", "cli", "--force"}, 2, "force applies only"},
+		{{"unset", "0001", "status"}, 2, "unset supports only"},
+		{{"unset", "0001", "tags", "cli"}, 2, "expected an ID and field"},
+		{{"status", "0001"}, 2, "ID and status"},
+		{{"edit"}, 2, "requires an ID"},
+		{{"move", "0001"}, 2, "source and destination"},
+		{{"remove"}, 2, "requires an ID"},
+		{{"parent", "add", "0001"}, 2, "parent add CHILD PARENT"},
+		{{"dep", "add", "0001"}, 2, "dep add|remove TASK PREREQUISITE"},
+		{{"tree", "extra"}, 2, "no positional arguments"},
+		{{"ready", "0001", "0002"}, 2, "optional task ID"},
+		{{"validate", "extra"}, 2, "no positional arguments"},
+		{{"recover", "invalid"}, 2, "unknown recovery mode"},
 	}
 	for c in cases {
-		out, err: strings.Builder
-		defer strings.builder_destroy(&out)
-		defer strings.builder_destroy(&err)
-		code := run(c.args, strings.to_writer(&out), strings.to_writer(&err))
-		testing.expect_value(t, code, c.code)
-		result, other := strings.to_string(out), strings.to_string(err)
+		output := invoke_cli(t, c.args, c.code)
+		result, other := output.stdout, output.stderr
 		if c.code != 0 {
 			result, other = other, result
 		}

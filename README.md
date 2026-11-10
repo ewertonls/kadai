@@ -131,6 +131,8 @@ The CLI is the primary interface for developers and coding agents. Direct Markdo
 
 Run `kadai` for a short description of each command. Use `kadai help add` or `kadai add --help` for usage, examples and flags. Flags can appear anywhere after the command and before `--`. Both `--project DIR` and `--project=DIR` select a project. Use `--` before a positional argument that starts with a hyphen, as in `kadai add -- -draft`.
 
+The [core CLI grammar](docs/development/cli.md) documents commands, project overrides and all eight resource budgets. Use `--limit NAME=INTEGER` to override a budget for one invocation, for example `kadai validate --limit yaml_depth=64`. Invalid limits fail before input-file access; limits also govern locked writes and recovery and are never saved by `init`.
+
 Commands use the configured exclusion list by default. Supply `--exclude GLOB` once per replacement pattern, for example `kadai list --exclude 'archive/**' --exclude 'drafts/**'`. To clear the configured list, use `--clear-excludes` in place of the former `--exclude ""` syntax. Combining `--clear-excludes` with `--exclude` is an error. Kadai's mandatory internal exclusions still apply.
 
 `kadai edit ID` opens the task file in `$EDITOR` and waits for the editor process. For a GUI editor, use its wait flag, for example `EDITOR="code --wait"`. Quote paths or arguments containing spaces. Saves made in the editor appear on the next Kadai read.

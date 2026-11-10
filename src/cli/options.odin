@@ -14,6 +14,7 @@ Project_Flags :: struct {
 	timezone:       string           `usage:"Set the project time zone."`,
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 }
 
@@ -25,6 +26,7 @@ Add_Flags :: struct {
 	timezone:       string           `usage:"Set the project time zone."`,
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	status:    string `usage:"Set the initial task status."`,
@@ -41,6 +43,7 @@ Status_Flags :: struct {
 	timezone:       string           `usage:"Set the project time zone."`,
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	force: bool `usage:"Allow a blocked or unresolved task to transition to done."`,
@@ -54,6 +57,7 @@ Move_Flags :: struct {
 	timezone:       string           `usage:"Set the project time zone."`,
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	directory: bool `usage:"Move a directory within the collection."`,
@@ -67,6 +71,7 @@ Remove_Flags :: struct {
 	timezone:       string           `usage:"Set the project time zone."`,
 	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
 	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	overflow:       [dynamic]string  `args:"hidden"`,
 
 	detach:  bool   `usage:"Remove references to this task."`,
@@ -76,6 +81,7 @@ Remove_Flags :: struct {
 
 Arguments :: struct {
 	project: app.Project_Options,
+	limits: app.Scan_Limits,
 	words: []string,
 	body_file, destination, plan: string,
 	status: Maybe(string),
@@ -86,6 +92,9 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	options: T
 	err = flags.parse(&options, args, .Unix, allocator = context.temp_allocator)
 	if err != nil do return
+	problem: string
+	a.limits, problem = parse_limits(options.limit[:])
+	if problem != "" do return a, flags.Validation_Error{problem}
 
 	if options.clear_excludes && len(options.exclude) > 0 {
 		return a, flags.Validation_Error{"choose either --exclude or --clear-excludes"}
