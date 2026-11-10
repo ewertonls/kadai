@@ -138,3 +138,5 @@ copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
 	if original != copied do return .Unsupported
 	return
 }
+
+directory_metadata :: metadata

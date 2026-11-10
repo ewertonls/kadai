@@ -17,7 +17,7 @@ help_text :: proc() -> string {
 	text := strings.builder_make(context.temp_allocator)
 	strings.write_string(
 		&text,
-		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n       kadai list | show ID\n       kadai set ID FIELD [VALUE ...] | unset ID FIELD\n       kadai status ID STATUS [--force]\n       kadai edit ID\n",
+		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n       kadai list | show ID\n       kadai set ID FIELD [VALUE ...] | unset ID FIELD\n       kadai status ID STATUS [--force]\n       kadai edit ID\n       kadai move [--directory] SOURCE DEST\n",
 	)
 	flags.write_usage(strings.to_writer(&text), Options, style = .Unix)
 	// Help is reserved by core:flags, so it has no field in Options.
@@ -62,7 +62,7 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 run :: proc(args: []string, stdout, stderr: io.Writer, stdin := io.Reader{}) -> int {
 	if len(args) > 0 {
 		switch args[0] {
-		case "init", "add", "list", "show", "set", "unset", "status", "edit": return run_command(args, stdout, stderr, stdin)
+		case "init", "add", "list", "show", "set", "unset", "status", "edit", "move": return run_command(args, stdout, stderr, stdin)
 		}
 	}
 	message, ok := dispatch(args)

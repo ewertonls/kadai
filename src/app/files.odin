@@ -37,20 +37,13 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	changes: []storage.Change
 	changes, issue = plan(&view, data)
 	if issue != "" || len(changes) == 0 do return
-	for c in changes {
-		_, issue = project.task_path(view.config, c.path, c.kind == .Create)
-		if issue != "" do return
-		if c.kind == .Move {
-			_, issue = project.task_path(view.config, c.destination, true)
-			if issue != "" do return
-		}
-	}
+	if issue = validate_paths(view.config, changes); issue != "" do return
 	// A newly created directory can make a previously absent board root
 	// resolve to this spelling on a case- or normalization-insensitive volume.
 	created_parent := false
 	for c in changes {
-		if c.kind != .Move && c.kind != .Create do continue
-		path := c.destination if c.kind == .Move else c.path
+		if c.kind == .Replace || c.kind == .Delete do continue
+		path := c.path if c.kind == .Create else c.destination
 		parent := storage.slash(os.dir(storage.child(root, path)))
 		_, stat_err := os.lstat(parent, context.temp_allocator)
 		if stat_err == os.General_Error.Not_Exist {
@@ -64,12 +57,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 		cfg, problem := project.resolve(cwd, options, limits.yaml)
 		if problem != "" do return "", problem
 		if cfg.tasks != root do return "", "collection changed during destination preparation"
-		for c in changes {
-			if c.kind != .Move && c.kind != .Create do continue
-			dst := c.destination if c.kind == .Move else c.path
-			_, issue = project.task_path(cfg, dst, true)
-			if issue != "" do return
-		}
+		if issue = validate_paths(cfg, changes); issue != "" do return
 	}
 	record_ids :: proc(data: rawptr) -> string { return identity.persist((^identity.History)(data)) }
 	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history)
@@ -84,4 +72,19 @@ recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.
 	if problem != "" do return "", problem
 	if e = storage.lock_collection(&w, cfg.tasks); e != nil do return "", os.error_string(e)
 	return storage.recover(&w, mode, operation, journal_limits(limits))
+}
+
+@(private)
+validate_paths :: proc(cfg: project.Config, changes: []storage.Change) -> string {
+	for c in changes {
+		directory := c.kind == .Move_Directory
+		if _, issue := project.task_path(cfg, c.path, c.kind == .Create, directory); issue != "" do return issue
+		if c.kind == .Move || directory {
+			if _, issue := project.task_path(cfg, c.destination, true, directory); issue != "" do return issue
+		}
+		if directory {
+			if issue := project.tree_destination(cfg, c.path, c.destination, c.members); issue != "" do return issue
+		}
+	}
+	return ""
 }

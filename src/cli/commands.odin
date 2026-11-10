@@ -13,7 +13,7 @@ Arguments :: struct {
 	words: [dynamic]string,
 	body_file, destination: string,
 	status: Maybe(string),
-	stdin, force: bool,
+	stdin, force, directory: bool,
 }
 
 @(private)
@@ -26,6 +26,7 @@ parse_command :: proc(args: []string) -> (a: Arguments, problem: string) {
 		name := args[i]
 		if positional || !strings.has_prefix(name, "--") { append(&a.words, name); continue }
 		if name == "--" { positional = true; continue }
+		if name == "--directory" && a.command == "move" { a.directory = true; continue }
 		if name == "--force" && (a.command == "status" || a.command == "set") { a.force = true; continue }
 		if name == "--stdin" && a.command == "add" { a.stdin = true; continue }
 		if i+1 >= len(args) { return a, fmt.tprintf("missing value for %s", name) }
@@ -69,6 +70,9 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
 		output = strings.to_string(b)
+	case "move":
+		if len(a.words) != 2 do return "", "move requires a source and destination", 2
+		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory})
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", 2
 		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator))

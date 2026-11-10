@@ -25,10 +25,10 @@ encode_path :: proc(path: string) -> string {
 }
 
 @(private)
-decode_path :: proc(value: string) -> (path: string, valid: bool) {
+decode_path :: proc(value: string, directory := false) -> (path: string, valid: bool) {
 	if value == "-" do return "", true
 	bytes := hex.decode(transmute([]byte)value, context.temp_allocator) or_return
-	return string(bytes), relative_file(string(bytes))
+	return string(bytes), relative_file(string(bytes), directory)
 }
 
 // Flat, versioned, length-bounded ASCII records. Hex paths also support
@@ -60,11 +60,13 @@ parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, bool) {
 	for row in strings.split_iterator(&input, "\n") {
 		if !fits_plan(len(steps)+1, l) do return nil, false
 		v := strings.split_n(row, " ", 8, context.temp_allocator)
-		if len(v) != 7 || len(v[0]) != 1 || v[0][0] < '0' || v[0][0] > '3' do return nil, false
+		if len(v) != 7 || len(v[0]) != 1 || v[0][0] < '0' || v[0][0] > '4' do return nil, false
 		s := Step{kind = Change_Kind(v[0][0]-'0'), before = v[3], after = v[4], backup = v[5], restored = v[6]}
-		path, ok := decode_path(v[1])
-		dest, valid := decode_path(v[2])
-		if !ok || !valid || path == "" || (dest != "") != (s.kind == .Move) do return nil, false
+		directory := s.kind == .Move_Directory
+		path, ok := decode_path(v[1], directory)
+		dest, valid := decode_path(v[2], directory)
+		if !ok || !valid || path == "" || (dest != "") != (s.kind == .Move || directory) do return nil, false
+		if directory && (len(steps) != 0 || input != "" || within(path, dest) || within(dest, path)) do return nil, false
 		s.path, s.destination = path, dest
 		if _, err := append(&steps, s); err != nil do return nil, false
 	}
@@ -132,7 +134,14 @@ finish :: proc(state, op: ^Directory, mode: Recovery_Mode, ptr: string) -> (err:
 run_steps :: proc(root: string, dir: ^Directory, tx: Transaction, mode: Recovery_Mode, limits: Journal_Limits, dry_run: bool, budget: ^i64, replay := true) -> string {
 	for _, n in tx.steps {
 		i := len(tx.steps)-1-n if mode == .Rollback else n
-		if err := apply_step(root, dir, i, tx.steps[i], mode == .Rollback, limits.source, dry_run, budget, replay); err != nil {
+		step := tx.steps[i]
+		err: os.Error
+		if step.kind == .Move_Directory {
+			err = apply_tree_move(root, dir, step, mode == .Rollback, dry_run, replay, limits, budget)
+		} else {
+			err = apply_step(root, dir, i, step, mode == .Rollback, limits.source, dry_run, budget, replay)
+		}
+		if err != nil {
 			reason := os.error_string(err)
 			if err == .Invalid_File do reason = "file identity, contents, metadata or expected presence changed"
 			return fmt.tprintf("operation %s, step %d (%s): %s", tx.id, i+1, tx.steps[i].path, reason)
@@ -146,6 +155,13 @@ preflight :: proc(root: string, changes: []Change, l: Journal_Limits) -> string 
 	if !fits_plan(len(changes), l) || l.record < 97 do return "transaction exceeds journal limits"
 	seen := make(map[string]bool, context.temp_allocator)
 	for c in changes {
+		if c.kind == .Move_Directory {
+			if len(changes) != 1 || !relative_file(c.path, true) || !relative_file(c.destination, true) ||
+			   within(c.path, c.destination) || within(c.destination, c.path) { return "invalid directory move" }
+			_, e := os.lstat(child(root, c.destination), context.temp_allocator)
+			if e != os.General_Error.Not_Exist do return "directory destination occupied or inaccessible"
+			continue
+		}
 		if !relative_file(c.path) || len(c.data) > l.source || (c.destination != "") != (c.kind == .Move) do return "invalid change"
 		for path in ([2]string{c.path, c.destination}) {
 			if path == "" do continue
@@ -184,7 +200,15 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, befor
 	defer close_dir(&dir)
 	tx := Transaction{id, make([]Step, len(changes), context.temp_allocator)}
 	for c, i in changes {
-		tx.steps[i], err = prepare_step(w.root, &dir, i, c, l.source)
+		if c.kind == .Move_Directory {
+			tree: Tree
+			tree, err = inspect_tree(child(w.root, c.path), l, &dir, capture = true)
+			if err == nil && tree.version != c.expected do err = .Invalid_File
+			tx.steps[i] = {c.kind, c.path, c.destination, tree.version, tree.version, tree.backup, "-"}
+			if err == nil do err = sync_dir(&dir)
+		} else {
+			tx.steps[i], err = prepare_step(w.root, &dir, i, c, l.source)
+		}
 		if err != nil do return id, fmt.tprintf("preparing %s: %s", c.path, os.error_string(err))
 	}
 	plan, ok := manifest(tx.steps, l.record)

@@ -6,10 +6,10 @@ import "core:strings"
 import "kadai:storage"
 
 // Validate the entire path against the same discovery policy as scan. A
-// directory rename has different membership predicates and is not a file move.
-task_path :: proc(cfg: Config, relative: string, destination: bool) -> (path, issue: string) {
+// directory rename also checks membership for every descendant.
+task_path :: proc(cfg: Config, relative: string, destination: bool, is_directory := false) -> (path, issue: string) {
 	if relative == "" || os.is_absolute_path(relative) || strings.has_suffix(relative, "/") ||
-	   !strings.has_suffix(relative, ".md") { return "", "expected a collection-relative .md path" }
+	   !is_directory && !strings.has_suffix(relative, ".md") { return "", "expected a collection-relative task path" }
 	parts := storage.slash(relative)
 	dir := cfg.tasks
 	rel := ""
@@ -19,7 +19,7 @@ task_path :: proc(cfg: Config, relative: string, destination: bool) -> (path, is
 		path = storage.child(dir, name)
 		rel = name if rel == "" else storage.child(rel, name)
 		directory := parts != ""
-		if excluded(cfg, rel, directory) do return "", fmt.tprintf("excluded task path: %s", rel)
+		if excluded(cfg, rel, directory || is_directory) do return "", fmt.tprintf("excluded task path: %s", rel)
 		info, err := os.lstat(path, context.temp_allocator)
 		if err != nil && err != os.General_Error.Not_Exist do return "", os.error_string(err)
 		if directory {
@@ -31,9 +31,30 @@ task_path :: proc(cfg: Config, relative: string, destination: bool) -> (path, is
 			dir = path
 		} else if destination {
 			if err == nil do return "", fmt.tprintf("occupied destination: %s", rel)
-		} else if err != nil || info.type != .Regular {
+		} else if err != nil || info.type != (.Directory if is_directory else .Regular) {
 			return "", fmt.tprintf("missing or unsafe source: %s", rel)
 		}
 	}
 	return
+}
+
+// Compare membership on both sides of a directory rename, including empty
+// directories. Refuse a tree crossing an exclusion or a nested project.
+tree_destination :: proc(cfg: Config, src, dst: string, members: []storage.Tree_Entry) -> string {
+	for entry in members {
+		for root in ([2]string{src, dst}) {
+			path := root if entry.path == "" else storage.child(root, entry.path)
+			if excluded(cfg, path, entry.directory) do return fmt.tprintf("excluded path in directory move: %s", path)
+			if entry.directory {
+				if root == src {
+					skip, e := boundary(cfg, storage.child(cfg.tasks, path))
+					if skip || e != nil do return fmt.tprintf("discovery boundary in directory move: %s", path)
+				} else if strings.equal_fold(storage.child(cfg.tasks, path), cfg.boards) ||
+				          strings.equal_fold(os.base(path), ".kadai") || strings.equal_fold(os.base(path), ".git") {
+					return fmt.tprintf("reserved directory destination: %s", path)
+				}
+			}
+		}
+	}
+	return ""
 }

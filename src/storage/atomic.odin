@@ -4,12 +4,13 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
-Change_Kind :: enum {Create, Replace, Delete, Move}
+Change_Kind :: enum {Create, Replace, Delete, Move, Move_Directory}
 Change :: struct {
 	kind: Change_Kind,
 	path, destination: string, // Collection-relative. destination is used only by Move.
 	expected: string, // Physical file identity and SHA-256 from the decision read.
 	data: []byte,
+	members: []Tree_Entry, // Directory membership captured by the planner.
 }
 
 Step :: struct {
@@ -19,13 +20,13 @@ Step :: struct {
 }
 
 @(private)
-relative_file :: proc(path: string) -> bool {
+relative_file :: proc(path: string, directory := false) -> bool {
 	if path == "" || os.is_absolute_path(path) || strings.has_suffix(path, "/") do return false
 	parts := path
 	for part in strings.split_iterator(&parts, "/") {
 		if !component(part) || part == ".kadai" || part == ".git" do return false
 	}
-	return strings.has_suffix(path, ".md")
+	return directory || strings.has_suffix(path, ".md")
 }
 
 @(private)

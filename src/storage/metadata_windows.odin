@@ -88,3 +88,9 @@ copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
 	if a != b do return .Unsupported
 	return
 }
+
+@(private)
+directory_metadata :: proc(f: ^os.File) -> (signature: string, err: os.Error) {
+	sd := security_text(w.HANDLE(os.fd(f)), w.OWNER_SECURITY_INFORMATION | w.GROUP_SECURITY_INFORMATION | w.DACL_SECURITY_INFORMATION | w.LABEL_SECURITY_INFORMATION) or_return
+	return digest(transmute([]byte)sd), nil
+}
