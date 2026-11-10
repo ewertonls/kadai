@@ -48,13 +48,13 @@ json_projection :: proc{
 	json_validation, json_preview, json_summary, json_receipt,
 }
 
-json_result :: proc(value: $T, code := 0) -> (string, string, int) {
+json_result :: proc(value: $T, code := Exit_Code.Success) -> (string, string, Exit_Code) {
 	context.allocator = context.temp_allocator
 	b := strings.builder_make(context.temp_allocator)
 	w := strings.to_writer(&b)
 	err := write_json_value(w, json.Object{"version" = i64(1), "result" = json_projection(value)})
-	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", 1
-	if err != .None || io.write_byte(w, '\n') != .None do return "", "cannot encode JSON response", 1
+	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", .Output_Failed
+	if err != .None || io.write_byte(w, '\n') != .None do return "", "cannot encode JSON response", .Output_Failed
 	return strings.to_string(b), "", code
 }
 

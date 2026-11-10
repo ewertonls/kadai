@@ -45,30 +45,44 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 	return "no operation selected", false
 }
 
+// These values are part of the shell contract in docs/development/cli.md.
 @(private)
-write_stdout :: proc(message: string, stdout, stderr: io.Writer, completed := "") -> int {
+Exit_Code :: enum int {
+	Success = 0,
+	Failure = 1,
+	Usage = 2,
+	Task_Not_Found = 3,
+	Ambiguous_Task = 4,
+	Write_Incomplete = 5,
+	Completed_Response_Failed = 6,
+	Output_Failed = 7,
+}
+
+@(private)
+diagnose :: proc(stderr: io.Writer, code: Exit_Code, message: string) -> Exit_Code {
+	// stderr is best effort. Its availability cannot change the command outcome.
+	fmt.wprintf(stderr, "kadai: error: %s\n", message)
+	return code
+}
+
+@(private)
+write_stdout :: proc(message: string, stdout, stderr: io.Writer, completed := "") -> Exit_Code {
 	n, err := io.write_string(stdout, message)
-	if err != .None || n != len(message) {
-		if completed != "" {
-			fmt.wprintf(stderr, "kadai: %s, but could not write the response to stdout.\n", completed)
-		} else {
-			_, _ = io.write_string(stderr, "kadai: could not write to stdout.\n")
-		}
-		return 1
+	if err == .None && n == len(message) do return .Success
+	if completed != "" {
+		return diagnose(stderr, .Completed_Response_Failed, fmt.tprintf("%s, but could not write the response to stdout", completed))
 	}
-	return 0
+	return diagnose(stderr, .Output_Failed, "could not write to stdout")
 }
 
 run :: proc(args: []string, stdout, stderr: io.Writer, stdin := io.Reader{}) -> int {
 	if len(args) > 0 {
 		if command, ok := find_command(args[0]); ok {
-			return run_command(command, args[1:], stdout, stderr, stdin)
+			return int(run_command(command, args[1:], stdout, stderr, stdin))
 		}
 	}
 	message, ok := dispatch(args)
-	if ok do return write_stdout(message, stdout, stderr)
+	if ok do return int(write_stdout(message, stdout, stderr))
 
-	message = fmt.tprintf("kadai: %s. See 'kadai --help'.\n", message)
-	n, err := io.write_string(stderr, message)
-	return 2 if err == .None && n == len(message) else 1
+	return int(diagnose(stderr, .Usage, fmt.tprintf("%s. See 'kadai --help'.", message)))
 }

@@ -159,7 +159,7 @@ Use `kadai parent add CHILD PARENT` to set a parent and `kadai parent remove CHI
 
 `kadai dep add TASK PREREQUISITE` and `kadai dep remove TASK PREREQUISITE` edit direct prerequisites. `kadai dep show ID` shows both immediate prerequisites and dependents. `kadai ready` lists actionable tasks whose prerequisites are complete. `kadai ready ID` shows an individual task's derived state as `ready`, `blocked` or `unresolved`.
 
-`kadai validate` checks the effective configuration, task files, relationships, used-ID history and recovery records. It reads existing state without creating files or making repairs. Validation exits with 1 for errors or incomplete checks and 0 for a clean result or warnings alone.
+`kadai validate` checks the effective configuration, task files, relationships, used-ID history and recovery records. It reads existing state without creating files or making repairs. Validation exits with 1 for errors or incomplete checks and 0 for a clean result or warnings alone. Scripts can distinguish missing or ambiguous IDs, incomplete writes, and response failures using the [CLI exit codes](docs/development/cli.md#exit-codes-and-streams).
 
 ## Roadmap
 

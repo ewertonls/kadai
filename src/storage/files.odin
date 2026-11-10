@@ -49,7 +49,7 @@ write_sync :: proc(f: ^os.File, data: []byte) -> (err: os.Error) {
 }
 
 // Publish a complete file without replacing any destination entry.
-create_file :: proc(d: ^Directory, name: string, data: []byte) -> (err: os.Error) {
+create_file :: proc(d: ^Directory, name: string, data: []byte, published: ^bool = nil) -> (err: os.Error) {
 	if !component(name) do return .Invalid_Path
 	tmp := random_name(".kadai-stage-")
 	f := create_regular(d, tmp) or_return
@@ -59,5 +59,6 @@ create_file :: proc(d: ^Directory, name: string, data: []byte) -> (err: os.Error
 	if err != nil do return err
 	if close_err != nil do return close_err
 	publish(d, tmp, d, name, false) or_return
+	if published != nil do published^ = true
 	return sync_dir(d)
 }

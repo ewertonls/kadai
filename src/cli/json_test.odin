@@ -49,7 +49,7 @@ json_creation_distinguishes_rejection_from_delivery_failure :: proc(t: ^testing.
 	root, e := os.mkdir_temp("", "kadai-json-write-", context.temp_allocator)
 	if !testing.expect(t, e == nil) do return
 	defer os.remove_all(root)
-	refused := invoke_cli(t, {"add", "First", "--path", "bad\xff.md", "--json", "--project", root}, 1)
+	refused := invoke_cli(t, {"add", "First", "--path", "bad\xff.md", "--json", "--project", root}, 7)
 	testing.expect_value(t, refused.stdout, "")
 	testing.expect(t, strings.contains(refused.stderr, "unsupported_output"))
 	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks", root)))
@@ -57,7 +57,7 @@ json_creation_distinguishes_rejection_from_delivery_failure :: proc(t: ^testing.
 	err: strings.Builder
 	defer strings.builder_destroy(&err)
 	code := run({"add", "First", "--json", "--project", root}, {}, strings.to_writer(&err))
-	testing.expect_value(t, code, 1)
+	testing.expect_value(t, code, 6)
 	testing.expect(t, strings.contains(strings.to_string(err), "created task 0001"))
 	testing.expect(t, os.exists(fmt.tprintf("%s/tasks/0001.md", root)))
 }

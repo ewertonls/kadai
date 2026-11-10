@@ -111,7 +111,7 @@ odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -
 ./kadai --help
 ```
 
-On Windows, run `.\kadai.exe --help`. Use `--version` to print the version. The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. If the CLI detects an output write failure, it exits with status 1.
+On Windows, run `.\kadai.exe --help`. Use `--version` to print the version. The CLI uses Odin's `core:flags` Unix-style parser. Running without arguments or with `-h` also prints help. These invocations write to stdout and exit with status 0. Invalid arguments or multiple options produce a diagnostic on stderr and exit with status 2. A failed stdout write returns 7 for a read or 6 after a successful mutation. See the [exit-code contract](cli.md#exit-codes-and-streams).
 
 Run `kadai init` to initialize the selected project. The CLI uses LibYAML to validate project configuration.
 

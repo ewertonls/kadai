@@ -3,6 +3,7 @@ package cli
 
 import "core:fmt"
 import "core:io"
+import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:testing"
@@ -106,6 +107,49 @@ stdout_write_failure :: proc(t: ^testing.T) {
 	err: strings.Builder
 	defer strings.builder_destroy(&err)
 	code := run({"--version"}, {}, strings.to_writer(&err))
-	testing.expect_value(t, code, 1)
+	testing.expect_value(t, code, 7)
+	// A closed diagnostic stream still leaves a script the argument error.
+	testing.expect_value(t, run({"--unknown"}, {}, {}), 2)
 	testing.expect(t, strings.contains(strings.to_string(err), "stdout"))
+}
+
+// The same lookup must report ambiguity in either format. In JSON mode even
+// an explicit symlink warning on a successful scan belongs on stderr.
+@(test)
+lookup_exit_status_and_warning_stream :: proc(t: ^testing.T) {
+	project := fmt.tprintf("%s/../../tests/fixtures/v1/cases/identity/duplicate-id-repair-needs-reference-choice/input/project", #directory)
+	invalid := invoke_cli(t, {"show", "bad id", "--project", project}, 1)
+	testing.expect(t, strings.contains(invalid.stderr, "invalid task ID"))
+	when ODIN_OS != .Windows {
+		tmp, err := os.mkdir_temp("", "kadai-streams-", context.temp_allocator)
+		if !testing.expect(t, err == nil) do return
+		defer os.remove_all(tmp)
+		alias := fmt.tprintf("%s/alias", tmp)
+		if !testing.expect(t, os.symlink(project, alias) == nil) do return
+		list := invoke_cli(t, {"list", "--json", "--project", alias})
+		_ = parse_result(t, list.stdout)
+		testing.expect(t, strings.has_prefix(list.stderr, "kadai: warning: ") && strings.contains(list.stderr, "alias"))
+	}
+	for args in ([][]string{{"show", "dup", "--project", project}, {"list", "--parent", "dup", "--json", "--project", project}}) {
+		out := invoke_cli(t, args, 4)
+		testing.expect_value(t, out.stdout, "")
+		testing.expect(t, strings.contains(out.stderr, "ambiguous task ID"))
+	}
+}
+
+// A journal can survive a failure while preparing the task write.
+// Conversely, a caller can supply an operation ID to a recovery that never wrote.
+@(test)
+incomplete_write_exit_tracks_filesystem_effects :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-write-exit-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	recovery := fmt.tprintf("%s/tasks/.kadai/recovery", tmp)
+	_ = invoke_cli(t, {"add", "T", "--project", tmp, "--limit=yaml_document_bytes=96"}, 1)
+	_ = invoke_cli(t, {"recover", "rollback", "ffffffffffffffffffffffffffffffff", "--project", tmp}, 1)
+	testing.expect(t, !os.exists(recovery))
+	out := invoke_cli(t, {"add", "T", "--json", "--project", tmp, "--limit=yaml_document_bytes=100"}, 5)
+	testing.expect_value(t, out.stdout, "")
+	testing.expect(t, strings.contains(out.stderr, "operation ") && strings.contains(out.stderr, "journal exceeds byte limit"), out.stderr)
+	testing.expect(t, os.exists(recovery) && !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
 }

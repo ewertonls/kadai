@@ -131,6 +131,7 @@ help_text :: proc() -> string {
 	for command in COMMANDS do fmt.sbprintf(&text, "  %-*s  %s\n", width, command.name, command.summary)
 	strings.write_string(&text, "\n")
 	write_flag_help(&text, Options)
+	strings.write_string(&text, "\nExit codes:\n  0 success, 1 command or validation failure, 2 invalid invocation\n  3 missing task ID, 4 ambiguous task ID, 5 incomplete write\n  6 response failed after a successful mutation, 7 other output failure\n")
 	strings.write_string(&text, "\nFor command help, run 'kadai help COMMAND' or 'kadai COMMAND --help'.\n")
 	return strings.to_string(text)
 }

@@ -21,7 +21,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	if e != nil do return "", fmt.tprintf("writer lock: %s", os.error_string(e))
 	defer storage.end_writer(&w)
 	view: Collection
-	view.limits = limits
+	view.limits, view.report = limits, options.report
 	view.config, issue = project.resolve(cwd, options, limits.yaml)
 	if issue != "" do return
 	root := view.config.tasks
@@ -40,6 +40,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	if issue = validate_paths(view.config, changes); issue != "" do return
 	// A newly created directory can make a previously absent board root
 	// resolve to this spelling on a case- or normalization-insensitive volume.
+	started := project.write_progress(options)
 	created_parent := false
 	for c in changes {
 		if c.kind == .Replace || c.kind == .Delete do continue
@@ -47,7 +48,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 		parent := storage.slash(os.dir(storage.child(root, path)))
 		_, stat_err := os.lstat(parent, context.temp_allocator)
 		if stat_err == os.General_Error.Not_Exist {
-			dir, open_err := storage.open_dir(parent, create = true)
+			dir, open_err := storage.open_dir(parent, create = true, created = started)
 			if open_err != nil do return "", os.error_string(open_err)
 			storage.close_dir(&dir)
 			created_parent = true
@@ -60,7 +61,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 		if issue = validate_paths(cfg, changes); issue != "" do return
 	}
 	record_ids :: proc(data: rawptr) -> string { return identity.persist((^identity.History)(data)) }
-	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history)
+	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history, started)
 }
 
 recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.Recovery_Mode, operation := "", limits := project.DEFAULT_SCAN_LIMITS) -> (id, issue: string) {
@@ -71,8 +72,8 @@ recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.
 	cfg, problem := project.resolve(cwd, options, limits.yaml)
 	if problem != "" do return "", problem
 	if e = storage.lock_collection(&w, cfg.tasks); e != nil do return "", os.error_string(e)
-	view := Collection{config = cfg, limits = limits}
-	return storage.recover(&w, mode, operation, journal_limits(limits), check_recovery_membership, &view)
+	view := Collection{config = cfg, limits = limits, report = options.report}
+	return storage.recover(&w, mode, operation, journal_limits(limits), check_recovery_membership, &view, project.write_progress(options))
 }
 
 @(private)

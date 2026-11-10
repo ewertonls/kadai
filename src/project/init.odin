@@ -37,6 +37,7 @@ initialize :: proc(cwd: string, options := Options{}, limits := DEFAULT_SCAN_LIM
 	cfg, problem = resolve(cwd, options, limits.yaml)
 	if problem != "" do return
 	if problem = storage.check_pending(&writer, cfg.project, limits.entries); problem != "" do return
+	started := write_progress(options)
 	if cfg.existing {
 		persisted, issue := resolve(cwd, Options{project = options.project}, limits.yaml)
 		if issue != "" do return cfg, issue
@@ -52,9 +53,9 @@ initialize :: proc(cwd: string, options := Options{}, limits := DEFAULT_SCAN_LIM
 		dir, e := storage.open_dir(cfg.project)
 		if e != nil do return cfg, os.error_string(e)
 		defer storage.close_dir(&dir)
-		if e = storage.create_file(&dir, ".kadai.yaml", transmute([]byte)source); e != nil do return cfg, os.error_string(e)
+		if e = storage.create_file(&dir, ".kadai.yaml", transmute([]byte)source, published = started); e != nil do return cfg, os.error_string(e)
 	}
-	dir, err := storage.open_dir(cfg.tasks, create = true)
+	dir, err := storage.open_dir(cfg.tasks, create = true, created = started)
 	if err != nil do return cfg, os.error_string(err)
 	storage.close_dir(&dir)
 	return

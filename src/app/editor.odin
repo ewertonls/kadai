@@ -90,6 +90,7 @@ edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, lim
 		append(&command, storage.child(view.config.tasks, item.path))
 		process, err = os.process_start({command = command[:], working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
 		if err != nil do return fmt.tprintf("launching %s: %s", exe, os.error_string(err))
+		if options.report != nil do options.report.write_started = true // The editor now owns its saves.
 	}
 	state, e := os.process_wait(process)
 	if e != nil do return fmt.tprintf("waiting for editor: %s", os.error_string(e))

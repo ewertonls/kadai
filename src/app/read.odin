@@ -16,9 +16,13 @@ unique_task :: proc(view: ^Collection, id: string, diagnostic := false) -> (^pro
 	case .Diagnostic_Only:
 		if diagnostic do return group[0], ""
 		return nil, fmt.tprintf("%s: task %s requires repair (%v)", group[0].path, id, group[0].status)
-	case .Missing: return nil, fmt.tprintf("unknown task ID: %s", id)
+	case .Missing:
+		if !task.valid_id(id) do return nil, fmt.tprintf("invalid task ID: %q", id)
+		if view.report != nil do view.report.lookup_failure = .Missing
+		return nil, fmt.tprintf("unknown task ID: %s", id)
 	case .Incomplete: return nil, "incomplete task index"
 	case .Ambiguous:
+		if view.report != nil do view.report.lookup_failure = .Ambiguous
 		paths := strings.builder_make(context.temp_allocator)
 		fmt.sbprintf(&paths, "ambiguous task ID %s:", id)
 		for c in group do fmt.sbprintf(&paths, " %s", c.path)

@@ -45,7 +45,7 @@ win_open :: proc(path: string, dir, create, mutation: bool) -> (f: ^os.File, err
 	return os.new_file(uintptr(h), path), nil
 }
 
-open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Directory, err: os.Error) {
+open_dir :: proc(path: string, create := false, private_leaf := false, created: ^bool = nil) -> (d: Directory, err: os.Error) {
 	if len(path) < 3 || path[1:3] != ":/" do return {}, .Invalid_Path
 
 	d.path = path[:3]
@@ -60,7 +60,9 @@ open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Di
 			sa := w.SECURITY_ATTRIBUTES{nLength = size_of(w.SECURITY_ATTRIBUTES)}
 			if private_leaf && parts == "" { sa.lpSecurityDescriptor = owner_acl(true) or_return }
 			defer if sa.lpSecurityDescriptor != nil { w.LocalFree(sa.lpSecurityDescriptor) }
-			if !w.CreateDirectoryW(wide(d.path), &sa) && w.GetLastError() != w.ERROR_ALREADY_EXISTS do return d, native_error()
+			if w.CreateDirectoryW(wide(d.path), &sa) {
+				if created != nil do created^ = true
+			} else if w.GetLastError() != w.ERROR_ALREADY_EXISTS { return d, native_error() }
 			f, e = win_open(d.path, true, false, false)
 		}
 		if e != nil do return d, e

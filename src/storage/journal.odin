@@ -118,11 +118,11 @@ valid_token :: proc(id: string) -> bool {
 }
 
 @(private)
-op_directory :: proc(root, id: string, create: bool) -> (dir: Directory, err: os.Error) {
+op_directory :: proc(root, id: string, create: bool, created: ^bool = nil) -> (dir: Directory, err: os.Error) {
 	if !valid_token(id) do return {}, .Invalid_Path
-	vault := open_dir(child(root, ".kadai/recovery"), create, true) or_return
+	vault := open_dir(child(root, ".kadai/recovery"), create, true, created) or_return
 	defer close_dir(&vault)
-	return open_dir(child(vault.path, id), create, true)
+	return open_dir(child(vault.path, id), create, true, created)
 }
 
 @(private)
@@ -133,9 +133,9 @@ pointer :: proc(id, plan: string) -> string {
 // Publish redundant, independent intent records before the first visible
 // change. Either record is sufficient to block a writer and find the journal.
 @(private)
-arm :: proc(state: ^Directory, ptr: string) -> (err: os.Error) {
+arm :: proc(state: ^Directory, ptr: string, started: ^bool = nil) -> (err: os.Error) {
 	for name in ([]string{"intent", "pending"}) {
-		create_file(state, name, transmute([]byte)ptr) or_return
+		create_file(state, name, transmute([]byte)ptr, published = started) or_return
 	}
 	return
 }
@@ -213,7 +213,7 @@ preflight :: proc(root: string, changes: []Change, l: Journal_Limits) -> string 
 	return ""
 }
 
-commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, before_intent: proc(rawptr) -> string = nil, data: rawptr = nil) -> (id, issue: string) {
+commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, before_intent: proc(rawptr) -> string = nil, data: rawptr = nil, started: ^bool = nil) -> (id, issue: string) {
 	if w.collection == nil || !domain_held(w.domain) do return "", "writer coordination required"
 	if issue = check_pending(w, w.root, l.entries); issue != "" do return
 	if issue = preflight(w.root, changes, l); issue != "" do return
@@ -221,9 +221,10 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, befor
 	if e != nil do return "", os.error_string(e)
 	defer close_dir(&state)
 	id = random_name("")
-	dir, err := op_directory(w.root, id, true)
+	dir, err := op_directory(w.root, id, true, started)
 	if err != nil do return id, os.error_string(err)
 	defer close_dir(&dir)
+	if started != nil do started^ = true // Preparing recovery snapshots for this write.
 	tx := Transaction{id, make([]Step, len(changes), context.temp_allocator)}
 	for c, i in changes {
 		if c.kind == .Move_Directory {
@@ -252,7 +253,7 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, befor
 	return id, os.error_string(finish(&state, &dir, .Resume, ptr))
 }
 
-recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_JOURNAL_LIMITS, check: Recovery_Check = nil, data: rawptr = nil) -> (id, issue: string) {
+recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_JOURNAL_LIMITS, check: Recovery_Check = nil, data: rawptr = nil, started: ^bool = nil) -> (id, issue: string) {
 	if w.collection == nil || !domain_held(w.domain) do return "", "writer coordination required"
 	if issue = check_pending(w, w.root, l.entries, allow_own = true); issue != "" do return
 	state, e := open_dir(child(w.root, ".kadai"))
@@ -289,7 +290,7 @@ recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_J
 	if ptr == "" {
 		receipt, receipt_err := control(&dir, "committed", l.record, &budget)
 		if receipt_err != nil || receipt != expected do return id, "missing commit receipt"
-		if err = arm(&state, expected); err != nil do return id, os.error_string(err)
+		if err = arm(&state, expected, started); err != nil do return id, os.error_string(err)
 	}
 	// Once rollback starts, a restart can only continue it.
 	direction, direction_err := control(&dir, "rollback", l.record, &budget)
@@ -297,8 +298,9 @@ recover :: proc(w: ^Writer, mode: Recovery_Mode, operation := "", l := DEFAULT_J
 		if direction != expected || mode != .Rollback do return id, "rollback already in progress"
 	} else if direction_err != os.General_Error.Not_Exist { return id, os.error_string(direction_err) }
 	if mode == .Rollback && direction_err != nil {
-		if err = create_file(&dir, "rollback", transmute([]byte)expected); err != nil do return id, os.error_string(err)
+		if err = create_file(&dir, "rollback", transmute([]byte)expected, published = started); err != nil do return id, os.error_string(err)
 	}
+	if started != nil do started^ = true // Replay can now change live files.
 	if issue = run_steps(w.root, &dir, tx, mode, l, false, &image_budget); issue != "" do return
 	return id, os.error_string(finish(&state, &dir, mode, expected))
 }

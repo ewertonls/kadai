@@ -28,7 +28,7 @@ native_error :: proc() -> os.Error {
 @(private)
 cs :: proc(s: string) -> cstring { return strings.clone_to_cstring(s, context.temp_allocator) }
 
-open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Directory, err: os.Error) {
+open_dir :: proc(path: string, create := false, private_leaf := false, created: ^bool = nil) -> (d: Directory, err: os.Error) {
 	if !strings.has_prefix(path, "/") do return {}, .Invalid_Path
 	fd := p.open("/", {.DIRECTORY, .CLOEXEC})
 	if fd < 0 do return {}, native_error()
@@ -41,7 +41,9 @@ open_dir :: proc(path: string, create := false, private_leaf := false) -> (d: Di
 		next := p.openat(fd, part, flags)
 		if next < 0 && p.errno() == .ENOENT && create {
 			mode := transmute(p.mode_t)p._mode_t(0o700 if private_leaf && parts == "" else 0o755)
-			if p.mkdirat(fd, part, mode) != .OK && p.errno() != .EEXIST do return {}, native_error()
+			if p.mkdirat(fd, part, mode) == .OK {
+				if created != nil do created^ = true
+			} else if p.errno() != .EEXIST { return {}, native_error() }
 			if p.fsync(fd) != .OK do return {}, native_error()
 			next = p.openat(fd, part, flags)
 		}

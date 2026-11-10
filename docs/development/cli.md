@@ -145,17 +145,37 @@ key starting with `$` gains one leading `$`. For example, a literal YAML
 `{"$float": ".inf"}` becomes `{"$$float":".inf"}`. A decoder recognizes the two
 numeric tags and removes one leading dollar from user keys beginning with `$$`.
 
-### Streams and mutation outcomes
+## Exit codes and streams
 
-Warnings, command errors and editor output go to stderr. A command with no
-result leaves stdout empty. A path containing invalid UTF-8 produces
-`unsupported_output`. For `add --json`, Kadai checks the requested path before
-creating files or reserving an ID. Other write acknowledgements contain only
-a boolean and a generated operation ID or null, independent of custom YAML values.
+The process returns the same status in text and JSON modes.
 
-If delivery fails after a successful write, stderr identifies the completed
-command and the allocated task or operation ID when available. The write
-remains in effect. Inspect the task or operation before retrying.
+| Exit | Meaning |
+| ---: | --- |
+| 0 | The command succeeded. Empty lists, a reported blocked/unresolved readiness, and validation with warnings alone are successful results. |
+| 1 | Command failure, including a malformed task ID, invalid project configuration, incomplete discovery, an unsafe edit, or a failed recovery preflight. `validate` also returns 1 when its report contains errors or an incomplete check. |
+| 2 | Invalid invocation, including unknown commands or flags, missing operands and conflicting options. |
+| 3 | A valid, required task ID had no match in the effective collection. |
+| 4 | A required task ID matched multiple files in the effective collection. |
+| 5 | A write entered persistence and did not complete, or a launched editor failed. Inspect the project and run `validate` to check recovery state. Prepared directories, journal files, reserved IDs, task changes or editor saves may remain. |
+| 6 | The mutation succeeded but Kadai could not encode or deliver its response. The effect stands. Stderr identifies the command and any available task or operation ID. |
+| 7 | Kadai could not represent or deliver a result before a mutation completed or during a read. Examples include an invalid UTF-8 path (`unsupported_output`) and a closed pipe while listing tasks. |
+
+Stdout carries the requested result, including help and version text. With
+`--json`, each delivered query or mutation result is one JSON document. A
+command rejected before delivery leaves stdout empty. A failed write to stdout
+can leave a partial document. `validate` delivers its findings on stdout even
+when the report gives exit 1. Use its finding codes and completeness flags for
+details. A missing prerequisite in `dep show` is part of a successful result.
+
+Kadai writes command errors to stderr with the prefix `kadai: error:` and
+project warnings with `kadai: warning:`. Warnings and an unavailable stderr
+leave the command's exit code intact. In JSON mode the editor's output also
+goes to stderr. In text mode the editor inherits the terminal streams.
+
+For `add --json`, path encoding is checked before reserving an ID or creating
+files. A rejected mutating invocation may still create the collection's lock
+infrastructure. Once writing starts, codes 5 and 6 take precedence over the
+underlying error. Inspect the reported task or operation before retrying.
 
 ## Project overrides
 
@@ -212,6 +232,6 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-Exit-code policy and the full cross-platform workflow matrix remain KAD-051 through KAD-054. The
+The remaining phase 6 CLI and cross-platform checks are tracked in KAD-052 through KAD-054. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.

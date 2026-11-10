@@ -14,6 +14,19 @@ Options :: struct {
 	exclude: []string,
 	override_exclude: bool,
 	resolved_warnings: ^[]string,
+	report: ^Invocation_Report,
+}
+
+// Supply a fresh report for each invocation. Its steps accumulate these facts
+// independently of diagnostic wording or the presence of an operation ID.
+Invocation_Report :: struct {
+	lookup_failure: Maybe(Lookup_Status),
+	write_started: bool,
+}
+
+write_progress :: proc(options: Options) -> ^bool {
+	if options.report == nil do return nil
+	return &options.report.write_started
 }
 
 Config :: struct {
