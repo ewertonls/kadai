@@ -68,6 +68,23 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", 2
 		_, issue = app.initialize(cwd, a.project)
+	case "ready":
+		if len(a.words) > 1 do return "", "ready accepts an optional task ID", 2
+		id: Maybe(string)
+		if len(a.words) == 1 do id = a.words[0]
+		rows, problem := app.ready_tasks(cwd, a.project, id)
+		if problem != "" do return "", problem, 1
+		b := strings.builder_make(context.temp_allocator)
+		for row in rows {
+			label := "ready"
+			switch row.readiness {
+			case .Ready:
+			case .Blocked: label = "blocked"
+			case .Unresolved: label = "unresolved"
+			}
+			fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", row.item.fields.id, label, row.item.fields.status, row.item.fields.title)
+		}
+		output = strings.to_string(b)
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", 2
 		rows, problem := app.task_tree(cwd, a.project)

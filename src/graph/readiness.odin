@@ -1,44 +1,49 @@
-// Read-only prerequisite semantics over the unique, supported tasks in one collection.
 package graph
 
 import "core:strings"
 
 Readiness :: enum {Ready, Blocked, Unresolved}
-Node :: struct {
-	category: string,
-	depends_on: []string,
+Node :: struct {category: string, depends_on: []string}
+
+// An SCC affects only its own members. For a caller outside that SCC, a
+// resolved direct prerequisite satisfies the dependency when its category is done.
+readiness_at :: proc(g: Network, cycles: Cycles, done: []bool, vertex: int) -> Readiness {
+	if cycles.leader[vertex] >= 0 || g.unresolved[vertex] do return .Unresolved
+	for other in g.targets[vertex] {
+		if !done[other] do return .Blocked
+	}
+	return .Ready
 }
 
-// Keys are ASCII-folded IDs. Missing nodes include quarantined and unsupported
-// targets. Only a cycle returning to this task affects its own readiness.
+// Standalone in-memory query. Keys are ASCII-folded IDs of unique, supported tasks.
 readiness :: proc(nodes: map[string]Node, id: string) -> Readiness {
 	context.allocator = context.temp_allocator
-	start := strings.to_lower(id)
-	source, known := nodes[start]
-	if !known do return .Unresolved
-	result := Readiness.Ready
-	queue: [dynamic]string
-	seen: map[string]bool
-	for dependency in source.depends_on {
-		key := strings.to_lower(dependency)
-		target, ok := nodes[key]
-		if !ok || key == start do return .Unresolved
-		if target.category != "done" do result = .Blocked
-		if key not_in seen {
-			if _, e := map_insert(&seen, key, true); e != nil do return .Unresolved
-			if _, e := append(&queue, key); e != nil do return .Unresolved
+	positions, alloc_err := make(map[string]int, len(nodes))
+	if alloc_err != nil do return .Unresolved
+	g, e := network(len(nodes))
+	if e != nil do return .Unresolved
+	done, e2 := make([]bool, len(nodes))
+	if e2 != nil do return .Unresolved
+	for key, node in nodes {
+		i := len(positions)
+		if _, err := map_insert(&positions, key, i); err != nil do return .Unresolved
+		done[i] = node.category == "done"
+	}
+	folded, fold_err := strings.to_lower(id)
+	if fold_err != nil || len(folded) != len(id) do return .Unresolved
+	v, ok := positions[folded]
+	if !ok do return .Unresolved
+	for key, node in nodes {
+		from := positions[key]
+		for ref in node.depends_on {
+			ref_key, err := strings.to_lower(ref)
+			if err != nil || len(ref_key) != len(ref) do return .Unresolved
+			to, resolved := positions[ref_key]
+			if !resolved { g.unresolved[from] = true; continue }
+			if link(&g, from, to) != nil do return .Unresolved
 		}
 	}
-	for len(queue) != 0 {
-		node := nodes[pop(&queue)]
-		for dependency in node.depends_on {
-			key := strings.to_lower(dependency)
-			if key == start do return .Unresolved
-			if len(key) != len(dependency) do return .Unresolved
-			if key in seen || key not_in nodes do continue
-			if _, e := map_insert(&seen, key, true); e != nil do return .Unresolved
-			if _, e := append(&queue, key); e != nil do return .Unresolved
-		}
-	}
-	return result
+	c, err := cycles(g)
+	if err != nil do return .Unresolved
+	return readiness_at(g, c, done, v)
 }
