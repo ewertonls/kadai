@@ -2,7 +2,7 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports `kadai init`, `kadai --help`, and `kadai --version`. The task-management examples below describe planned features.
+> **Status:** Early development. The CLI supports `kadai init`, `kadai add`, `kadai --help`, and `kadai --version`. The task-management examples below describe planned features.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 

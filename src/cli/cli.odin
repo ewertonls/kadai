@@ -4,7 +4,6 @@ package cli
 import "core:flags"
 import "core:fmt"
 import "core:io"
-import "core:os"
 import "core:strings"
 import "kadai:app"
 
@@ -18,7 +17,7 @@ help_text :: proc() -> string {
 	text := strings.builder_make(context.temp_allocator)
 	strings.write_string(
 		&text,
-		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n",
+		"Kadai tracks tasks in project-local Markdown files.\n\nUsage: kadai [option]\n       kadai init [--project DIR] [--tasks-root DIR] [--boards-root DIR] [--id-prefix PREFIX] [--timezone ZONE] [--exclude GLOB]\n       kadai add TITLE [--status STATUS] [--body-file PATH | --stdin] [--path DEST]\n",
 	)
 	flags.write_usage(strings.to_writer(&text), Options, style = .Unix)
 	// Help is reserved by core:flags, so it has no field in Options.
@@ -60,9 +59,9 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 	return "no operation selected", false
 }
 
-run :: proc(args: []string, stdout, stderr: io.Writer) -> int {
-	if len(args) > 0 && args[0] == "init" {
-		return run_init(args[1:], stderr)
+run :: proc(args: []string, stdout, stderr: io.Writer, stdin := io.Reader{}) -> int {
+	if len(args) > 0 && (args[0] == "init" || args[0] == "add") {
+		return run_command(args, stdout, stderr, stdin)
 	}
 	message, ok := dispatch(args)
 	if !ok {
@@ -77,43 +76,4 @@ run :: proc(args: []string, stdout, stderr: io.Writer) -> int {
 		return 1
 	}
 	return 0 if ok else 2
-}
-
-@(private)
-run_init :: proc(args: []string, stderr: io.Writer) -> int {
-	options: app.Project_Options
-	excludes := make([dynamic]string, context.temp_allocator)
-	for i := 0; i < len(args); i += 2 {
-		if i+1 >= len(args) || args[i+1] == "" && args[i] != "--exclude" {
-			fmt.wprintf(stderr, "kadai: missing value for %s\n", args[i])
-			return 2
-		}
-		value := args[i+1]
-		switch args[i] {
-		case "--project":    options.project = value
-		case "--tasks-root": options.tasks_root = value
-		case "--boards-root": options.boards_root = value
-		case "--id-prefix":  options.id_prefix = value
-		case "--timezone":   options.timezone = value
-		case "--exclude":
-			options.override_exclude = true
-			if value != "" do append(&excludes, value)
-		case:
-			fmt.wprintf(stderr, "kadai: unknown init option %s\n", args[i])
-			return 2
-		}
-	}
-	options.exclude = excludes[:]
-	cwd, err := os.getwd(context.temp_allocator)
-	if err != nil {
-		fmt.wprintf(stderr, "kadai: %s\n", os.error_string(err))
-		return 1
-	}
-	cfg, issue := app.initialize(cwd, options)
-	for warning in cfg.warnings do fmt.wprintf(stderr, "kadai: %s\n", warning)
-	if issue != "" {
-		fmt.wprintf(stderr, "kadai: %s\n", issue)
-		return 1
-	}
-	return 0
 }

@@ -171,7 +171,7 @@ preflight :: proc(root: string, changes: []Change, l: Journal_Limits) -> string 
 	return ""
 }
 
-commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS) -> (id, issue: string) {
+commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS, before_intent: proc(rawptr) -> string = nil, data: rawptr = nil) -> (id, issue: string) {
 	if w.collection == nil || !domain_held(w.domain) do return "", "writer coordination required"
 	if issue = check_pending(w, w.root, l.entries); issue != "" do return
 	if issue = preflight(w.root, changes, l); issue != "" do return
@@ -194,6 +194,9 @@ commit :: proc(w: ^Writer, changes: []Change, l := DEFAULT_JOURNAL_LIMITS) -> (i
 	image_budget := l.total_bytes
 	if issue = run_steps(w.root, &dir, tx, .Resume, l, true, &image_budget, false); issue != "" do return
 	if image_budget < l.total_bytes-image_budget do return id, "verification exceeds recovery byte limit"
+	if before_intent != nil {
+		if issue = before_intent(data); issue != "" do return
+	}
 	if err = arm(&state, ptr); err != nil do return id, fmt.tprintf("recording operation intent: %s", os.error_string(err))
 	if issue = run_steps(w.root, &dir, tx, .Resume, l, false, &image_budget, false); issue != "" do return
 	return id, os.error_string(finish(&state, &dir, .Resume, ptr))

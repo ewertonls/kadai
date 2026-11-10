@@ -3,11 +3,11 @@ package app
 import "core:fmt"
 import "core:os"
 import "kadai:project"
+import "kadai:identity"
 import "kadai:storage"
 
 // The planner runs under writer coordination and sees a freshly built index.
-// It owns domain validation, including ID reservation requirements when
-// KAD-031 introduces generated tasks. Changes use collection-relative paths.
+// The planner queues generated IDs before returning collection-relative changes.
 Plan_Changes :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string)
 
 @(private)
@@ -21,6 +21,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	if e != nil do return "", fmt.tprintf("writer lock: %s", os.error_string(e))
 	defer storage.end_writer(&w)
 	view: Collection
+	view.limits = limits
 	view.config, issue = project.resolve(cwd, options, limits.yaml)
 	if issue != "" do return
 	root := view.config.tasks
@@ -28,6 +29,11 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	if e = storage.lock_collection(&w, root); e != nil do return "", os.error_string(e)
 	view.index = project.build_index(project.scan(view.config, limits))
 	if !view.index.complete do return "", view.index.problem
+	view.history, issue = identity.load(root, limits.yaml.bytes, limits.entries, limits.total_bytes)
+	if issue != "" do return
+	for key in view.index.by_id {
+		if issue = identity.observe(&view.history, key); issue != "" do return
+	}
 	changes: []storage.Change
 	changes, issue = plan(&view, data)
 	if issue != "" || len(changes) == 0 do return
@@ -65,7 +71,8 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 			if issue != "" do return
 		}
 	}
-	return storage.commit(&w, changes, journal_limits(limits))
+	record_ids :: proc(data: rawptr) -> string { return identity.persist((^identity.History)(data)) }
+	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history)
 }
 
 recover_collection :: proc(cwd: string, options: Project_Options, mode: storage.Recovery_Mode, operation := "", limits := project.DEFAULT_SCAN_LIMITS) -> (id, issue: string) {

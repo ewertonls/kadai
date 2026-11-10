@@ -13,6 +13,7 @@ Options :: struct {
 	project, tasks_root, boards_root, id_prefix, timezone: string,
 	exclude: []string,
 	override_exclude: bool,
+	resolved_warnings: ^[]string,
 }
 
 Config :: struct {
@@ -95,6 +96,7 @@ root_path :: proc(cfg: ^Config, node: ^yaml.Node, base, fallback, override: stri
 
 // All strings and collections returned here live in the invocation's temporary allocator.
 resolve :: proc(cwd: string, options := Options{}, limits := yaml.DEFAULT_LIMITS) -> (cfg: Config, problem: string) {
+	defer if options.resolved_warnings != nil { options.resolved_warnings^ = cfg.warnings[:] }
 	context.allocator = context.temp_allocator
 	if !yaml.valid_limits(limits) do return {}, "invalid YAML limits"
 	selection := options.project if options.project != "" else "."
