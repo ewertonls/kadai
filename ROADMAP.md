@@ -86,7 +86,7 @@
 - [x] **KAD-026** Define path and symlink safety. _Acceptance:_ Define safe path resolution and handling for symlinks/hardlinks, root escapes and OS-specific filesystem metadata; refuse unsafe mutations.
 - [x] **KAD-027** Build a transient task index. _Acceptance:_ Build a transient ID index, quarantine all case-insensitive duplicate-ID groups (including Git merges) and retain diagnostic-only invalid candidates without choosing arbitrary winners.
 - [x] **KAD-028** Handle creates, moves, and renames. _Acceptance:_ Preserve stable IDs while changing file paths and detect destination collisions.
-- [ ] **KAD-029** Implement atomic file writes. _Acceptance:_ Stage atomic replacement on the same filesystem, preserve supported ownership/mode/ACLs/xattrs or fail closed, keep private immutable pre-write recovery snapshots and test rollback/durability on all OSes. _Implementation:_ [storage](docs/development/storage.md). Native macOS and Linux tests pass. Native Windows validation is pending.
+- [x] **KAD-029** Implement atomic file writes. Stage atomic replacement on the same filesystem, preserve supported ownership, permissions, ACLs and extended attributes or fail closed, and keep private immutable pre-write recovery snapshots. Native rollback and durability tests passed on macOS and Linux. KAD-085 tracks the Windows 11 run. [Storage implementation](docs/development/storage.md).
 - [x] **KAD-030** Detect concurrent edits. _Acceptance:_ Coordinate Kadai writes with collection-scoped native locks plus cross-collection coordination for shared physical files (including atomic replacement), verify identity/hash immediately before replacing, reject detected conflicts, document the residual external-editor race and test recovery. _Implementation:_ [coordination and restart](docs/development/storage.md#coordination-and-restart).
 
 ### 4. Task domain and CRUD
@@ -132,8 +132,12 @@
 - [ ] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs.
 - [ ] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use.
 - [ ] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI.
-- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows.
+- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows. The native Windows checks for KAD-029 are scheduled separately in KAD-085.
 - [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
+
+### Post-phase 6. Native storage validation on Windows 11
+
+- [ ] **KAD-085** Validate KAD-029 on the available Windows 11 PC after phase 6. Run the [full test suite](docs/development/toolchain.md#run-tests) natively. Verify atomic replacement, preservation of supported security metadata, refusal of unsupported metadata, and rollback after interruption without overwriting a later edit. Record the tested commit, results and any checks the PC could not run.
 
 ### 6a. v0.1.x follow-ups (scheduled TODOs)
 
