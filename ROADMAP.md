@@ -101,7 +101,7 @@
 - [x] **KAD-034** Define status transitions. _Acceptance:_ Support planned task states and reopening; treat blocked/readiness as derived information.
 - [x] **KAD-035** Open a task in an external editor. _Acceptance:_ Support `$EDITOR` as a plain-text editing path without a proprietary editor.
 - [x] **KAD-036** Move and rename tasks. _Acceptance:_ Keep ID-based references intact when the underlying Markdown file changes path.
-- [ ] **KAD-037** Remove tasks safely. _Acceptance:_ Require explicit deletion and reference checking; preserve used-ID/tombstone history before removing files so allocated IDs cannot be silently reused.
+- [x] **KAD-037** Remove tasks safely. _Acceptance:_ Require explicit deletion and reference checking; preserve used-ID/tombstone history before removing files so allocated IDs cannot be silently reused.
 - [ ] **KAD-038** Test editor/CLI equivalence. _Acceptance:_ Manually edit a task between commands and verify subsequent reads reflect the changed source file.
 
 ### 5. Hierarchy, dependencies, and validation
@@ -224,7 +224,6 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 
 - **YAML distribution:** KAD-013 selected LibYAML. Release packaging still needs to verify native linking and include the appropriate license notices for each target. [Development link options](docs/development/yaml-parser.md#licensing-and-linking).
 - **ID generation:** KAD-002 fixes collection-local case-insensitive sequential IDs with optional prefix and durable used-ID history; KAD-004 owns the record format, post-merge repair, filenames and collision details.
-- **Deletion:** Specify whether v0.1 removes files outright, moves them to a project-local trash directory, or requires explicit `--force`.
 - **YAML patch scope:** Specify readable-but-uneditable YAML constructs, parser resource limits, v1 deadline grammar and lossless JSON numeric handoff.
 - **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
 

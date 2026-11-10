@@ -11,9 +11,9 @@ Arguments :: struct {
 	command: string,
 	project: app.Project_Options,
 	words: [dynamic]string,
-	body_file, destination: string,
+	body_file, destination, plan: string,
 	status: Maybe(string),
-	stdin, force, directory: bool,
+	stdin, force, directory, detach, dry_run: bool,
 }
 
 @(private)
@@ -26,6 +26,8 @@ parse_command :: proc(args: []string) -> (a: Arguments, problem: string) {
 		name := args[i]
 		if positional || !strings.has_prefix(name, "--") { append(&a.words, name); continue }
 		if name == "--" { positional = true; continue }
+		if a.command == "remove" && name == "--detach" { a.detach = true; continue }
+		if a.command == "remove" && name == "--dry-run" { a.dry_run = true; continue }
 		if name == "--directory" && a.command == "move" { a.directory = true; continue }
 		if name == "--force" && (a.command == "status" || a.command == "set") { a.force = true; continue }
 		if name == "--stdin" && a.command == "add" { a.stdin = true; continue }
@@ -34,6 +36,9 @@ parse_command :: proc(args: []string) -> (a: Arguments, problem: string) {
 		value := args[i]
 		if value == "" && name != "--exclude" do return a, fmt.tprintf("empty value for %s", name)
 		switch name {
+		case "--plan":
+			if a.command != "remove" do return a, "unexpected --plan"
+			a.plan = value
 		case "--project": a.project.project = value
 		case "--tasks-root": a.project.tasks_root = value
 		case "--boards-root": a.project.boards_root = value
@@ -70,6 +75,29 @@ execute :: proc(cwd: string, a: Arguments, stdin: io.Reader) -> (output, issue: 
 		b := strings.builder_make(context.temp_allocator)
 		for item in items do fmt.sbprintf(&b, "%s\t%s\t%s\t%s\n", item.fields.id, item.fields.status, item.fields.title, item.path)
 		output = strings.to_string(b)
+	case "remove":
+		if len(a.words) != 1 do return "", "remove requires an ID", 2
+		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
+		if a.dry_run {
+			preview, problem := app.preview_removal(cwd, a.project, remove)
+			if problem != "" do return "", problem, 1
+			b := strings.builder_make(context.temp_allocator)
+			for edit in preview.edits do fmt.sbprintf(&b, "%s\t%q\t%s\t%d..%d\n", edit.id, edit.path, edit.field, edit.span.start, edit.span.end)
+			fmt.sbprintf(&b, "plan %s\n", preview.token)
+			output = strings.to_string(b)
+		} else {
+			operation, problem := app.remove_task(cwd, a.project, remove)
+			if problem != "" do return "", problem, 1
+			output = fmt.tprintf("%s\n", operation)
+		}
+	case "recover":
+		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume or rollback and an optional operation ID", 2
+		id := a.words[1] if len(a.words) == 2 else ""
+		switch a.words[0] {
+		case "resume": _, issue = app.recover_collection(cwd, a.project, .Resume, id)
+		case "rollback": _, issue = app.recover_collection(cwd, a.project, .Rollback, id)
+		case: return "", "unknown recovery mode", 2
+		}
 	case "move":
 		if len(a.words) != 2 do return "", "move requires a source and destination", 2
 		_, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory})
