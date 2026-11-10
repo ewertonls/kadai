@@ -31,7 +31,7 @@ plan_create :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 	if !task.valid_status(status, view.config.vocabulary) do return nil, "invalid status"
 	if len(c.body) > view.limits.source_bytes || len(c.title) > view.limits.yaml.bytes do return nil, "task exceeds size limit"
 	issue: string
-	c.id, c.path, issue = identity.allocate(&view.history, view.config.id_prefix, view.config.tasks, c.destination)
+	c.id, c.path, issue = identity.allocate(&view.history, view.config.id_prefix, view.config.tasks, storage.slash(c.destination))
 	if issue != "" do return nil, issue
 	source := fmt.tprintf("---\nkadai: task\nid: %q\ntitle: %q\nstatus: %q\n---\n%s", c.id, c.title, status, c.body)
 	doc := document.decode_task(source, view.config.vocabulary, view.limits.source_bytes, view.limits.yaml, c.path)

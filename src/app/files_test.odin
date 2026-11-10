@@ -52,6 +52,8 @@ directory_move_preserves_members_and_guards_rollback :: proc(t: ^testing.T) {
 	extra := storage.child(root, "old/note.txt")
 	testing.expect(t, os.write_entire_file(extra, "text") == nil)
 	testing.expect(t, os.mkdir(storage.child(root, "old/empty")) == nil)
+	_, issue = move_task(tmp, opts, {"old", "other/.kadai.yaml", true})
+	testing.expect(t, issue != "" && !os.exists(storage.child(root, "other")))
 	_, issue = move_task(tmp, opts, {"old", "hidden", true})
 	testing.expect(t, issue != "" && !os.exists(storage.child(root, "hidden")))
 	op: string

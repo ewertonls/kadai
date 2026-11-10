@@ -19,6 +19,11 @@ task_path :: proc(cfg: Config, relative: string, destination: bool, is_directory
 		path = storage.child(dir, name)
 		rel = name if rel == "" else storage.child(rel, name)
 		directory := parts != ""
+		// Creating this directory would make its parent a project boundary
+		// before the final destination can be rechecked.
+		if (directory || is_directory) && strings.equal_fold(name, ".kadai.yaml") {
+			return "", fmt.tprintf("reserved project marker: %s", rel)
+		}
 		if excluded(cfg, rel, directory || is_directory) do return "", fmt.tprintf("excluded task path: %s", rel)
 		info, err := os.lstat(path, context.temp_allocator)
 		if err != nil && err != os.General_Error.Not_Exist do return "", os.error_string(err)
