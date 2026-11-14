@@ -30,7 +30,7 @@ LibYAML and libfyaml use MIT licenses. Include the applicable copyright and perm
 | macOS ARM64 | Static archive at `lib/macos/aarch64/libyaml.a` in the binding package, or dynamic LibYAML from Homebrew. | Parser tests ran with static and dynamic LibYAML 0.2.5. The dynamic executable records the Homebrew install path. |
 | macOS x86_64 | Vendored static archive or system `libyaml`. | Static test ran under Rosetta without a LibYAML dylib dependency. |
 | Linux x86_64, ARM64 | Static archive supplied for each target. Dynamic linking needs the distribution's LibYAML development package at build time and the shared library at runtime. | Bindings type-checked for both targets. Native link and execution untested. |
-| Windows x86_64 | `yaml.lib` for static linking. Dynamic linking uses `yamld.lib` and needs `yaml.dll` on the executable's DLL search path. | Bindings type-checked. Native link and execution untested. |
+| Windows x86_64 | `yaml.lib` for static linking. Dynamic linking uses `yamld.lib` and needs `yaml.dll` on the executable's DLL search path. | Static CLI build and full suite passed natively; see [KAD-085](windows-validation.md). Dynamic linking untested. |
 
 ### Task document decoding
 
