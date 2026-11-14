@@ -78,4 +78,25 @@ overlapping_writers_and_interrupted_transaction :: proc(t: ^testing.T) {
 	testing.expect(t, issue != "")
 	testing.expect_value(t, check_pending(&w, root, 200), "")
 	testing.expect(t, os.exists(child(root, "nested/A.md")))
+	end_writer(&w)
+
+	// A separate interrupted operation exercises rollback directly after exit,
+	// including refusal to erase an external edit made after the interruption.
+	rollback_root := child(root, "rollback")
+	if !testing.expect(t, os.mkdir(rollback_root) == nil) do return
+	if !testing.expect_value(t, run_child(rollback_root, "interrupt"), 73) do return
+	w, e = begin_writer()
+	if !testing.expect(t, e == nil) do return
+	if !testing.expect(t, lock_collection(&w, rollback_root) == nil) do return
+	first := child(rollback_root, "nested/A.md")
+	testing.expect(t, os.write_entire_file(first, "later") == nil)
+	_, issue = recover(&w, .Rollback)
+	testing.expect(t, issue != "")
+	later, read_err := os.read_entire_file(first, context.temp_allocator)
+	testing.expect(t, read_err == nil && string(later) == "later")
+	testing.expect(t, os.write_entire_file(first, []byte{42}) == nil)
+	_, issue = recover(&w, .Rollback)
+	testing.expect_value(t, issue, "")
+	testing.expect(t, !os.exists(first) && !os.exists(child(rollback_root, "B.md")))
+	testing.expect_value(t, check_pending(&w, rollback_root, 200), "")
 }

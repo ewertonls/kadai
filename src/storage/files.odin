@@ -9,7 +9,7 @@ import "core:strings"
 Directory :: struct {
 	path: string,
 	file: ^os.File,
-	// Windows opens ancestors without sharing delete or write access.
+	// Windows retains ancestor handles without sharing delete access.
 	parents: [dynamic]^os.File,
 }
 

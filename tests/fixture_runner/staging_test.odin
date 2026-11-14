@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "kadai:storage"
 
 // Read the single document expected by this fixture. Refuse extra setup,
 // operations, or assertions until their adapters exist.
@@ -81,9 +82,15 @@ prepare_crlf_fixture :: proc(t: ^testing.T) {
 	testing.expect(t, strings.has_prefix(string(original), "\uFEFF---\r\n"), "fixture must exercise BOM and CRLF")
 	testing.expect(t, string(staged) == string(original), "copy changed fixture bytes")
 
-	source_info, err := os.lstat(source, context.temp_allocator)
+	source_file, err := os.open(source)
 	if !testing.expect(t, err == nil, os.error_string(err)) { return }
-	copy_info, stat_err := os.lstat(copy, context.temp_allocator)
+	defer os.close(source_file)
+	source_info, source_stat_err := storage.file_info(source_file)
+	if !testing.expect(t, source_stat_err == nil, os.error_string(source_stat_err)) { return }
+	copy_file, copy_open_err := os.open(copy)
+	if !testing.expect(t, copy_open_err == nil, os.error_string(copy_open_err)) { return }
+	defer os.close(copy_file)
+	copy_info, stat_err := storage.file_info(copy_file)
 	if !testing.expect(t, stat_err == nil, os.error_string(stat_err)) { return }
 	testing.expect(t, copy_info.type == .Regular && !(source_info.device == copy_info.device && source_info.inode == copy_info.inode), "copy must be an independent regular file")
 }
