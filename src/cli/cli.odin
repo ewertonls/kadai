@@ -61,7 +61,7 @@ Exit_Code :: enum int {
 @(private)
 diagnose :: proc(stderr: io.Writer, code: Exit_Code, message: string) -> Exit_Code {
 	// stderr is best effort. Its availability cannot change the command outcome.
-	fmt.wprintf(stderr, "kadai: error: %s\n", message)
+	fmt.wprintf(stderr, "kadai: error: %s\n", terminal_field(message))
 	return code
 }
 

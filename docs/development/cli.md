@@ -110,7 +110,7 @@ Rows follow ascending byte order of the full collection-relative path, with
 `tree` indents direct children beneath their parent and marks unresolved parents and
 cycle members. For levels deeper than 16 it prints the depth beside the task.
 `ready` shows the task's stored status and labels its derived readiness separately.
-Task summaries and validation findings escape tabs, line breaks and terminal control characters.
+Task summaries, validation findings and command errors escape tabs, line breaks and terminal control characters.
 
 `dep show` groups immediate prerequisites and dependents. Every arrow points from
 prerequisite to dependent. An unresolved prerequisite keeps its written ID and
