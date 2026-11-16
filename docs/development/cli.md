@@ -240,6 +240,7 @@ keep their defaults; a value equal to the maximum is accepted.
 | `markdown_candidates` | 50000 | 500000 | Non-excluded `.md` files considered |
 | `scan_yaml_bytes` | 268435456 | 2147483648 | YAML bytes examined per collection scan |
 | `scan_yaml_nodes` | 1000000 | 10000000 | YAML nodes examined per collection scan |
+| `exclude_match_steps` | 100000000 | 1000000000 | Bytes inspected and retry steps while matching user exclusions in one invocation |
 
 Invalid limits fail before project/config/task or body-file access. Limits apply
 to the whole invocation: config, discovery, body input, locked mutation planning,

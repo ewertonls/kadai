@@ -22,12 +22,13 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	defer storage.end_writer(&w)
 	view: Collection
 	view.limits, view.report = limits, options.report
+	view.glob_budget.limit = limits.exclude_match_steps
 	view.config, issue = project.resolve(cwd, options, limits.yaml)
 	if issue != "" do return
 	root := view.config.tasks
 	if issue = storage.check_pending(&w, root, limits.entries); issue != "" do return
 	if e = storage.lock_collection(&w, root); e != nil do return "", os.error_string(e)
-	view.index = project.build_index(project.scan(view.config, limits))
+	view.index = project.build_index(project.scan(view.config, limits, &view.glob_budget))
 	if !view.index.complete do return "", view.index.problem
 	view.history, issue = identity.load(root, limits.yaml.bytes, limits.entries, limits.total_bytes)
 	if issue != "" do return
@@ -37,7 +38,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 	changes: []storage.Change
 	changes, issue = plan(&view, data)
 	if issue != "" || len(changes) == 0 do return
-	if issue = validate_paths(view.config, changes); issue != "" do return
+	if issue = validate_paths(&view, view.config, changes); issue != "" do return
 	// A newly created directory can make a previously absent board root
 	// resolve to this spelling on a case- or normalization-insensitive volume.
 	started := project.write_progress(options)
@@ -58,7 +59,7 @@ mutate_collection :: proc(cwd: string, options: Project_Options, plan: Plan_Chan
 		cfg, problem := project.resolve(cwd, options, limits.yaml)
 		if problem != "" do return "", problem
 		if cfg.tasks != root do return "", "collection changed during destination preparation"
-		if issue = validate_paths(cfg, changes); issue != "" do return
+		if issue = validate_paths(&view, cfg, changes); issue != "" do return
 	}
 	record_ids :: proc(data: rawptr) -> string { return identity.persist((^identity.History)(data)) }
 	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history, started)
@@ -74,20 +75,21 @@ recover_collection :: proc(cwd: string, options: Project_Options, mode: Recovery
 	cfg, problem := project.resolve(cwd, options, limits.yaml)
 	if problem != "" do return "", problem
 	if e = storage.lock_collection(&w, cfg.tasks); e != nil do return "", os.error_string(e)
-	view := Collection{config = cfg, limits = limits, report = options.report}
+	view := Collection{config = cfg, limits = limits, report = options.report,
+	                   glob_budget = {limit = limits.exclude_match_steps}}
 	return storage.recover(&w, mode, operation, journal_limits(limits), check_recovery_membership, &view, project.write_progress(options))
 }
 
 @(private)
-validate_paths :: proc(cfg: project.Config, changes: []storage.Change) -> string {
+validate_paths :: proc(view: ^Collection, cfg: project.Config, changes: []storage.Change) -> string {
 	for c in changes {
 		directory := c.kind == .Move_Directory
-		if _, issue := project.task_path(cfg, c.path, c.kind == .Create, directory); issue != "" do return issue
+		if _, issue := project.task_path(cfg, c.path, c.kind == .Create, directory, &view.glob_budget); issue != "" do return issue
 		if c.kind == .Move || directory {
-			if _, issue := project.task_path(cfg, c.destination, true, directory); issue != "" do return issue
+			if _, issue := project.task_path(cfg, c.destination, true, directory, &view.glob_budget); issue != "" do return issue
 		}
 		if directory {
-			if issue := project.tree_destination(cfg, c.path, c.destination, c.members); issue != "" do return issue
+			if issue := project.tree_destination(cfg, c.path, c.destination, c.members, &view.glob_budget); issue != "" do return issue
 		}
 	}
 	return ""

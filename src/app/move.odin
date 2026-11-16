@@ -23,9 +23,9 @@ plan_move :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string)
 	}
 	src, dst := storage.slash(op.source), storage.slash(op.destination)
 	if storage.within(src, dst) || storage.within(dst, src) do return nil, "overlapping directory move"
-	path, issue := project.task_path(view.config, src, false, true)
+	path, issue := project.task_path(view.config, src, false, true, &view.glob_budget)
 	if issue != "" do return nil, issue
-	if _, problem := project.task_path(view.config, dst, true, true); problem != "" do return nil, problem
+	if _, problem := project.task_path(view.config, dst, true, true, &view.glob_budget); problem != "" do return nil, problem
 	actual, path_err := storage.physical(path, .Directory)
 	if path_err != nil || actual != path do return nil, "use the physical source directory spelling"
 	tree, err := storage.inspect_tree(path, journal_limits(view.limits))
