@@ -22,6 +22,7 @@ Collection :: struct {
 	report: ^Invocation_Report,
 	index: project.Index,
 	limits: project.Scan_Limits,
+	glob_budget: project.Glob_Budget,
 	history: identity.History, // Loaded only under the writer lock.
 }
 
@@ -29,8 +30,9 @@ Collection :: struct {
 read_collection :: proc(cwd: string, options := Project_Options{}, limits := project.DEFAULT_SCAN_LIMITS) -> (view: Collection, issue: string) {
 	if !project.valid_scan_limits(limits) do return {}, "invalid scan limits"
 	view.limits, view.report = limits, options.report
+	view.glob_budget.limit = limits.exclude_match_steps
 	view.config, issue = project.resolve(cwd, options, limits.yaml)
 	if issue != "" do return
-	view.index = project.build_index(project.scan(view.config, limits))
+	view.index = project.build_index(project.scan(view.config, limits, &view.glob_budget))
 	return view, view.index.problem
 }

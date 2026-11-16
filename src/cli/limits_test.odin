@@ -101,3 +101,26 @@ limits_bound_bodies_and_mutations :: proc(t: ^testing.T) {
 	testing.expect(t, after_err == nil && string(after) == string(source))
 	_ = invoke_cli(t, {"set", "0001", "title", "Changed", "--project", tmp})
 }
+
+// Exclusion work can exhaust the locked scan, but cannot create a task or
+// prevent a following writer from acquiring the same lock.
+@(test)
+exclude_budget_refusal_releases_writer :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-exclude-writer-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", tmp)) == nil)
+	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", tmp), "tasks:\n  exclude: [x]\n") == nil)
+	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/a.md", tmp), "ordinary Markdown") == nil)
+	denied := invoke_cli(t, {"add", "Title", "--project", tmp, "--limit=exclude_match_steps=9"}, 1)
+	testing.expect_value(t, denied.stdout, "")
+	testing.expect(t, strings.contains(denied.stderr, "exclude_match_steps limit exceeded"), denied.stderr)
+	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
+	// Scan consumes ten units; validating 0001.md needs thirteen more.
+	denied = invoke_cli(t, {"add", "Title", "--project", tmp, "--limit=exclude_match_steps=22"}, 1)
+	testing.expect(t, strings.contains(denied.stderr, "observed 23, limit 22"), denied.stderr)
+	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
+	created := invoke_cli(t, {"add", "Title", "--project", tmp, "--limit=exclude_match_steps=23"})
+	testing.expect_value(t, created.stdout, "0001\n")
+	testing.expect(t, os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
+}

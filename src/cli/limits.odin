@@ -8,7 +8,7 @@ import "kadai:app"
 
 Limit :: enum {
 	Task_Source_Bytes, YAML_Document_Bytes, YAML_Nodes_Document, YAML_Depth,
-	Filesystem_Entries, Markdown_Candidates, Scan_YAML_Bytes, Scan_YAML_Nodes,
+	Filesystem_Entries, Markdown_Candidates, Scan_YAML_Bytes, Scan_YAML_Nodes, Exclude_Match_Steps,
 }
 
 @(rodata)
@@ -21,6 +21,7 @@ LIMIT_NAMES := [Limit]string{
 	.Markdown_Candidates = "markdown_candidates",
 	.Scan_YAML_Bytes = "scan_yaml_bytes",
 	.Scan_YAML_Nodes = "scan_yaml_nodes",
+	.Exclude_Match_Steps = "exclude_match_steps",
 }
 
 limit_values :: proc(l: app.Scan_Limits) -> [Limit]i64 {
@@ -33,6 +34,7 @@ limit_values :: proc(l: app.Scan_Limits) -> [Limit]i64 {
 		.Markdown_Candidates = i64(l.candidates),
 		.Scan_YAML_Bytes = l.total_bytes,
 		.Scan_YAML_Nodes = l.total_nodes,
+		.Exclude_Match_Steps = l.exclude_match_steps,
 	}
 }
 
@@ -69,5 +71,6 @@ parse_limits :: proc(options: []string) -> (app.Scan_Limits, string) {
 		candidates = int(values[.Markdown_Candidates]),
 		total_bytes = values[.Scan_YAML_Bytes],
 		total_nodes = values[.Scan_YAML_Nodes],
+			exclude_match_steps = values[.Exclude_Match_Steps],
 	}, ""
 }

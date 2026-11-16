@@ -10,7 +10,7 @@ import "kadai:storage"
 check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawptr) -> string {
 	context.allocator = context.temp_allocator
 	view := (^Collection)(data)
-	inv := project.scan(view.config, view.limits)
+	inv := project.scan(view.config, view.limits, &view.glob_budget)
 	if !inv.complete do return inv.problem
 	remaining := make(map[string]^project.Candidate, len(inv.candidates))
 	for &item in inv.candidates do remaining[item.path] = &item
@@ -18,7 +18,7 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 	new_links: [dynamic]Recovered_Link
 	for effect in effects {
 		item := remaining[effect.path]
-		if _, issue := project.task_path(view.config, effect.path, item == nil); issue != "" do return issue
+		if _, issue := project.task_path(view.config, effect.path, item == nil, shared_budget = &view.glob_budget); issue != "" do return issue
 		if effect.remove {
 			if item == nil || item.fields.id == "" do return fmt.tprintf("%s: unknown recovery target", effect.path)
 			removed[strings.to_lower(item.fields.id)] = true

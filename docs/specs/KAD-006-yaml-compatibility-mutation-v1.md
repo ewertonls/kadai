@@ -123,8 +123,11 @@ Every relevant parser path, including validation, recognition, config loading, n
 | `.md` files considered | 50,000 | 500,000 | Each non-excluded Markdown candidate, including ordinary non-task files |
 | Total YAML bytes examined per collection scan | 256 MiB | 2 GiB | Sum of bounded candidate headers actually examined |
 | Total YAML nodes per collection scan | 1,000,000 | 10,000,000 | Sum of YAML nodes across the collection |
+| User exclusion matching work | 100,000,000 | 1,000,000,000 | Bytes inspected and retry steps across glob matches in one invocation, including destination and recovery checks |
 
 `MiB = 1,048,576 bytes`; `KiB = 1,024 bytes`. A value **equal** to a limit passes; exceeding it fails. Use overflow-checked counters, including on 32-bit platforms. Limits apply to bytes/nodes processed, not just retained AST size. Account for map keys and rejected constructs before expanding or allocating unsafe structures; use streaming parser events or equivalent guarded construction where necessary.
+
+Exhausting `exclude_match_steps` makes discovery incomplete or rejects the dependent path check. The same invocation-local counter covers the scan and any destination, directory-move or recovery checks; no partial inventory or mutation may proceed.
 
 **CLI configuration:** Every budget above must have an explicit command-line override path in v0.1, either an individual flag or a documented, unambiguous `--limit`-style grammar decided by KAD-047. Defaults apply when absent. Values must be positive integers in the appropriate unit and cannot exceed hard ceilings; invalid flags fail before project/config/task file access. An override applies **only to that invocation**, is not stored in `.kadai.yaml`, and must not change the selected collection's identity. The same parsed limits govern discovery and any re-scan/revalidation under locks. Higher caps do not authorize unsafe syntax, whole-file normalization or skipped validation.
 

@@ -110,7 +110,7 @@ Rows follow ascending byte order of the full collection-relative path, with
 `tree` indents direct children beneath their parent and marks unresolved parents and
 cycle members. For levels deeper than 16 it prints the depth beside the task.
 `ready` shows the task's stored status and labels its derived readiness separately.
-Task summaries and validation findings escape tabs, line breaks and terminal control characters.
+Task summaries, validation findings and command errors escape tabs, line breaks and terminal control characters.
 
 `dep show` groups immediate prerequisites and dependents. Every arrow points from
 prerequisite to dependent. An unresolved prerequisite keeps its written ID and
@@ -240,6 +240,7 @@ keep their defaults; a value equal to the maximum is accepted.
 | `markdown_candidates` | 50000 | 500000 | Non-excluded `.md` files considered |
 | `scan_yaml_bytes` | 268435456 | 2147483648 | YAML bytes examined per collection scan |
 | `scan_yaml_nodes` | 1000000 | 10000000 | YAML nodes examined per collection scan |
+| `exclude_match_steps` | 100000000 | 1000000000 | Bytes inspected and retry steps while matching user exclusions in one invocation |
 
 Invalid limits fail before project/config/task or body-file access. Limits apply
 to the whole invocation: config, discovery, body input, locked mutation planning,

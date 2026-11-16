@@ -3,6 +3,7 @@ package project
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 import "core:testing"
 import "kadai:document"
 
@@ -28,7 +29,10 @@ discovery_boundaries_and_classification :: proc(t: ^testing.T) {
 			testing.expect_value(t, inv.candidates[0].status, c.status)
 		}
 	}
-	testing.expect(t, matches("**/?.md", "a/é.md", false) && !matches("?.md", "aa.md", false))
+	matched, ok := matches("**/?.md", "a/é.md", false)
+	testing.expect(t, ok && matched)
+	matched, ok = matches("?.md", "aa.md", false)
+	testing.expect(t, ok && !matched)
 }
 
 @(test)
@@ -49,4 +53,25 @@ scan_budget_includes_rejected_nodes_and_ordinary_markdown :: proc(t: ^testing.T)
 	limits.total_nodes = inv.nodes
 	limits.candidates = 1
 	testing.expect(t, !scan(cfg, limits).complete)
+}
+
+// A single failed match examines ten steps; the next lower budget cannot
+// establish whether the ordinary Markdown file is excluded.
+@(test)
+exclude_work_budget_stops_incomplete_scans :: proc(t: ^testing.T) {
+	dir, err := os.mkdir_temp("", "kadai-exclude-budget-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(dir)
+	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", dir)) == nil)
+	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", dir), "tasks:\n  exclude: [x]\n") == nil)
+	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/a.md", dir), "ordinary Markdown") == nil)
+	cfg, issue := resolve(dir)
+	if !testing.expect_value(t, issue, "") do return
+	limits := DEFAULT_SCAN_LIMITS
+	limits.exclude_match_steps = 10
+	inv := scan(cfg, limits)
+	testing.expect(t, inv.complete, inv.problem)
+	limits.exclude_match_steps = 9
+	inv = scan(cfg, limits)
+	testing.expect(t, !inv.complete && strings.contains(inv.problem, "observed 10, limit 9"), inv.problem)
 }

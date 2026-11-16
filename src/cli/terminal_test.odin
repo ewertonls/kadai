@@ -48,3 +48,32 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	testing.expect_value(t, missing["target_id"].(string), "Lost")
 	testing.expect_value(t, missing["location"].(json.Object)["column"].(i64), 17)
 }
+
+// Error paths must not let a repository-controlled filename clear the terminal
+// or forge an extra diagnostic line.
+@(test)
+terminal_errors_escape_file_names :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-terminal-error-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", root)) == nil)
+	name := "task\x1b[2J\nFAKE SUCCESS.md"
+	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/%s", root, name), "---\nkadai: task\n---\n") == nil)
+	out := invoke_cli(t, {"list", "--project", root, "--limit=task_source_bytes=10"}, 1)
+	testing.expect_value(t, out.stdout, "")
+	start := strings.last_index(out.stderr, "kadai: error:")
+	if !testing.expect(t, start >= 0) do return
+	line := out.stderr[start:]
+	testing.expect(t, strings.count(line, "\n") == 1 && !strings.contains_rune(line, '\x1b'), line)
+	testing.expect(t, strings.contains(line, `\e[2J`) && strings.contains(line, `\nFAKE SUCCESS.md`), line)
+
+	// The same emission point handles malformed UTF-8 and direction controls.
+	err_line: strings.Builder
+	defer strings.builder_destroy(&err_line)
+	code := diagnose(strings.to_writer(&err_line), .Failure, "bad\xff\u202efile.md")
+	text := strings.to_string(err_line)
+	testing.expect_value(t, code, Exit_Code.Failure)
+	testing.expect(t, strings.count(text, "\n") == 1 && !strings.contains(text, "\xff") &&
+	                  !strings.contains(text, "\u202e") && strings.contains(text, `\xff`) &&
+	                  strings.contains(text, `\u202e`), text)
+}
