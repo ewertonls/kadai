@@ -4,3 +4,7 @@
 /third_party/odin-yaml/shared/libyaml/
 tests.bin
 kadai.dSYM
+
+# local tasks
+.kadai.yaml
+tasks/
