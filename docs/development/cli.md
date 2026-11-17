@@ -258,6 +258,7 @@ kadai add "Review release" --stdin --limit task_source_bytes=33554432
 kadai validate --limit yaml_depth=64 --limit yaml_nodes_document=20000
 ```
 
-The remaining phase 6 CLI and cross-platform checks are tracked in KAD-053 and KAD-054. The
+The [KAD-053 workflow test](../../src/cli/workflow_test.odin) exercises the same commands
+in initialized and unconfigured projects. KAD-054 tracks the cross-platform matrix. The
 dedicated collision-repair workflow specified by KAD-004 is not exposed by this
 core command set; `set id` is rejected and ambiguous IDs remain quarantined.
