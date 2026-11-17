@@ -36,6 +36,38 @@ discovery_boundaries_and_classification :: proc(t: ^testing.T) {
 }
 
 @(test)
+scan_ignores_file_and_directory_symlinks :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-scan-links-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	cfg, issue := resolve(root, {tasks_root = "."})
+	if !testing.expect_value(t, issue, "") do return
+
+	dir, _ := os.join_path({root, "work"}, context.temp_allocator)
+	file, _ := os.join_path({dir, "real.md"}, context.temp_allocator)
+	if !testing.expect(t, os.mkdir(dir) == nil) do return
+	source :: "---\nkadai: task\nid: OK\ntitle: Visible\nstatus: todo\n---\n"
+	if !testing.expect(t, os.write_entire_file(file, source) == nil) do return
+
+	for link in ([]struct{name, target: string, directory: bool}{
+		{"alias.md", file, false}, {"alias-dir", dir, true},
+	}) {
+		path, _ := os.join_path({root, link.name}, context.temp_allocator)
+		when ODIN_OS == .Windows {
+			if !create_windows_test_symlink(t, path, link.target, link.directory) do return
+		} else {
+			link_err := os.symlink(link.target, path)
+			if !testing.expect(t, link_err == nil, os.error_string(link_err)) do return
+		}
+	}
+
+	inv := scan(cfg)
+	if !testing.expect(t, inv.complete, inv.problem) do return
+	if !testing.expect_value(t, len(inv.candidates), 1) do return
+	testing.expect_value(t, inv.candidates[0].path, "work/real.md")
+}
+
+@(test)
 scan_budget_includes_rejected_nodes_and_ordinary_markdown :: proc(t: ^testing.T) {
 	dir, err := os.mkdir_temp("", "kadai-scan-", context.temp_allocator)
 	if !testing.expect(t, err == nil) do return

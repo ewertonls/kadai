@@ -53,9 +53,10 @@ task_command_workflow :: proc(t: ^testing.T) {
 		edited := fmt.tprintf("%s%s", string(source), manual_note)
 		if !testing.expect(t, os.write_entire_file(original_path, edited) == nil) do return
 
-		moved_path :: "work/implementation.md"
+		moved_path :: "work/計画.md"
+		destination :: "work" + os.Path_Separator_String + "計画.md"
 		_ = invoke_cli(t, {"status", work_id, "in_progress", project})
-		_ = invoke_cli(t, {"move", work_id, moved_path, project})
+		_ = invoke_cli(t, {"move", work_id, destination, project})
 		_ = invoke_cli(t, {"parent", "add", work_id, parent_id, project})
 		_ = invoke_cli(t, {"dep", "add", work_id, prerequisite_id, project})
 		shown := invoke_cli(t, {"show", work_id, "--json", project})
