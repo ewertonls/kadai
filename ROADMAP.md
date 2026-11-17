@@ -132,7 +132,7 @@
 - [x] **KAD-051** Define exit codes and stderr policy. _Acceptance:_ Make errors distinguishable in scripts; keep normal JSON output free of logs. _Reference:_ [Exit codes and streams](docs/development/cli.md#exit-codes-and-streams).
 - [x] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use. _Reference:_ [Noninteractive use](docs/development/cli.md#noninteractive-use).
 - [x] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI. _Test:_ [CLI workflow](src/cli/workflow_test.odin).
-- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows. The native Windows checks for KAD-029 are recorded separately in KAD-085.
+- [ ] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows. The native Windows checks for KAD-029 are recorded separately in KAD-085. [Native test coverage](docs/development/test-matrix.md).
 - [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
 
 ### Post-phase 6. Native storage validation on Windows 11
