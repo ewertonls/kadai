@@ -82,3 +82,78 @@ jobs:
           archive: false
           if-no-files-found: error
           overwrite: true
+
+  checksums:
+    name: Verify the four release archives
+    needs: [version, package]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: kadai-*
+          path: dist
+          merge-multiple: true
+          skip-decompress: true
+      - name: Generate SHA256SUMS from the tested archives
+        working-directory: dist
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          sha256sum "kadai-$VERSION-darwin-arm64.tar.gz" "kadai-$VERSION-linux-amd64.tar.gz" \
+            "kadai-$VERSION-linux-arm64.tar.gz" "kadai-$VERSION-windows-amd64.zip" > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SHA256SUMS
+          path: dist/SHA256SUMS
+          archive: false
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    name: Publish and verify release downloads
+    needs: [version, checksums]
+    if: github.event_name == 'push' && github.ref_type == 'tag' && !github.event.deleted
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+          skip-decompress: true
+      - name: Publish the tested assets and verify the downloads
+        working-directory: dist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+          REVISION: ${{ needs.version.outputs.revision }}
+        run: |
+          sha256sum --check --strict SHA256SUMS
+          mapfile -t packages < <(cut -d ' ' -f 3 SHA256SUMS)
+          test "${#packages[@]}" -eq 4
+          actual_revision=$(gh api "repos/$GH_REPO/commits/$TAG" --jq .sha)
+          test "$actual_revision" = "$REVISION"
+
+          prerelease=false
+          if [[ "${VERSION%%+*}" == *-* ]]; then prerelease=true; fi
+          if ! gh release view "$TAG" --json url >/dev/null; then
+            gh release create "$TAG" --verify-tag --title "Kadai $TAG" --generate-notes \
+              --prerelease="$prerelease" "${packages[@]}" SHA256SUMS
+          fi
+
+          release=$(gh release view "$TAG" --json url,isDraft,isPrerelease,assets)
+          jq -e --argjson pre "$prerelease" \
+            '(.isDraft == false) and (.isPrerelease == $pre) and (.assets | length == 5)' <<< "$release"
+          gh release download "$TAG" --dir downloads
+          cmp SHA256SUMS downloads/SHA256SUMS
+          (cd downloads && sha256sum --check --strict SHA256SUMS)
+          url=$(jq -r .url <<< "$release")
+          echo "Verified four package downloads for [$TAG]($url) at commit \`$REVISION\`." >> "$GITHUB_STEP_SUMMARY"

@@ -149,4 +149,17 @@ In GitHub Actions, open **Release → Run workflow**, select the branch and ente
 
 The [release workflow](../../.github/workflows/release.yml) runs the full suite on Linux AMD64, Linux ARM64, Windows AMD64 and macOS ARM64. Each runner extracts its finished package, compares the executable and the three license notices with their inputs, checks `--version` and inspects the executable for a shared LibYAML dependency.
 
-The **Artifacts** section offers the four tested packages as direct downloads, such as `kadai-0.1.0-rc.1-darwin-arm64.tar.gz` and `kadai-0.1.0-rc.1-windows-amd64.zip`. The workflow run identifies the commit shared by all four packages. Each package contains the executable and Kadai's `LICENSE` at its root. The `licenses/` directory contains the LibYAML 0.2.5 and Odin bindings notices. [Upstream LibYAML notice](https://github.com/yaml/libyaml/blob/0.2.5/License)
+The **Artifacts** section offers the four tested packages as direct downloads, such as `kadai-0.1.0-rc.1-darwin-arm64.tar.gz` and `kadai-0.1.0-rc.1-windows-amd64.zip`, plus `SHA256SUMS`. The workflow run identifies the commit shared by all four packages. Each package contains the executable and Kadai's `LICENSE` at its root. The `licenses/` directory contains the LibYAML 0.2.5 and Odin bindings notices. [Upstream LibYAML notice](https://github.com/yaml/libyaml/blob/0.2.5/License)
+
+### Publish a release
+
+Rehearse the intended tag on the commit to distribute. Review the four package contents and notices, check for exposed credentials, and follow the [binary installation instructions](../../README.md#install-a-release-binary). With all five artifacts from that run in one directory, run `sha256sum --check SHA256SUMS`.
+
+The maintainer then tags the reviewed commit and pushes that tag. For the first prerelease, substitute its full Git commit SHA before running:
+
+```sh
+git tag -a v0.1.0-rc.1 REVIEWED_COMMIT_SHA -m "Kadai v0.1.0-rc.1"
+git push origin refs/tags/v0.1.0-rc.1
+```
+
+A tag push rebuilds and tests all four packages. After the checksum job succeeds, the publication job verifies the tag still points to the tested commit and attaches the four archives and `SHA256SUMS` to a GitHub Release. A SemVer prerelease suffix selects **Pre-release**. The job downloads all five release assets again and checks the package digests against the manifest. Its summary records the release URL and commit. Manual runs stop after producing the rehearsal artifacts.
