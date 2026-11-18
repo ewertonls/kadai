@@ -32,7 +32,7 @@ COMMANDS := [?]Command{
 	{
 		"list", List_Flags, "List tasks with their ID, status, title and path.",
 		"Rows match all supplied filters. By default they follow collection-relative path order.",
-		{""}, {"kadai list --status todo --directory docs", "kadai list --where 'priority=high OR status=todo AND tag!=wip'", "kadai list --sort priority --order desc"},
+		{""}, {"kadai list --status todo --directory docs", "kadai list --where 'priority=high OR status=todo AND tag!=wip'", "kadai list --sort priority --order desc --long"},
 	},
 	{
 		"show", Project_Flags, "Print a task's file path and Markdown contents.",
@@ -81,9 +81,9 @@ COMMANDS := [?]Command{
 		{"kadai dep add 0002 0001", "kadai dep show 0002", "kadai dep graph 0001 dependents"},
 	},
 	{
-		"edit", Project_Flags, "Open a task's Markdown file in $EDITOR.",
-		"Kadai waits for the editor to exit. For VS Code, set EDITOR to 'code --wait'.",
-		{"ID"}, {"kadai edit 0001"},
+		"edit", Edit_Flags, "Open a task's Markdown file in an editor.",
+		"Kadai uses EDITOR by default and waits for the editor to exit.",
+		{"ID"}, {"kadai edit 0001", "kadai edit 0001 --editor 'nvim --clean'"},
 	},
 	{
 		"move", Move_Flags, "Move a task file or directory within the collection.",

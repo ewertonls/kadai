@@ -18,7 +18,7 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	defer os.remove_all(root)
 	for task in ([]struct {id, status, title, links: string}{
 		{"A", "done", "Plan", ""},
-		{"B", "todo", `"Revisar café\tdraft"`, "parent: a\ndepends_on: [a, Lost]\n"},
+		{"B", "todo", `"Revisar café\tdraft"`, "parent: a\ndepends_on: [a, Lost]\npriority: high\ndue: '2026-11-15'\n"},
 		{"C", "done", "Ship", "depends_on: [B]\n"},
 	}) {
 		path := fmt.tprintf("%s/%s.md", root, task.id)
@@ -29,6 +29,9 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	list := invoke_cli(t, {"list", "--project", root, "--tasks-root", ".", "--status", "todo"}).stdout
 	testing.expect_value(t, strings.count(list, "\n"), 1)
 	testing.expect(t, strings.contains(list, `café\tdraft`) && strings.contains(list, "B.md") && !strings.contains(list, "\t"), list)
+	long := invoke_cli(t, {"list", "--long", "--project", root, "--tasks-root", "."}).stdout
+	testing.expect(t, strings.contains(long, fmt.tprintf("%s    priority high  due 2026-11-15\n", list)), long)
+	testing.expect(t, strings.contains(long, "(A.md)\n    priority -  due -\n"), long)
 	// Directional overrides in a file name can otherwise reorder the visible suffix.
 	testing.expect(t, strings.contains(terminal_field("notes\u202etxt.md"), `\u202e`))
 

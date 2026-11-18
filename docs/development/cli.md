@@ -25,12 +25,12 @@ All commands below accept the common project and resource options.
 | --- | --- |
 | `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
-| `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. |
+| `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. `--long` adds priority and due date to text output. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
 | `unset ID FIELD` | Remove `priority`, `due` or `tags`. Required fields cannot be unset. |
 | `status ID STATUS` | Alias for setting the status. `--force` permits completion with blocked/unresolved prerequisites. |
-| `edit ID` | Open the source file using `$EDITOR` and wait for exit. |
+| `edit ID` | Open the source file using `$EDITOR` and wait for exit. `--editor COMMAND` selects an editor for this invocation. |
 | `move ID DEST` | Move/rename one task to a collection-relative file path. |
 | `move --directory SOURCE DEST` | Move a collection-relative directory, preserving task identities and discoverability. |
 | `remove ID` | Preview with `--dry-run`. Delete with `--yes` or `--plan TOKEN`. Add `--detach` to clear inbound parent and dependency references. Prints an operation ID on deletion. |
@@ -60,8 +60,8 @@ and must remain discoverable. Parent directories may be created as needed.
 Kadai never prompts for missing arguments or confirmation. Commands behave the
 same in a terminal and in a pipeline. Only `add --stdin` reads task data from
 standard input. A title-only `add` creates an empty body even with piped input.
-Only `edit` launches `$EDITOR` and waits for it, so scripts using `edit` should
-configure an editor that runs unattended.
+Only `edit` launches an editor and waits for it, so scripts using `edit` should
+select an editor that runs unattended.
 
 `remove ID --yes` deletes an unreferenced task. Inbound references block
 deletion unless the invocation also includes `--detach`. To review and apply
@@ -84,6 +84,21 @@ can remove or replace files. To undo a completed removal, use
 `remove`. Omit the ID to select the pending operation. An explicitly empty ID
 is a usage error. Recovery verifies recorded state before modifying files. Missing
 authorization for deletion or recovery exits with code 2 before opening the project.
+
+### Choosing an editor
+
+`kadai edit 0001 --editor 'nvim --clean'` overrides `$EDITOR` for one command.
+Both forms accept an executable and literal arguments. Quote paths or arguments
+containing spaces inside the command string. Kadai appends the task's absolute
+path as one argument and starts the executable directly. With `--json`, editor
+output goes to stderr and the successful acknowledgement goes to stdout after
+the editor exits. Malformed `--editor` syntax exits with code 2. A malformed
+`$EDITOR` setting exits with code 1.
+
+On macOS and Linux, `--editor 'code --wait'` waits for VS Code to close the
+file. On Windows, select a native executable such as `nvim.exe`. Kadai checks
+for empty or tab-containing arguments that the Windows launcher cannot pass
+literally and reports them before starting the editor.
 
 ## List filters
 
@@ -143,6 +158,15 @@ kadai list --sort title --json
 ## Terminal output
 
 `list` prints one row per match, for example `T-002  [todo]  Review notes  (docs/review.md)`.
+Use `list --long` to show the stored priority and due date below each row.
+A dash marks a missing value. Filters and sorting apply to either layout.
+`--long` and `--json` select different output formats and cannot be combined.
+
+```text
+T-002  [todo]  Review notes  (docs/review.md)
+    priority high  due 2026-11-15
+```
+
 `tree` indents direct children beneath their parent and marks unresolved parents and
 cycle members. For levels deeper than 16 it prints the depth beside the task.
 `ready` shows the task's stored status and labels its derived readiness separately.

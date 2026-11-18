@@ -6,12 +6,19 @@ import "core:strings"
 import "kadai:project"
 import "kadai:storage"
 
-// EDITOR accepts an executable and literal arguments, including quoted paths.
+// The pinned Windows process launcher quotes arguments containing one of these
+// characters. It drops empty arguments and splits an otherwise unquoted tab.
+@(private)
+windows_editor_argument_supported :: proc(arg: string) -> bool {
+	return arg != "" && (!strings.contains(arg, "\t") || strings.contains_any(arg, "()[]{}^=;!'+,`~\" "))
+}
+
+// The editor command accepts an executable and literal arguments, including quoted paths.
 // Preserve Windows path separators. Never pass the task filename to a shell.
 @(private)
 editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: string) {
 	context.allocator = context.temp_allocator
-	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid EDITOR"
+	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid editor command"
 	word := strings.builder_make()
 	quote: byte
 	started := false
@@ -37,9 +44,14 @@ editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: strin
 		}
 		strings.write_byte(&word, c)
 	}
-	if quote != 0 do return nil, "unterminated quote in EDITOR"
+	if quote != 0 do return nil, "unterminated quote in editor command"
 	if started do append(&args, strings.clone(strings.to_string(word)))
-	if len(args) == 0 || args[0] == "" do return nil, "set EDITOR to an executable"
+	if len(args) == 0 || args[0] == "" do return nil, "specify an executable with EDITOR or --editor"
+	when ODIN_OS == .Windows {
+		for arg in args {
+			if !windows_editor_argument_supported(arg) do return nil, "Windows cannot pass this empty or tab-containing editor argument literally"
+		}
+	}
 	return
 }
 
@@ -67,8 +79,9 @@ editor_executable :: proc(cwd, name: string) -> string {
 	return ""
 }
 
-edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout) -> string {
+edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout, invalid_command: ^bool = nil) -> string {
 	command, issue := editor_arguments(editor)
+	if invalid_command != nil do invalid_command^ = issue != ""
 	if issue != "" do return issue
 	exe := editor_executable(cwd, command[0])
 	if exe == "" do return fmt.tprintf("editor executable not found: %s", command[0])

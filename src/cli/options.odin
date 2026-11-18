@@ -39,6 +39,22 @@ List_Flags :: struct {
 	expression: string `args:"name=where" usage:"Combine id, status, priority, tag or due predicates with AND and OR."`,
 	sort:      string `usage:"Sort by path (default), id, title, status or priority."`,
 	order:     string `usage:"Sort in ascending (asc, default) or descending (desc) order."`,
+	long:      bool   `usage:"Show priority and due date below each task in text output."`,
+}
+
+Edit_Flags :: struct {
+	project:        string           `usage:"Select the project directory."`,
+	tasks_root:     string           `usage:"Select the task collection root."`,
+	boards_root:    string           `usage:"Select the boards directory under the task root."`,
+	id_prefix:      string           `usage:"Set the prefix for generated task IDs."`,
+	timezone:       string           `usage:"Set the project time zone."`,
+	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
+	overflow:       [dynamic]string  `args:"hidden"`,
+
+	editor: string `usage:"Use this editor command for one invocation. Defaults to EDITOR."`,
 }
 
 Add_Flags :: struct {
@@ -128,9 +144,9 @@ Arguments :: struct {
 	list_filter: app.List_Filter,
 	list_sort: app.List_Sort,
 	words: []string,
-	body_file, destination, plan: string,
+	body_file, destination, plan, editor: string,
 	status: Maybe(string),
-	stdin, force, directory, detach, dry_run, json, yes: bool,
+	stdin, force, directory, detach, dry_run, json, yes, long: bool,
 }
 
 parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.Error) {
@@ -160,6 +176,8 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	}
 
 	when T == List_Flags {
+		if options.long && options.json do return a, flags.Validation_Error{"choose either --long or --json"}
+		a.long = options.long
 		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}
 		if options.sort != "" {
 			key, ok := reflect.enum_from_name(app.List_Sort_Key, options.sort)
@@ -175,6 +193,8 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 			a.list_filter.alternatives, problem = parse_list_expression(options.expression)
 			if problem != "" do return a, flags.Validation_Error{problem}
 		}
+	} else when T == Edit_Flags {
+		a.editor = options.editor
 	} else when T == Add_Flags {
 		if options.stdin && options.body_file != "" {
 			return a, flags.Validation_Error{"choose one body source: --body-file or --stdin"}

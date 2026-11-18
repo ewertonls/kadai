@@ -10,22 +10,56 @@ import "kadai:app"
 
 // Titles, paths and diagnostic text can contain control characters. Quote
 // those fields so one input value cannot split, overwrite or reorder a row.
-terminal_field :: proc(value: string) -> string {
+needs_terminal_quotes :: proc(value: string) -> bool {
 	for r, i in value {
 		switch r {
 		case '\u061c', '\u200e', '\u200f', '\u2028'..='\u202e', '\u2066'..='\u2069':
-			return fmt.tprintf("%q", value) // Line separators and bidirectional controls.
+			return true // Line separators and bidirectional controls.
 		case utf8.RUNE_ERROR:
 			_, width := utf8.decode_rune_in_string(value[i:])
-			if width == 1 do return fmt.tprintf("%q", value)
+			if width == 1 do return true
 		}
-		if unicode.is_control(r) do return fmt.tprintf("%q", value)
+		if unicode.is_control(r) do return true
 	}
-	return value
+	return false
 }
 
-write_task_label :: proc(b: ^strings.Builder, id, status, title: string) {
-	fmt.sbprintf(b, "%s  [%s]  %s", id, status, terminal_field(title))
+terminal_field :: proc(value: string) -> string {
+	return fmt.tprintf("%q", value) if needs_terminal_quotes(value) else value
+}
+
+write_terminal_field :: proc(w: io.Writer, value: string) -> io.Error {
+	if needs_terminal_quotes(value) {
+		io.write_quoted_string(w, value) or_return
+	} else {
+		io.write_string(w, value) or_return
+	}
+	return nil
+}
+
+write_task_label :: proc(b: ^strings.Builder, id, status, title: string) -> io.Error {
+	w := strings.to_writer(b)
+	for part in ([]string{id, "  [", status, "]  "}) do io.write_string(w, part) or_return
+	return write_terminal_field(w, title)
+}
+
+list_text :: proc(items: []^app.Task_Candidate, long: bool) -> (text: string, err: io.Error) {
+	b, alloc_err := strings.builder_make(context.temp_allocator)
+	if alloc_err != nil do return "", .Buffer_Full
+	w := strings.to_writer(&b)
+	for item in items {
+		fields := &item.fields
+		write_task_label(&b, fields.id, fields.status, fields.title) or_return
+		io.write_string(w, "  (") or_return
+		write_terminal_field(w, item.path) or_return
+		io.write_string(w, ")\n") or_return
+		if long {
+			priority := fields.priority if fields.priority != "" else "-"
+			due := fields.due if fields.due != "" else "-"
+			for part in ([]string{"    priority ", priority, "  due ", due, "\n"}) do io.write_string(w, part) or_return
+		}
+	}
+	return strings.to_string(b), nil
 }
 
 tree_text :: proc(rows: []app.Tree_Row) -> string {

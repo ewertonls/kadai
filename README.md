@@ -159,7 +159,9 @@ The [core CLI grammar](docs/development/cli.md) documents commands, project over
 
 Commands use the configured exclusion list by default. Supply `--exclude GLOB` once per replacement pattern, for example `kadai list --exclude 'archive/**' --exclude 'drafts/**'`. To clear the configured list, use `--clear-excludes` in place of the former `--exclude ""` syntax. Combining `--clear-excludes` with `--exclude` is an error. Kadai's mandatory internal exclusions still apply.
 
-`kadai edit ID` opens the task file in `$EDITOR` and waits for the editor process. For a GUI editor, use its wait flag, for example `EDITOR="code --wait"`. Quote paths or arguments containing spaces. Saves made in the editor appear on the next Kadai read.
+`kadai edit ID` opens the task file in `$EDITOR` and waits for the editor process. To choose an editor for one task, run `kadai edit 0001 --editor 'nvim --clean'`. Quote paths or arguments containing spaces. Saves made in the editor appear on the next Kadai read.
+
+`kadai list --long` shows priority and due date below each matching task. Add `--sort priority --order desc` to see the highest priorities first.
 
 In a fresh collection, the first generated ID is `0001`. Task destinations are relative to the effective task root.
 

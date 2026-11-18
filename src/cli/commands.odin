@@ -49,12 +49,9 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter, a.list_sort)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(items)
-		b := strings.builder_make(context.temp_allocator)
-		for item in items {
-			write_task_label(&b, item.fields.id, item.fields.status, item.fields.title)
-			fmt.sbprintf(&b, "  (%s)\n", terminal_field(item.path))
-		}
-		return strings.to_string(b), "", .Success
+		text, err := list_text(items, a.long)
+		if err != nil do return "", "cannot encode task list", .Output_Failed
+		return text, "", .Success
 	case "remove":
 		if len(a.words) != 1 do return "", "remove requires an ID", .Usage
 		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
@@ -122,7 +119,11 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", .Usage
 		editor_out := os.stderr if a.json else os.stdout
-		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator), a.limits, editor_out)
+		editor := a.editor
+		if editor == "" do editor = os.get_env("EDITOR", context.temp_allocator)
+		invalid_command: bool
+		issue = app.edit_task(cwd, a.project, a.words[0], editor, a.limits, editor_out, &invalid_command)
+		if a.editor != "" && invalid_command do return "", issue, .Usage
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", .Usage
 		operation, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
@@ -188,6 +189,7 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
 	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
+	case Edit_Flags:    a, parse_err = parse_options(Edit_Flags, args)
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
 	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)
