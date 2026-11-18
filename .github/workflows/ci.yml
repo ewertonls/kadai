@@ -49,3 +49,17 @@ jobs:
         run: ${{ matrix.cli }} --help
       - name: CLI version
         run: ${{ matrix.cli }} --version
+      - name: Check release version handling
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          for tag in 1.2.3 v01.2.3 v1.2.3-rc.01; do
+            if python3 .github/scripts/release_version.py "$tag"; then
+              echo "Unexpectedly accepted $tag" >&2
+              exit 1
+            fi
+          done
+          version=$(python3 .github/scripts/release_version.py v1.2.3-rc.1+007)
+          odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true "-define:KADAI_VERSION=$version"
+          actual=$(./kadai --version)
+          test "$actual" = 'kadai 1.2.3-rc.1+007'
