@@ -60,8 +60,8 @@ tree_destination :: proc(cfg: Config, src, dst: string, members: []storage.Tree_
 			if skip do return fmt.tprintf("excluded path in directory move: %s", path)
 			if entry.directory {
 				if root == src {
-					skip, e := boundary(cfg, storage.child(cfg.tasks, path))
-					if skip || e != nil do return fmt.tprintf("discovery boundary in directory move: %s", path)
+					at_boundary, e := boundary(cfg, storage.child(cfg.tasks, path))
+					if at_boundary || e != nil do return fmt.tprintf("discovery boundary in directory move: %s", path)
 				} else if strings.equal_fold(storage.child(cfg.tasks, path), cfg.boards) ||
 				          strings.equal_fold(os.base(path), ".kadai") || strings.equal_fold(os.base(path), ".git") {
 					return fmt.tprintf("reserved directory destination: %s", path)
