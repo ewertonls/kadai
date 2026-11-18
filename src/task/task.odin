@@ -67,9 +67,16 @@ valid_status :: proc(s: string, vocab: Vocabulary) -> bool {
 	return valid_slug(s) && slice.contains(vocab.additional_statuses, s)
 }
 
+@(private, rodata)
+DEFAULT_PRIORITIES := [?]string{"low", "medium", "high", "critical"}
+
+priority_order :: proc(vocab: Vocabulary) -> []string {
+	if vocab.priorities != nil do return vocab.priorities
+	return DEFAULT_PRIORITIES[:]
+}
+
 valid_priority :: proc(s: string, vocab: Vocabulary) -> bool {
-	if vocab.priorities != nil do return valid_slug(s) && slice.contains(vocab.priorities, s)
-	return s == "low" || s == "medium" || s == "high" || s == "critical"
+	return valid_slug(s) && slice.contains(priority_order(vocab), s)
 }
 
 @(private)

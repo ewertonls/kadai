@@ -62,6 +62,49 @@ get_task :: proc(cwd: string, options: Project_Options, id: string, limits := pr
 
 List_Filter :: struct {
 	status, directory, tag, parent: string,
+	// Any group may match. Within a group every predicate must match.
+	alternatives: [][]List_Predicate,
+}
+
+List_Predicate :: struct {
+	field: enum {ID, Status, Priority, Tag, Due},
+	value: string,
+	negated: bool,
+}
+
+@(private)
+valid_list_predicate :: proc(p: List_Predicate, vocabulary: task.Vocabulary) -> bool {
+	switch p.field {
+	case .ID:       return task.valid_id(p.value)
+	case .Status:   return task.valid_status(p.value, vocabulary)
+	case .Priority: return task.valid_priority(p.value, vocabulary)
+	case .Tag:      return task.valid_tag(p.value)
+	case .Due:      return task.valid_due(p.value)
+	}
+	unreachable()
+}
+
+@(private)
+matches_expression :: proc(item: ^project.Candidate, alternatives: [][]List_Predicate) -> bool {
+	for group in alternatives {
+		matches := true
+		for p in group {
+			equal: bool
+			switch p.field {
+			case .ID:       equal = strings.equal_fold(item.fields.id, p.value)
+			case .Status:   equal = item.fields.status == p.value
+			case .Priority: equal = item.fields.priority == p.value
+			case .Tag:      equal = slice.contains(item.fields.tags[:], p.value)
+			case .Due:      equal = item.fields.due == p.value
+			}
+			if equal == p.negated {
+				matches = false
+				break
+			}
+		}
+		if matches do return true
+	}
+	return len(alternatives) == 0
 }
 
 @(private)
@@ -90,6 +133,7 @@ list_tasks :: proc(
 	options: Project_Options,
 	limits := project.DEFAULT_SCAN_LIMITS,
 	filter := List_Filter{},
+	sort := List_Sort{},
 ) -> ([]^project.Candidate, string) {
 	prefix, directory_issue := list_directory_prefix(filter.directory)
 	if directory_issue != "" do return nil, directory_issue
@@ -97,12 +141,18 @@ list_tasks :: proc(
 	view, issue := read_collection(cwd, options, limits)
 	if issue != "" do return nil, issue
 	items := view.index.valid[:]
-	if filter == (List_Filter{}) do return items, ""
 	if filter.status != "" && !task.valid_status(filter.status, view.config.vocabulary) {
 		return nil, fmt.tprintf("unknown status: %s", filter.status)
 	}
 	if filter.parent != "" {
 		if _, problem := unique_task(&view, filter.parent); problem != "" do return nil, problem
+	}
+	for group in filter.alternatives {
+		for p in group {
+			if !valid_list_predicate(p, view.config.vocabulary) {
+				return nil, fmt.tprintf("invalid --where value for %v: %q", p.field, p.value)
+			}
+		}
 	}
 	// Compact this invocation's pointers in their existing collection-relative path order.
 	n := 0
@@ -111,8 +161,11 @@ list_tasks :: proc(
 		if !strings.has_prefix(item.path, prefix) do continue
 		if filter.tag != "" && !slice.contains(item.fields.tags[:], filter.tag) do continue
 		if filter.parent != "" && !strings.equal_fold(item.fields.parent, filter.parent) do continue
+		if !matches_expression(item, filter.alternatives) do continue
 		items[n] = item
 		n += 1
 	}
-	return items[:n], ""
+	items = items[:n]
+	if problem := sort_list_items(items, sort, view.config.vocabulary); problem != "" do return nil, problem
+	return items, ""
 }

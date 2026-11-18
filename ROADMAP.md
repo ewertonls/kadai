@@ -9,12 +9,12 @@
 | Milestone | Phases | Meaning |
 | --- | --- | --- |
 | **v0.1** | 0–6 | A usable local task CLI with safe Markdown editing, task relationships, and validation |
-| **v0.1.x** | 6a | Scheduled follow-up TODOs for richer CLI UX and explicit Markdown import, before boards |
+| **v0.1.x** | 6a | Richer CLI UX and explicit Markdown import, before boards |
 | **v0.2** | 7 | Optional manually curated Markdown Kanban boards |
 | **v0.3** | 8 | Search, task context, custom metadata, and agent ergonomics |
 | **v1.0** | 9 | Stability, compatibility, performance, and distribution |
 
-**Time budget:** Aim for a focused v0.1 after one week, not a guarantee. KAD-001 [defines the non-deferrable v0.1 contract](docs/specs/KAD-001-v0.1-scope.md); rich filtering, custom sorting, richer dependency views, and extra CLI conveniences are scheduled TODOs for v0.1.x. Do not sacrifice core functionality, safe file editing, integrity checks, or JSON contracts to meet a date. The YAML writer remains the primary schedule risk.
+**Time budget:** Aim for a focused v0.1 after one week, not a guarantee. Rich filtering, custom sorting, richer dependency views, and extra CLI conveniences belong to v0.1.x. [KAD-001 defines the non-deferrable v0.1 contract](docs/specs/KAD-001-v0.1-scope.md). Do not sacrifice core functionality, safe file editing, integrity checks, or JSON contracts to meet a date. The YAML writer remains the primary schedule risk.
 
 **Out of current planning scope:** TUI and desktop app. They may be considered only after the CLI is reliable; no implementation tasks or technology choices for them are committed here.
 
@@ -133,23 +133,23 @@
 - [x] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use. _Reference:_ [Noninteractive use](docs/development/cli.md#noninteractive-use).
 - [x] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI. _Test:_ [CLI workflow](src/cli/workflow_test.odin).
 - [x] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows. The native Windows checks for KAD-029 are recorded separately in KAD-085. [Native CI results, coverage and merge checks](docs/development/test-matrix.md#native-ci-results).
-- [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
+- [x] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready. [v0.1.0-rc.1](https://github.com/ewertonls/kadai/releases/tag/v0.1.0-rc.1) · [Published download checksums verified](https://github.com/ewertonls/kadai/actions/runs/44219689158/job/134518584772).
 
 ### Post-phase 6. Native storage validation on Windows 11
 
 - [x] **KAD-085** Validate KAD-029 on the available Windows 11 PC. Brought forward from post-phase 6 on 2026-11-14. The full native suite passed, including atomic replacement, supported security metadata, unsupported-metadata refusal, competing writers and rollback after interruption without overwriting a later edit. [Tested revision, results and platform limits](docs/development/windows-validation.md).
 
-### 6a. v0.1.x follow-ups (scheduled TODOs)
+### 6a. v0.1.x follow-ups
 
 **Milestone:** v0.1.x, after the safe v0.1 core and before v0.2 boards. **Goal:** Complete non-essential CLI enhancements and explicit import without weakening the v0.1 release boundary.
 
-**Depends on:** Phase 6. **Done when:** Every task below is implemented and tested. These tasks are postponed, not cancelled.
+**Depends on:** Phase 6. **Done when:** Every task below is implemented and tested.
 
-- [ ] **KAD-080** Add advanced task filtering. _Acceptance:_ Support documented multi-criteria and advanced filter expressions beyond the baseline status/directory/tag/parent filters, with predictable text/JSON behavior and tests.
-- [ ] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON.
-- [ ] **KAD-082** Add richer dependency visualizations. _Acceptance:_ Provide expanded graph or transitive dependency views beyond the v0.1 immediate prerequisites/dependents, without changing dependency semantics or task files.
-- [ ] **KAD-083** Add CLI convenience features. _Acceptance:_ Document and implement post-v0.1 ergonomic improvements (such as richer terminal presentation and editor shortcuts), preserving script-safe defaults and existing command contracts.
-- [ ] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently.
+- [x] **KAD-080** Add advanced task filtering. _Acceptance:_ Support documented multi-criteria and advanced filter expressions beyond the baseline status/directory/tag/parent filters, with predictable text/JSON behavior and tests. _Reference:_ [Filter expressions](docs/development/cli.md#filter-expressions).
+- [x] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON. _Reference:_ [List sorting](docs/development/cli.md#list-sorting).
+- [x] **KAD-082** Add richer dependency visualizations. _Acceptance:_ Provide expanded graph or transitive dependency views beyond the v0.1 immediate prerequisites/dependents, without changing dependency semantics or task files. _Reference:_ [Dependency graphs](docs/development/cli.md#dependency-graphs).
+- [x] **KAD-083** Add CLI convenience features. _Acceptance:_ Document and implement post-v0.1 ergonomic improvements (such as richer terminal presentation and editor shortcuts), preserving script-safe defaults and existing command contracts. _Reference:_ [Terminal output](docs/development/cli.md#terminal-output) and [choosing an editor](docs/development/cli.md#choosing-an-editor).
+- [x] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently. _Reference:_ [Importing Markdown](docs/development/cli.md#importing-markdown).
 
 ### 7. Manual Markdown Kanban boards
 
@@ -218,18 +218,17 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 - [ ] `kadai validate` reports duplicate IDs, broken references, and cycles.
 - [x] `--json` output is parseable and does not mix in log messages.
 - [x] CI exercises builds/tests for macOS, Linux, and Windows. [Native CI results](docs/development/test-matrix.md#native-ci-results).
-- [ ] Real commands, installation steps, and any known limitations are documented before release.
+- [x] Real commands, installation steps, and known limitations are documented before release. [Binary installation](README.md#install-a-release-binary) · [CLI guide](docs/development/cli.md) · [Storage limitations](docs/development/storage.md).
 
 ## Technical decisions pending
 
-- **YAML distribution:** KAD-013 selected LibYAML. Release packaging still needs to verify native linking and include the appropriate license notices for each target. [Development link options](docs/development/yaml-parser.md#licensing-and-linking).
 - **ID generation:** KAD-002 fixes collection-local case-insensitive sequential IDs with optional prefix and durable used-ID history; KAD-004 owns the record format, post-merge repair, filenames and collision details.
 - **YAML patch scope:** Specify readable-but-uneditable YAML constructs, parser resource limits, v1 deadline grammar and lossless JSON numeric handoff.
 - **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
 
 ## Future ideas, not scheduled
 
-Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI. These are not part of the current CLI milestones; the v0.1.x enhancements and `kadai import` above are explicitly scheduled, not unscheduled ideas.
+Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI.
 
 ## References
 

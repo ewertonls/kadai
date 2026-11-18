@@ -1,6 +1,5 @@
 package project
 
-import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:slice"
@@ -117,26 +116,12 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 		context.allocator = context.temp_allocator
 		doc = document.decode_task(string(source), cfg.vocabulary, limits.source_bytes, parse_limits, relative)
 	}
-	header_bytes := doc.parts.header.end - doc.parts.header.start
-	if doc.status == .Boundary_Error && doc.boundary_status != .YAML_Document_Too_Large {
-		failure: yaml.Parse_Failure
-		doc.probe, header_bytes, failure = document.probe_broken_header(string(source), parse_limits)
-		switch e in failure {
-		case yaml.Error:
-			if e == .Too_Many_Nodes || e == .Too_Deep do return fmt.tprintf("YAML limit exceeded: %v", e)
-		case runtime.Allocator_Error: return "recognition allocation failed"
-		}
-	}
+	recognized, header_bytes, issue := document.recognize_candidate(&doc, parse_limits)
 	inv.bytes += i64(header_bytes)
 	inv.nodes += i64(doc.probe.nodes)
 	if inv.bytes > limits.total_bytes || doc.boundary_status == .YAML_Document_Too_Large && bytes_left < i64(limits.yaml.bytes) do return "scan_yaml_bytes limit exceeded"
 	if inv.nodes > limits.total_nodes do return "scan_yaml_nodes limit exceeded"
-	if doc.status == .Allocation_Error || doc.boundary_status == .YAML_Document_Too_Large ||
-	   doc.yaml_error == .Too_Deep || doc.yaml_error == .Too_Many_Nodes {
-		return fmt.tprintf("scan incomplete: %v / %v / %v", doc.status, doc.boundary_status, doc.yaml_error)
-	}
-	if doc.status == .Non_Task do return ""
-	if (doc.status == .Boundary_Error || doc.status == .YAML_Error) && !doc.probe.matched do return ""
+	if issue != "" || !recognized do return issue
 	id_loc, refs, loc_err := document.reference_locations(&doc)
 	if loc_err != nil do return "cannot allocate reference locations"
 	candidate := Candidate{

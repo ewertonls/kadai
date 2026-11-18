@@ -4,6 +4,7 @@ package cli
 import "core:encoding/json"
 import "core:fmt"
 import "core:io"
+import "core:mem"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -40,7 +41,17 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"help", "dep"}, 0, "kadai dep add 0002 0001"},
 		{{"help", "missing"}, 2, "unknown command"},
 		{{"help", "add", "extra"}, 2, "extra"},
+		{{"help", "import"}, 0, "kadai import SOURCE.md --yes"},
+		{{"import", "missing.md"}, 2, "requires --yes"},
+		{{"import", "one.md", "two.md", "--yes"}, 2, "one Markdown source file"},
 		{{"list", "--force"}, 2, "force"},
+		{{"list", "--where", "status=todo OR"}, 2, "--where"},
+		{{"list", "--where", "id=A XOR id=B"}, 2, "AND or OR"},
+		{{"list", "--where", "title=notes"}, 2, "unknown --where field"},
+		{{"list", "--sort", "unknown"}, 2, "sort"},
+		{{"list", "--order", "sideways"}, 2, "order"},
+		{{"list", "--long", "--json"}, 2, "choose either --long or --json"},
+		{{"list", "--editor", "vim"}, 2, "editor"},
 		{{"help", "list"}, 0, "--parent"},
 		{{"show", "0001", "--tag", "release"}, 2, "tag"},
 		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
@@ -60,10 +71,13 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"unset", "0001", "tags", "cli"}, 2, "expected an ID and field"},
 		{{"status", "0001"}, 2, "ID and status"},
 		{{"edit"}, 2, "requires an ID"},
+		{{"edit", "0001", "--editor", "'unterminated", "--json"}, 2, "unterminated quote in editor command"},
+		{{"edit", "0001", "--editor", "   "}, 2, "specify an executable"},
 		{{"move", "0001"}, 2, "source and destination"},
 		{{"remove"}, 2, "requires an ID"},
 		{{"parent", "add", "0001"}, 2, "parent add CHILD PARENT"},
 		{{"dep", "add", "0001"}, 2, "dep add|remove TASK PREREQUISITE"},
+		{{"dep", "graph", "A", "both"}, 2, "prerequisites or dependents"},
 		{{"tree", "extra"}, 2, "no positional arguments"},
 		{{"ready", "0001", "0002"}, 2, "optional task ID"},
 		{{"validate", "extra"}, 2, "no positional arguments"},
@@ -78,6 +92,22 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		testing.expect(t, strings.contains(result, c.contains), result)
 		testing.expect_value(t, other, "")
 	}
+}
+
+@(test)
+edit_reports_argument_allocation_failure :: proc(t: ^testing.T) {
+	editor := fmt.tprintf("code --wait %s", strings.repeat("x", 256, context.temp_allocator))
+	space: [144]byte
+	arena: mem.Arena
+	mem.arena_init(&arena, space[:])
+	issue, completed: string
+	code: Exit_Code
+	{
+		context.temp_allocator = mem.arena_allocator(&arena)
+		_, issue, code = execute("edit", ".", {words = {"0001"}, editor = editor}, {}, &completed)
+	}
+	testing.expect_value(t, code, Exit_Code.Failure)
+	testing.expect_value(t, issue, "cannot allocate editor arguments")
 }
 
 @(test)

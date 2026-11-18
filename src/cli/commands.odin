@@ -32,29 +32,21 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		rows, problem := app.ready_tasks(cwd, a.project, id, a.limits)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(rows)
-		b := strings.builder_make(context.temp_allocator)
-		for row in rows {
-			write_task_label(&b, row.item.fields.id, row.item.fields.status, row.item.fields.title)
-			fmt.sbprintf(&b, "  (readiness: %s)\n", READINESS_LABELS[row.readiness])
-		}
-		return strings.to_string(b), "", .Success
+		return task_text_result(rows)
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", .Usage
 		rows, problem := app.task_tree(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(rows)
-		return tree_text(rows), "", .Success
+		return task_text_result(rows)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", .Usage
-		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter)
+		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter, a.list_sort)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(items)
-		b := strings.builder_make(context.temp_allocator)
-		for item in items {
-			write_task_label(&b, item.fields.id, item.fields.status, item.fields.title)
-			fmt.sbprintf(&b, "  (%s)\n", terminal_field(item.path))
-		}
-		return strings.to_string(b), "", .Success
+		text, err := list_text(items, a.long)
+		if err != nil do return "", "cannot encode task list", .Output_Failed
+		return text, "", .Success
 	case "remove":
 		if len(a.words) != 1 do return "", "remove requires an ID", .Usage
 		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
@@ -88,13 +80,27 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		if !a.yes do return "", "recover requires --yes to apply the operation", .Usage
 		operation, issue = app.recover_collection(cwd, a.project, mode, id, a.limits)
 	case "dep":
+		if len(a.words) > 0 && a.words[0] == "graph" {
+			if len(a.words) < 2 || len(a.words) > 3 do return "", "expected dep graph ID [prerequisites|dependents]", .Usage
+			direction := app.Dependency_Direction.Prerequisites
+			if len(a.words) == 3 {
+				switch a.words[2] {
+				case "prerequisites":
+				case "dependents": direction = .Dependents
+				case: return "", "dep graph direction must be prerequisites or dependents", .Usage
+				}
+			}
+			view, problem := app.dependency_graph(cwd, a.project, a.words[1], direction, a.limits)
+			if problem != "" do return "", problem, .Failure
+			return dependency_graph_output(view, a.json)
+		}
 		if len(a.words) == 2 && a.words[0] == "show" {
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, .Failure
 			if a.json do return json_result(view)
-			return dependency_text(view), "", .Success
+			return task_text_result(view)
 		}
-		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", .Usage
+		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID, dep graph ID [prerequisites|dependents] or dep add|remove TASK PREREQUISITE", .Usage
 		operation, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {
@@ -107,8 +113,13 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		operation, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", .Usage
+		editor := a.editor
+		if editor == "" do editor = os.get_env("EDITOR", context.temp_allocator)
+		args, problem, alloc_err := app.editor_arguments(editor)
+		if alloc_err != nil do return "", "cannot allocate editor arguments", .Failure
+		if problem != "" do return "", problem, .Usage if a.editor != "" else .Failure
 		editor_out := os.stderr if a.json else os.stdout
-		issue = app.edit_task(cwd, a.project, a.words[0], os.get_env("EDITOR", context.temp_allocator), a.limits, editor_out)
+		issue = app.edit_task(cwd, a.project, a.words[0], args, a.limits, editor_out)
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", .Usage
 		operation, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
@@ -136,21 +147,26 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		}
 		if a.json do return json_result(result)
 		return fmt.tprintf("%s\n%s", result.item.path, result.source), "", .Success
-	case "add":
-		if len(a.words) != 1 do return "", "add requires a title", .Usage
+	case "add", "import":
+		if command == "import" {
+			if len(a.words) != 1 do return "", "import requires one Markdown source file", .Usage
+			if !a.yes do return "", "import requires --yes to copy the source into a new task", .Usage
+		} else if len(a.words) != 1 do return "", "add requires a title", .Usage
 		if a.json && !utf8.valid_string(a.destination) do return "", "unsupported_output: JSON requires a UTF-8 task path", .Output_Failed
-		body := ""
-		if a.stdin {
+		request := app.Create_Task{title = a.words[0], destination = a.destination, status = a.status}
+		if command == "import" {
+			request.title, request.body, issue = app.read_import(cwd, a.words[0], a.title, a.limits)
+		} else if a.stdin {
 			if stdin.procedure == nil do return "", "stdin unavailable", .Failure
-			body, issue = app.read_body(stdin, a.limits.source_bytes)
+			request.body, issue = app.read_body(stdin, a.limits.source_bytes)
 		} else if a.body_file != "" {
 			f, err := os.open(a.body_file)
 			if err != nil do return "", fmt.tprintf("%s: %s", a.body_file, os.error_string(err)), .Failure
 			defer os.close(f)
-			body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
+			request.body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
 		}
 		if issue != "" do return "", issue, .Failure
-		created, problem := app.create_task_result(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status}, a.limits)
+		created, problem := app.create_task_result(cwd, a.project, request, a.limits)
 		if problem != "" do return "", problem, .Failure
 		completed^ = fmt.tprintf("created task %s", created.id)
 		if a.json do return json_result(created)
@@ -174,6 +190,8 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
 	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
+	case Import_Flags:  a, parse_err = parse_options(Import_Flags, args)
+	case Edit_Flags:    a, parse_err = parse_options(Edit_Flags, args)
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
 	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)

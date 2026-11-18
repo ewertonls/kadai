@@ -17,6 +17,49 @@ expect_workflow_body :: proc(t: ^testing.T, task: json.Object, expected: string)
 }
 
 @(test)
+import_preserves_markdown_and_avoids_collisions :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-import-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	project := fmt.tprintf("--project=%s", root)
+	tasks := fmt.tprintf("%s/tasks", root)
+	if !testing.expect(t, os.mkdir(tasks) == nil) do return
+	occupied := fmt.tprintf("%s/0001.md", tasks)
+	if !testing.expect(t, os.write_entire_file(occupied, "Existing notes") == nil) do return
+	path := fmt.tprintf("%s/Release.notes.md", root)
+	body :: "\uFEFF---\r\ntitle: Foreign title\r\nnote: |\r\n  kadai: task\r\n---\r\n# Olá\r\nNo final newline"
+	if !testing.expect(t, os.write_entire_file(path, body) == nil) do return
+
+	// The source itself and other occupied destinations both stay in place.
+	refused := invoke_cli(t, {"import", occupied, "--yes", "--path", "0001.md", project}, 1)
+	testing.expect(t, refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"), refused.stderr)
+	limit := fmt.tprintf("--limit=task_source_bytes=%d", len(body))
+	too_large := invoke_cli(t, {"import", path, "--yes", project, limit}, 1)
+	testing.expect(t, strings.contains(too_large.stderr, "task_source_bytes"), too_large.stderr)
+
+	out := invoke_cli(t, {"import", path, "--yes", project, "--json"})
+	created := parse_result(t, out.stdout).(json.Object)
+	testing.expect_value(t, created["id"].(string), "0002")
+	testing.expect_value(t, created["path"].(string), "0002.md")
+	testing.expect_value(t, created["title"].(string), "Release.notes")
+	testing.expect_value(t, created["status"].(string), "todo")
+	refused = invoke_cli(t, {"import", occupied, "--path", "0002.md", "--yes", project}, 1)
+	testing.expect(t, refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"), refused.stderr)
+	shown := invoke_cli(t, {"show", "0002", "--json", project})
+	expect_workflow_body(t, parse_result(t, shown.stdout).(json.Object), body)
+	original, read_err := os.read_entire_file(path, context.temp_allocator)
+	testing.expect(t, read_err == nil && string(original) == body)
+	untouched, occupied_err := os.read_entire_file(occupied, context.temp_allocator)
+	testing.expect(t, occupied_err == nil && string(untouched) == "Existing notes")
+
+	out = invoke_cli(t, {"import", path, "--yes", "--title", "Review", "--path", "reviews/notes.md", project})
+	testing.expect_value(t, out.stdout, "0003\n")
+	second := parse_result(t, invoke_cli(t, {"show", "0003", "--json", project}).stdout).(json.Object)
+	testing.expect_value(t, second["title"].(string), "Review")
+	testing.expect_value(t, second["path"].(string), "reviews/notes.md")
+}
+
+@(test)
 task_command_workflow :: proc(t: ^testing.T) {
 	for initialized in ([2]bool{false, true}) {
 		root, err := os.mkdir_temp("", "kadai-workflow-", context.temp_allocator)

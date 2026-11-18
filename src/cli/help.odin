@@ -30,9 +30,14 @@ COMMANDS := [?]Command{
 		{"TITLE"}, {"kadai add \"Write release notes\"", "kadai add \"Review changes\" --body-file notes.md"},
 	},
 	{
+		"import", Import_Flags, "Copy an ordinary Markdown file into a new task and print its ID.",
+		"The new task starts in todo and keeps all source bytes as its body. The source stays in place.\nUse --path to select an unused destination under the task root.",
+		{"SOURCE.md --yes"}, {"kadai import notes.md --yes", "kadai import notes.md --yes --title \"Review notes\" --path reviews/notes.md"},
+	},
+	{
 		"list", List_Flags, "List tasks with their ID, status, title and path.",
-		"Rows match all supplied filters and are ordered by collection-relative path.",
-		{""}, {"kadai list --status todo --directory docs", "kadai list --tag release --parent 0001"},
+		"Rows match all supplied filters. By default they follow collection-relative path order.",
+		{""}, {"kadai list --status todo --directory docs", "kadai list --where 'priority=high OR status=todo AND tag!=wip'", "kadai list --sort priority --order desc --long"},
 	},
 	{
 		"show", Project_Flags, "Print a task's file path and Markdown contents.",
@@ -76,14 +81,14 @@ COMMANDS := [?]Command{
 	},
 	{
 		"dep", Project_Flags, "Show, add or remove task dependencies.",
-		"Use show to list direct prerequisites and dependents.\nWith add or remove, TASK depends on PREREQUISITE.",
-		{"show ID", "add TASK PREREQUISITE", "remove TASK PREREQUISITE"},
-		{"kadai dep add 0002 0001", "kadai dep show 0002"},
+		"Use show for direct edges or graph to follow prerequisite chains. Select dependents to walk downstream.\nWith add or remove, TASK depends on PREREQUISITE.",
+		{"show ID", "graph ID [prerequisites|dependents]", "add TASK PREREQUISITE", "remove TASK PREREQUISITE"},
+		{"kadai dep add 0002 0001", "kadai dep show 0002", "kadai dep graph 0001 dependents"},
 	},
 	{
-		"edit", Project_Flags, "Open a task's Markdown file in $EDITOR.",
-		"Kadai waits for the editor to exit. For VS Code, set EDITOR to 'code --wait'.",
-		{"ID"}, {"kadai edit 0001"},
+		"edit", Edit_Flags, "Open a task's Markdown file in an editor.",
+		"Kadai uses EDITOR by default and waits for the editor to exit.",
+		{"ID"}, {"kadai edit 0001", "kadai edit 0001 --editor 'nvim --clean'"},
 	},
 	{
 		"move", Move_Flags, "Move a task file or directory within the collection.",

@@ -1,26 +1,34 @@
 package app
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "kadai:project"
 import "kadai:storage"
 
-// EDITOR accepts an executable and literal arguments, including quoted paths.
-// Preserve Windows path separators. Never pass the task filename to a shell.
+// The pinned Windows process launcher quotes arguments containing one of these
+// characters. It drops empty arguments and splits an otherwise unquoted tab.
 @(private)
-editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: string) {
+windows_editor_argument_supported :: proc(arg: string) -> bool {
+	return arg != "" && (!strings.contains(arg, "\t") || strings.contains_any(arg, "()[]{}^=;!'+,`~\" "))
+}
+
+// The editor command accepts an executable and literal arguments, including quoted paths.
+// Preserve Windows path separators. Never pass the task filename to a shell.
+editor_arguments :: proc(editor: string) -> (arguments: []string, issue: string, err: runtime.Allocator_Error) {
 	context.allocator = context.temp_allocator
-	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid EDITOR"
-	word := strings.builder_make()
+	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid editor command", nil
+	args: [dynamic]string
+	word: [dynamic]byte
 	quote: byte
 	started := false
 	for i := 0; i < len(editor); i += 1 {
 		c := editor[i]
 		if quote == 0 && (c == ' ' || c == '\t') {
 			if started {
-				append(&args, strings.clone(strings.to_string(word)))
-				strings.builder_reset(&word)
+				_ = append(&args, string(word[:])) or_return
+				word = nil // The completed argument keeps its temporary buffer.
 				started = false
 			}
 			continue
@@ -35,12 +43,17 @@ editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: strin
 				i += 1
 			}
 		}
-		strings.write_byte(&word, c)
+		_ = append(&word, c) or_return
 	}
-	if quote != 0 do return nil, "unterminated quote in EDITOR"
-	if started do append(&args, strings.clone(strings.to_string(word)))
-	if len(args) == 0 || args[0] == "" do return nil, "set EDITOR to an executable"
-	return
+	if quote != 0 do return nil, "unterminated quote in editor command", nil
+	if started { _ = append(&args, string(word[:])) or_return }
+	if len(args) == 0 || args[0] == "" do return nil, "specify an executable with EDITOR or --editor", nil
+	when ODIN_OS == .Windows {
+		for arg in args {
+			if !windows_editor_argument_supported(arg) do return nil, "Windows cannot pass this empty or tab-containing editor argument literally", nil
+		}
+	}
+	return args[:], "", nil
 }
 
 @(private)
@@ -67,12 +80,14 @@ editor_executable :: proc(cwd, name: string) -> string {
 	return ""
 }
 
-edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout) -> string {
-	command, issue := editor_arguments(editor)
-	if issue != "" do return issue
-	exe := editor_executable(cwd, command[0])
-	if exe == "" do return fmt.tprintf("editor executable not found: %s", command[0])
+edit_task :: proc(cwd: string, options: Project_Options, id: string, editor: []string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout) -> string {
+	if len(editor) == 0 do return "missing editor command"
+	exe := editor_executable(cwd, editor[0])
+	if exe == "" do return fmt.tprintf("editor executable not found: %s", editor[0])
+	command, alloc_err := make([]string, len(editor)+1, context.temp_allocator)
+	if alloc_err != nil do return "cannot allocate editor arguments"
 	command[0] = exe
+	copy(command[1:], editor[1:])
 	process: os.Process
 	{
 		// Coordinate selection and launch. The editor subsequently owns its
@@ -87,8 +102,8 @@ edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, lim
 		if lookup_err != "" do return lookup_err
 		if item.status != .Decoded && item.status != .Invalid_Fields do return "unsupported task schema"
 		if _, read_err := read_versioned(&view, item, mutation = true); read_err != "" do return read_err
-		append(&command, storage.child(view.config.tasks, item.path))
-		process, err = os.process_start({command = command[:], working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
+		command[len(editor)] = storage.child(view.config.tasks, item.path)
+		process, err = os.process_start({command = command, working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
 		if err != nil do return fmt.tprintf("launching %s: %s", exe, os.error_string(err))
 		if options.report != nil do options.report.write_started = true // The editor now owns its saves.
 	}
