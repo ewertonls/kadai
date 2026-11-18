@@ -25,7 +25,7 @@ All commands below accept the common project and resource options.
 | --- | --- |
 | `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
-| `list` | Lists tasks matching all supplied filters. Accepts `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. |
+| `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
 | `unset ID FIELD` | Remove `priority`, `due` or `tags`. Required fields cannot be unset. |
@@ -101,7 +101,7 @@ error. A valid query with no matches succeeds with empty output.
 Each filter takes one value. As with other scalar options, repeating a flag
 uses its last value. Results come from the complete index of the effective
 collection, so its exclusions and duplicate-ID quarantine apply to every query.
-Rows follow ascending byte order of the full collection-relative path, with
+By default rows follow ascending byte order of the full collection-relative path, with
 `/` as the separator.
 
 ### Filter expressions
@@ -123,6 +123,21 @@ that lack the `wip` tag. `priority` and `status` use the project vocabulary,
 `due` compares the exact stored date or offset datetime spelling. An absent
 optional field fails equality and satisfies inequality. Kadai validates every
 predicate even for an empty collection. Text and JSON select the same rows.
+
+### List sorting
+
+`--sort` accepts `path` (the default), `id`, `title`, `status` or `priority`.
+Use `--order asc` (the default) or `--order desc`. Both flags work independently.
+Paths, IDs, titles and status names sort by the bytes of their stored spelling.
+Priority sorts from low to critical in ascending order, or by the project's
+configured priority sequence. Tasks without a priority come last in either
+direction. Equal keys always use ascending collection-relative path order.
+The same ordering applies to filtered results in text and JSON.
+
+```sh
+kadai list --status todo --sort priority --order desc
+kadai list --sort title --json
+```
 
 ## Terminal output
 
@@ -158,7 +173,7 @@ Consumers should look up object fields by name.
 
 | Command | `result` |
 | --- | --- |
-| `list` | Array of task summaries in collection-relative path order, using the same filters as text output. |
+| `list` | Array of task summaries using the same filters and sort order as text output. The default is ascending collection-relative path order. |
 | `add` | Summary of the task created, including the allocated ID and actual destination. |
 | `show` | Task summary plus integer `schema_version`, nullable strings `priority`, `parent` and `due`, string arrays `tags` and `depends_on`, `custom` and the original Markdown `source` including delimiters and line endings. |
 | `tree` | Array of task summaries with nullable `parent`, integer `depth` and `position` (`root`, `child`, `unresolved_parent` or `parent_cycle`). |

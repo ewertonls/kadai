@@ -4,6 +4,7 @@ package cli
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strings"
 import "core:testing"
 
@@ -53,6 +54,40 @@ list_expression_combines_with_flags_in_both_outputs :: proc(t: ^testing.T) {
 	args[8] = "id=absent AND priority=high"
 	bad := invoke_cli(t, args, 1)
 	testing.expect(t, bad.stdout == "" && strings.contains(bad.stderr, "high"), bad.stderr)
+}
+
+@(test)
+list_sort_uses_field_order_then_ascending_path :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-sort-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	if !testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", root), "priorities: [later, now, asap]\n") == nil) do return
+	for row in ([]struct {path, id, title, status, priority: string}{
+		{"a.md", "z", "Zebra", "in_progress", "now"},
+		{"b.md", "C", "Alpha", "done", "asap"},
+		{"c.md", "B", "Zebra", "todo", "now"},
+		{"d.md", "a", "Alpha", "done", "null"},
+	}) {
+		source := fmt.tprintf("---\nkadai: task\nid: %s\ntitle: %s\nstatus: %s\npriority: %s\n---\n", row.id, row.title, row.status, row.priority)
+		if !testing.expect(t, os.write_entire_file(fmt.tprintf("%s/%s", root, row.path), source) == nil) do return
+	}
+	for c in ([]struct {key, order: string, ids: []string}{
+		{"priority", "desc", {"C", "z", "B", "a"}},
+		{"priority", "asc",  {"z", "B", "C", "a"}},
+		{"title",    "asc",  {"C", "a", "z", "B"}},
+		{"status",   "desc", {"B", "z", "C", "a"}},
+		{"id",       "asc",  {"B", "C", "a", "z"}},
+		{"path",     "desc", {"a", "B", "C", "z"}},
+	}) {
+		args := []string{"list", "--project", root, "--tasks-root", ".", "--sort", c.key, "--order", c.order, "--json"}
+		rows := parse_result(t, invoke_cli(t, args).stdout).(json.Array)
+		ids := make([]string, len(rows), context.temp_allocator)
+		for row, i in rows do ids[i] = row.(json.Object)["id"].(string)
+		testing.expect(t, slice.equal(ids, c.ids), fmt.tprintf("%s %s: %v", c.key, c.order, ids))
+	}
+	text := invoke_cli(t, {"list", "--project", root, "--tasks-root", ".", "--where", "status!=done",
+	                       "--sort", "ignored", "--sort", "id", "--order", "ignored", "--order", "asc"}).stdout
+	testing.expect_value(t, text, "B  [todo]  Zebra  (c.md)\nz  [in_progress]  Zebra  (a.md)\n")
 }
 
 @(test)

@@ -133,6 +133,7 @@ list_tasks :: proc(
 	options: Project_Options,
 	limits := project.DEFAULT_SCAN_LIMITS,
 	filter := List_Filter{},
+	sort := List_Sort{},
 ) -> ([]^project.Candidate, string) {
 	prefix, directory_issue := list_directory_prefix(filter.directory)
 	if directory_issue != "" do return nil, directory_issue
@@ -164,5 +165,7 @@ list_tasks :: proc(
 		items[n] = item
 		n += 1
 	}
-	return items[:n], ""
+	items = items[:n]
+	if problem := sort_list_items(items, sort, view.config.vocabulary); problem != "" do return nil, problem
+	return items, ""
 }

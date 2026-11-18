@@ -46,7 +46,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		return tree_text(rows), "", .Success
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", .Usage
-		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter)
+		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter, a.list_sort)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(items)
 		b := strings.builder_make(context.temp_allocator)

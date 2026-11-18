@@ -146,7 +146,7 @@
 **Depends on:** Phase 6. **Done when:** Every task below is implemented and tested. These tasks are postponed, not cancelled.
 
 - [x] **KAD-080** Add advanced task filtering. _Acceptance:_ Support documented multi-criteria and advanced filter expressions beyond the baseline status/directory/tag/parent filters, with predictable text/JSON behavior and tests. _Reference:_ [Filter expressions](docs/development/cli.md#filter-expressions).
-- [ ] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON.
+- [x] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON. _Reference:_ [List sorting](docs/development/cli.md#list-sorting).
 - [ ] **KAD-082** Add richer dependency visualizations. _Acceptance:_ Provide expanded graph or transitive dependency views beyond the v0.1 immediate prerequisites/dependents, without changing dependency semantics or task files.
 - [ ] **KAD-083** Add CLI convenience features. _Acceptance:_ Document and implement post-v0.1 ergonomic improvements (such as richer terminal presentation and editor shortcuts), preserving script-safe defaults and existing command contracts.
 - [ ] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently.

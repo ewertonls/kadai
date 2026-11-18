@@ -2,6 +2,7 @@
 package cli
 
 import "core:flags"
+import "core:reflect"
 import "kadai:app"
 
 // core:flags reads top-level fields only, including for help. Each schema lists
@@ -36,6 +37,8 @@ List_Flags :: struct {
 	tag:       string `usage:"Match one exact tag."`,
 	parent:    string `usage:"List direct children of this task ID (case-insensitive)."`,
 	expression: string `args:"name=where" usage:"Combine id, status, priority, tag or due predicates with AND and OR."`,
+	sort:      string `usage:"Sort by path (default), id, title, status or priority."`,
+	order:     string `usage:"Sort in ascending (asc, default) or descending (desc) order."`,
 }
 
 Add_Flags :: struct {
@@ -123,6 +126,7 @@ Arguments :: struct {
 	project: app.Project_Options,
 	limits: app.Scan_Limits,
 	list_filter: app.List_Filter,
+	list_sort: app.List_Sort,
 	words: []string,
 	body_file, destination, plan: string,
 	status: Maybe(string),
@@ -157,6 +161,16 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 
 	when T == List_Flags {
 		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}
+		if options.sort != "" {
+			key, ok := reflect.enum_from_name(app.List_Sort_Key, options.sort)
+			if !ok do return a, flags.Validation_Error{"--sort expects path, id, title, status or priority"}
+			a.list_sort.key = key
+		}
+		if options.order != "" {
+			order, ok := reflect.enum_from_name(app.List_Order, options.order)
+			if !ok do return a, flags.Validation_Error{"--order expects asc or desc"}
+			a.list_sort.order = order
+		}
 		if options.expression != "" {
 			a.list_filter.alternatives, problem = parse_list_expression(options.expression)
 			if problem != "" do return a, flags.Validation_Error{problem}

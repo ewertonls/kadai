@@ -44,6 +44,8 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"list", "--where", "status=todo OR"}, 2, "--where"},
 		{{"list", "--where", "id=A XOR id=B"}, 2, "AND or OR"},
 		{{"list", "--where", "title=notes"}, 2, "unknown --where field"},
+		{{"list", "--sort", "unknown"}, 2, "sort"},
+		{{"list", "--order", "sideways"}, 2, "order"},
 		{{"help", "list"}, 0, "--parent"},
 		{{"show", "0001", "--tag", "release"}, 2, "tag"},
 		{{"add", "Title", "--stdin", "--body-file", "body.md"}, 2, "choose one body source"},
