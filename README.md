@@ -15,9 +15,9 @@ Open [Kadai releases](https://github.com/ewertonls/kadai/releases), select the v
 For example, on Linux x64, run these commands in a directory containing the two downloads for `v0.1.0-rc.1`:
 
 ```sh
-sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf kadai-0.1.0-rc.1-linux-amd64.tar.gz
-./kadai --version
+sha256sum --check --ignore-missing SHA256SUMS &&
+  tar -xzf kadai-0.1.0-rc.1-linux-amd64.tar.gz &&
+  ./kadai --version
 ```
 
 On Linux ARM64, extract the `linux-arm64.tar.gz` package for your version. On macOS, use `shasum -a 256 kadai-0.1.0-rc.1-darwin-arm64.tar.gz`, compare its digest with the matching line of `SHA256SUMS`, then extract with `tar -xzf`. On either system, copy `kadai` to a directory on your `PATH` to run it from any project.
