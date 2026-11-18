@@ -19,7 +19,8 @@ editor_receives_literal_path_and_propagates_exit :: proc(t: ^testing.T) {
 	testing.expect(t, os.write_entire_file(exe, "#!/bin/sh\n[ \"$#\" -eq 2 ] && [ \"$1\" = 'literal arg' ] || exit 4\nprintf 'manual' >> \"$2\"\n") == nil)
 	testing.expect(t, os.chmod(exe, {.Read_User, .Write_User, .Execute_User}) == nil)
 	opts := Project_Options{tasks_root = "."}
-	args, problem := editor_arguments(fmt.tprintf("%q 'literal arg'", exe))
+	args, problem, alloc_err := editor_arguments(fmt.tprintf("%q 'literal arg'", exe))
+	if !testing.expect(t, alloc_err == nil) do return
 	if !testing.expect_value(t, problem, "") do return
 	issue := edit_task(tmp, opts, "editor", args)
 	if !testing.expect_value(t, issue, "") do return

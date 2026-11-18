@@ -1,5 +1,6 @@
 package app
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -15,19 +16,19 @@ windows_editor_argument_supported :: proc(arg: string) -> bool {
 
 // The editor command accepts an executable and literal arguments, including quoted paths.
 // Preserve Windows path separators. Never pass the task filename to a shell.
-editor_arguments :: proc(editor: string) -> ([]string, string) {
+editor_arguments :: proc(editor: string) -> (arguments: []string, issue: string, err: runtime.Allocator_Error) {
 	context.allocator = context.temp_allocator
-	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid editor command"
+	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid editor command", nil
 	args: [dynamic]string
-	word := strings.builder_make()
+	word: [dynamic]byte
 	quote: byte
 	started := false
 	for i := 0; i < len(editor); i += 1 {
 		c := editor[i]
 		if quote == 0 && (c == ' ' || c == '\t') {
 			if started {
-				append(&args, strings.clone(strings.to_string(word)))
-				strings.builder_reset(&word)
+				_ = append(&args, string(word[:])) or_return
+				word = nil // The completed argument keeps its temporary buffer.
 				started = false
 			}
 			continue
@@ -42,17 +43,17 @@ editor_arguments :: proc(editor: string) -> ([]string, string) {
 				i += 1
 			}
 		}
-		strings.write_byte(&word, c)
+		_ = append(&word, c) or_return
 	}
-	if quote != 0 do return nil, "unterminated quote in editor command"
-	if started do append(&args, strings.clone(strings.to_string(word)))
-	if len(args) == 0 || args[0] == "" do return nil, "specify an executable with EDITOR or --editor"
+	if quote != 0 do return nil, "unterminated quote in editor command", nil
+	if started { _ = append(&args, string(word[:])) or_return }
+	if len(args) == 0 || args[0] == "" do return nil, "specify an executable with EDITOR or --editor", nil
 	when ODIN_OS == .Windows {
 		for arg in args {
-			if !windows_editor_argument_supported(arg) do return nil, "Windows cannot pass this empty or tab-containing editor argument literally"
+			if !windows_editor_argument_supported(arg) do return nil, "Windows cannot pass this empty or tab-containing editor argument literally", nil
 		}
 	}
-	return args[:], ""
+	return args[:], "", nil
 }
 
 @(private)

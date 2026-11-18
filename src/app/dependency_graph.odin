@@ -18,10 +18,10 @@ Dependency_Graph :: struct {
 @(private)
 prerequisite_edges :: proc(index: ^project.Index, start: ^project.Candidate) -> (result: []Dependency_Edge, err: runtime.Allocator_Error) {
 	context.allocator = context.temp_allocator
-	seen: map[^project.Candidate]bool
+	seen: map[^project.Candidate]struct{}
 	queue: [dynamic]^project.Candidate
 	edges: [dynamic]Dependency_Edge
-	_ = map_insert(&seen, start, true) or_return
+	_ = map_insert(&seen, start, {}) or_return
 	_ = append(&queue, start) or_return
 	for i := 0; i < len(queue); i += 1 {
 		item := queue[i]
@@ -31,9 +31,8 @@ prerequisite_edges :: proc(index: ^project.Index, start: ^project.Candidate) -> 
 			_ = append(&edges, Dependency_Edge{target_display_id(target), item.fields.id, target.status}) or_return
 			if target.status != .Resolved do continue
 			next := target.candidates[0]
-			if next in seen do continue
-			_ = map_insert(&seen, next, true) or_return
-			_ = append(&queue, next) or_return
+			_, _, inserted := map_entry(&seen, next) or_return
+			if inserted do _ = append(&queue, next) or_return
 		}
 	}
 	return edges[:], nil

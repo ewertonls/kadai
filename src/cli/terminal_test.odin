@@ -110,6 +110,31 @@ dependency_graph_encoding_discards_incomplete_output :: proc(t: ^testing.T) {
 	}
 }
 
+@(test)
+task_queries_discard_partial_text :: proc(t: ^testing.T) {
+	expect_output_failure :: proc(t: ^testing.T, view: $T) {
+		space: [256]byte
+		arena: mem.Arena
+		mem.arena_init(&arena, space[:])
+		out: string
+		code: Exit_Code
+		{
+			context.temp_allocator = mem.arena_allocator(&arena)
+			out, _, code = task_text_result(view)
+		}
+		testing.expect_value(t, code, Exit_Code.Output_Failed)
+		testing.expect_value(t, out, "")
+	}
+
+	long := strings.repeat("x", 512, context.temp_allocator)
+	item := app.Task_Candidate{fields = {id = "A", title = long}}
+	expect_output_failure(t, []app.Ready_Task{{item = &item}})
+	item.fields.title = "Plan"
+	item.fields.parent = long
+	expect_output_failure(t, []app.Tree_Row{{item = &item, position = .Unresolved_Parent}})
+	expect_output_failure(t, app.Dependency_View{task = &item, prerequisites = {{written_id = long, status = .Missing}}})
+}
+
 // A filename must not reorder or split the diagnostic printed by the CLI.
 @(test)
 terminal_errors_escape_file_names :: proc(t: ^testing.T) {

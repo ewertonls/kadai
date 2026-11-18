@@ -10,7 +10,8 @@ editor_arguments_preserve_or_reject_empty_and_tab_operands :: proc(t: ^testing.T
 		{"", false}, {"a\tb", false}, {"a b\tc", true},
 	}) {
 		testing.expect_value(t, windows_editor_argument_supported(sample.value), sample.windows_supported)
-		args, issue := editor_arguments(fmt.tprintf("nvim -c '%s'", sample.value))
+		args, issue, alloc_err := editor_arguments(fmt.tprintf("nvim -c '%s'", sample.value))
+		if !testing.expect(t, alloc_err == nil) do continue
 		when ODIN_OS == .Windows {
 			if !sample.windows_supported {
 				testing.expect(t, issue != "" && len(args) == 0)

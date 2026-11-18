@@ -4,6 +4,7 @@ package cli
 import "core:encoding/json"
 import "core:fmt"
 import "core:io"
+import "core:mem"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -91,6 +92,22 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		testing.expect(t, strings.contains(result, c.contains), result)
 		testing.expect_value(t, other, "")
 	}
+}
+
+@(test)
+edit_reports_argument_allocation_failure :: proc(t: ^testing.T) {
+	editor := fmt.tprintf("code --wait %s", strings.repeat("x", 256, context.temp_allocator))
+	space: [144]byte
+	arena: mem.Arena
+	mem.arena_init(&arena, space[:])
+	issue, completed: string
+	code: Exit_Code
+	{
+		context.temp_allocator = mem.arena_allocator(&arena)
+		_, issue, code = execute("edit", ".", {words = {"0001"}, editor = editor}, {}, &completed)
+	}
+	testing.expect_value(t, code, Exit_Code.Failure)
+	testing.expect_value(t, issue, "cannot allocate editor arguments")
 }
 
 @(test)

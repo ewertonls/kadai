@@ -32,18 +32,13 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		rows, problem := app.ready_tasks(cwd, a.project, id, a.limits)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(rows)
-		b := strings.builder_make(context.temp_allocator)
-		for row in rows {
-			write_task_label(&b, row.item.fields.id, row.item.fields.status, row.item.fields.title)
-			fmt.sbprintf(&b, "  (readiness: %s)\n", READINESS_LABELS[row.readiness])
-		}
-		return strings.to_string(b), "", .Success
+		return task_text_result(rows)
 	case "tree":
 		if len(a.words) != 0 do return "", "tree takes no positional arguments", .Usage
 		rows, problem := app.task_tree(cwd, a.project, a.limits)
 		if problem != "" do return "", problem, .Failure
 		if a.json do return json_result(rows)
-		return tree_text(rows), "", .Success
+		return task_text_result(rows)
 	case "list":
 		if len(a.words) != 0 do return "", "list takes no positional arguments", .Usage
 		items, problem := app.list_tasks(cwd, a.project, a.limits, a.list_filter, a.list_sort)
@@ -103,7 +98,7 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, .Failure
 			if a.json do return json_result(view)
-			return dependency_text(view), "", .Success
+			return task_text_result(view)
 		}
 		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID, dep graph ID [prerequisites|dependents] or dep add|remove TASK PREREQUISITE", .Usage
 		operation, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
@@ -120,7 +115,8 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		if len(a.words) != 1 do return "", "edit requires an ID", .Usage
 		editor := a.editor
 		if editor == "" do editor = os.get_env("EDITOR", context.temp_allocator)
-		args, problem := app.editor_arguments(editor)
+		args, problem, alloc_err := app.editor_arguments(editor)
+		if alloc_err != nil do return "", "cannot allocate editor arguments", .Failure
 		if problem != "" do return "", problem, .Usage if a.editor != "" else .Failure
 		editor_out := os.stderr if a.json else os.stdout
 		issue = app.edit_task(cwd, a.project, a.words[0], args, a.limits, editor_out)

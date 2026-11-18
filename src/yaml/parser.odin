@@ -38,15 +38,18 @@ Mapping_Probe :: struct {
 }
 
 @(private)
+Probe_State :: enum {Done, Check_Key, Skip_Value, Check_Value}
+
+@(private)
 Reader :: struct {
 	probe: ^Mapping_Probe,
+	probe_state: Probe_State,
 	parser:     oyaml.parser,
 	event:      oyaml.event,
 	source:     string,
 	limits:     Limits,
 	node_count: int,
 	open_collections: int,
-	probe_expects_value, probe_key_matched, probe_done: bool,
 	char_index: uint,
 	byte_index: int,
 	field: [dynamic]union {^Entry, int},
@@ -83,24 +86,26 @@ advance :: proc(r: ^Reader) -> Error {
 			r.failed_depth = depth
 			return .Too_Deep
 		}
-		if r.probe != nil && !r.probe_done && !r.probe.matched {
-			if depth == 1 {
-				r.probe_done = r.event.type != .MAPPING_START_EVENT
-			} else if depth == 2 {
-				if !r.probe_expects_value {
-					r.probe_key_matched = matches_probe_scalar(&r.event, r.probe.key)
-				} else if r.probe_key_matched {
-					r.probe.matched = matches_probe_scalar(&r.event, r.probe.value)
-				}
-				r.probe_expects_value = !r.probe_expects_value
+		if depth == 1 && r.event.type != .MAPPING_START_EVENT {
+			r.probe_state = .Done
+		} else if depth == 2 {
+			switch r.probe_state {
+			case .Check_Key:
+				r.probe_state = .Check_Value if matches_probe_scalar(&r.event, r.probe.key) else .Skip_Value
+			case .Skip_Value:
+				r.probe_state = .Check_Key
+			case .Check_Value:
+				r.probe.matched = matches_probe_scalar(&r.event, r.probe.value)
+				r.probe_state = .Done if r.probe.matched else .Check_Key
+			case .Done:
 			}
 		}
 		if r.event.type == .MAPPING_START_EVENT || r.event.type == .SEQUENCE_START_EVENT do r.open_collections += 1
 	case .MAPPING_END_EVENT, .SEQUENCE_END_EVENT:
 		r.open_collections -= 1
-		if r.open_collections == 0 do r.probe_done = true
+		if r.open_collections == 0 do r.probe_state = .Done
 	case .DOCUMENT_END_EVENT, .STREAM_END_EVENT:
-		r.probe_done = true
+		r.probe_state = .Done
 	}
 	return .None
 }
@@ -282,6 +287,7 @@ parse_input :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 // policy failures populate report. Allocation failures return the allocator error.
 parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: ^Diagnostic = nil, path := "", probe: ^Mapping_Probe = nil) -> (Node, Parse_Failure) {
 	r := Reader{source = source, limits = limits, bad_offset = -1, probe = probe}
+	if probe != nil && !probe.matched do r.probe_state = .Check_Key
 	defer if probe != nil { probe.nodes = r.node_count }
 	defer {
 		delete(r.field)
@@ -301,8 +307,8 @@ parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: 
 		// A policy error invalidates the tree, but LibYAML can still prove a
 		// later root scalar pair. Consume only this document's bounded events.
 		policy_errors :: bit_set[Error]{.Duplicate_Key, .Invalid_Key, .Anchor, .Alias, .Tag, .Directive, .Invalid_Indentation, .Unexpected_BOM}
-		if probe != nil && r.initialized && failure in policy_errors {
-			for !probe.matched && !r.probe_done {
+		if r.initialized && failure in policy_errors {
+			for r.probe_state != .Done {
 				next := advance(&r)
 				if next == .None do continue
 				if r.parser.error == .MEMORY_ERROR {

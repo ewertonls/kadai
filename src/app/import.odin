@@ -32,7 +32,8 @@ read_import :: proc(cwd, path, title_override: string, limits := project.DEFAULT
 	bytes, read_err := storage.read_bounded(f, limits.source_bytes)
 	if read_err != nil do return "", "", fmt.tprintf("%s: %s", path, os.error_string(read_err))
 	after, after_err := storage.file_info(f)
-	if after_err != nil || after.size != before.size || after.modification_time != before.modification_time {
+	if after_err != nil do return "", "", fmt.tprintf("%s: %s", path, os.error_string(after_err))
+	if after.size != before.size || after.modification_time != before.modification_time {
 		return "", "", fmt.tprintf("%s: source changed during import", path)
 	}
 	body = string(bytes)
