@@ -6,6 +6,8 @@ Run the full test suite from the repository root:
 odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
 ```
 
+On Windows, append `-define:ODIN_TEST_THREADS=1`. Tests using independent temporary projects share the native writer mutex and can time out when run in parallel. The writer contention test starts a separate process to exercise concurrent access even with one test worker.
+
 When a new package gains tests, import it in [tests/all.odin](tests/all.odin) so `-all-packages` includes it.
 
 ## Test rules

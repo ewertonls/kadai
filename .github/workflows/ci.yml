@@ -42,7 +42,9 @@ jobs:
       - name: Build
         run: odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
       - name: Test
-        run: odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+        run: >-
+          odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+          ${{ runner.os == 'Windows' && '-define:ODIN_TEST_THREADS=1' || '' }}
       - name: CLI help
         run: ${{ matrix.cli }} --help
       - name: CLI version

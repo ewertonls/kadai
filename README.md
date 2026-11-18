@@ -21,7 +21,7 @@ On Windows, run `.\kadai.exe --version`. The [build guide](docs/development/tool
 
 ## Run tests
 
-Run the full suite from the repository root.
+Run the full suite from the repository root. On Windows, append `-define:ODIN_TEST_THREADS=1` to the command.
 
 ```sh
 odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true

@@ -90,7 +90,7 @@ Replace `src/app` with the package directory you are working on. Odin checks tha
 
 ### Run tests
 
-Run the full suite from the repository root.
+Run the full suite from the repository root. On Windows, append `-define:ODIN_TEST_THREADS=1` because the tests share the system-wide writer mutex.
 
 ```sh
 odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
