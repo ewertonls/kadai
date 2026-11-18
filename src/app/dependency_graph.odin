@@ -16,7 +16,31 @@ Dependency_Graph :: struct {
 }
 
 @(private)
-dependency_graph_edges :: proc(index: ^project.Index, start: int, direction: Dependency_Direction) -> (result: []Dependency_Edge, err: runtime.Allocator_Error) {
+prerequisite_edges :: proc(index: ^project.Index, start: ^project.Candidate) -> (result: []Dependency_Edge, err: runtime.Allocator_Error) {
+	context.allocator = context.temp_allocator
+	seen: map[^project.Candidate]bool
+	queue: [dynamic]^project.Candidate
+	edges: [dynamic]Dependency_Edge
+	_ = map_insert(&seen, start, true) or_return
+	_ = append(&queue, start) or_return
+	for i := 0; i < len(queue); i += 1 {
+		item := queue[i]
+		for ref in item.fields.depends_on {
+			target, ok := resolve_reference(index, ref)
+			if !ok do return nil, .Out_Of_Memory
+			_ = append(&edges, Dependency_Edge{target_display_id(target), item.fields.id, target.status}) or_return
+			if target.status != .Resolved do continue
+			next := target.candidates[0]
+			if next in seen do continue
+			_ = map_insert(&seen, next, true) or_return
+			_ = append(&queue, next) or_return
+		}
+	}
+	return edges[:], nil
+}
+
+@(private)
+dependent_edges :: proc(index: ^project.Index, start: int) -> (result: []Dependency_Edge, err: runtime.Allocator_Error) {
 	context.allocator = context.temp_allocator
 	g := relationship_graph(index, .Prerequisite) or_return
 	seen := make([]bool, len(index.valid)) or_return
@@ -26,23 +50,8 @@ dependency_graph_edges :: proc(index: ^project.Index, start: int, direction: Dep
 	edges: [dynamic]Dependency_Edge
 	for i := 0; i < len(queue); i += 1 {
 		v := queue[i]
-		item := index.valid[v]
-		neighbors := g.targets[v][:]
-		if direction == .Dependents {
-			neighbors = g.referrers[v][:]
-			for dependent in neighbors {
-				_ = append(&edges, Dependency_Edge{item.fields.id, index.valid[dependent].fields.id, .Resolved}) or_return
-			}
-		} else {
-			for ref in item.fields.depends_on {
-				target, ok := resolve_reference(index, ref)
-				if !ok do return nil, .Out_Of_Memory
-				_ = append(&edges, Dependency_Edge{target_display_id(target), item.fields.id, target.status}) or_return
-			}
-		}
-		// Print every declared edge, including back edges and shared prerequisites,
-		// but expand each resolved vertex only once.
-		for next in neighbors {
+		for next in g.referrers[v] {
+			_ = append(&edges, Dependency_Edge{index.valid[v].fields.id, index.valid[next].fields.id, .Resolved}) or_return
 			if seen[next] do continue
 			seen[next] = true
 			_ = append(&queue, next) or_return
@@ -56,9 +65,16 @@ dependency_graph :: proc(cwd: string, options: Project_Options, id: string, dire
 	if issue != "" do return {}, issue
 	item, problem := unique_task(&view, id)
 	if problem != "" do return {}, problem
-	start, found := slice.linear_search(view.index.valid[:], item)
-	if !found do return {}, "cannot locate dependency graph subject"
-	edges, err := dependency_graph_edges(&view.index, start, direction)
+	edges: []Dependency_Edge
+	err: runtime.Allocator_Error
+	switch direction {
+	case .Prerequisites:
+		edges, err = prerequisite_edges(&view.index, item)
+	case .Dependents:
+		start, found := slice.linear_search(view.index.valid[:], item)
+		if !found do return {}, "cannot locate dependency graph subject"
+		edges, err = dependent_edges(&view.index, start)
+	}
 	if err != nil do return {}, "cannot build dependency graph"
 	return {item, direction, edges}, ""
 }
