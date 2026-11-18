@@ -128,3 +128,17 @@ To build with dynamic LibYAML on macOS, install `libyaml` with Homebrew and supp
 ```sh
 odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=false -extra-linker-flags:"-L$(brew --prefix libyaml)/lib"
 ```
+
+### Build for a release tag
+
+Local builds default to `kadai 0.1.0-dev`. For packaging, pass the tag name to the [release version script](../../.github/scripts/release_version.py). It accepts a lowercase `v` followed by a [SemVer 2.0.0 version](https://semver.org/spec/v2.0.0.html) and prints the version, including any prerelease and build metadata. An invalid tag exits with an error before the build.
+
+```sh
+tag=v0.1.0-rc.1
+version=$(python3 .github/scripts/release_version.py "$tag") &&
+  odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true "-define:KADAI_VERSION=$version" &&
+  ./kadai --version
+# kadai 0.1.0-rc.1
+```
+
+In a tag-triggered GitHub Actions job, use `GITHUB_REF_NAME` as the tag input. The same Python script works on Windows with `python`. In PowerShell, check `$LASTEXITCODE` after validation and stop on failure before invoking Odin.
