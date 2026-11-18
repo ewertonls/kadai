@@ -118,12 +118,12 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		operation, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", .Usage
-		editor_out := os.stderr if a.json else os.stdout
 		editor := a.editor
 		if editor == "" do editor = os.get_env("EDITOR", context.temp_allocator)
-		invalid_command: bool
-		issue = app.edit_task(cwd, a.project, a.words[0], editor, a.limits, editor_out, &invalid_command)
-		if a.editor != "" && invalid_command do return "", issue, .Usage
+		args, problem := app.editor_arguments(editor)
+		if problem != "" do return "", problem, .Usage if a.editor != "" else .Failure
+		editor_out := os.stderr if a.json else os.stdout
+		issue = app.edit_task(cwd, a.project, a.words[0], args, a.limits, editor_out)
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", .Usage
 		operation, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)

@@ -15,10 +15,10 @@ windows_editor_argument_supported :: proc(arg: string) -> bool {
 
 // The editor command accepts an executable and literal arguments, including quoted paths.
 // Preserve Windows path separators. Never pass the task filename to a shell.
-@(private)
-editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: string) {
+editor_arguments :: proc(editor: string) -> ([]string, string) {
 	context.allocator = context.temp_allocator
 	if strings.contains_any(editor, "\r\n\x00") do return nil, "invalid editor command"
+	args: [dynamic]string
 	word := strings.builder_make()
 	quote: byte
 	started := false
@@ -52,7 +52,7 @@ editor_arguments :: proc(editor: string) -> (args: [dynamic]string, issue: strin
 			if !windows_editor_argument_supported(arg) do return nil, "Windows cannot pass this empty or tab-containing editor argument literally"
 		}
 	}
-	return
+	return args[:], ""
 }
 
 @(private)
@@ -79,13 +79,14 @@ editor_executable :: proc(cwd, name: string) -> string {
 	return ""
 }
 
-edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout, invalid_command: ^bool = nil) -> string {
-	command, issue := editor_arguments(editor)
-	if invalid_command != nil do invalid_command^ = issue != ""
-	if issue != "" do return issue
-	exe := editor_executable(cwd, command[0])
-	if exe == "" do return fmt.tprintf("editor executable not found: %s", command[0])
+edit_task :: proc(cwd: string, options: Project_Options, id: string, editor: []string, limits := project.DEFAULT_SCAN_LIMITS, stdout := os.stdout) -> string {
+	if len(editor) == 0 do return "missing editor command"
+	exe := editor_executable(cwd, editor[0])
+	if exe == "" do return fmt.tprintf("editor executable not found: %s", editor[0])
+	command, alloc_err := make([]string, len(editor)+1, context.temp_allocator)
+	if alloc_err != nil do return "cannot allocate editor arguments"
 	command[0] = exe
+	copy(command[1:], editor[1:])
 	process: os.Process
 	{
 		// Coordinate selection and launch. The editor subsequently owns its
@@ -100,8 +101,8 @@ edit_task :: proc(cwd: string, options: Project_Options, id, editor: string, lim
 		if lookup_err != "" do return lookup_err
 		if item.status != .Decoded && item.status != .Invalid_Fields do return "unsupported task schema"
 		if _, read_err := read_versioned(&view, item, mutation = true); read_err != "" do return read_err
-		append(&command, storage.child(view.config.tasks, item.path))
-		process, err = os.process_start({command = command[:], working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
+		command[len(editor)] = storage.child(view.config.tasks, item.path)
+		process, err = os.process_start({command = command, working_dir = cwd, stdin = os.stdin, stdout = stdout, stderr = os.stderr})
 		if err != nil do return fmt.tprintf("launching %s: %s", exe, os.error_string(err))
 		if options.report != nil do options.report.write_started = true // The editor now owns its saves.
 	}
