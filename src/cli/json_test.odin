@@ -17,6 +17,45 @@ parse_result :: proc(t: ^testing.T, output: string) -> json.Value {
 }
 
 @(test)
+list_expression_combines_with_flags_in_both_outputs :: proc(t: ^testing.T) {
+	root, e := os.mkdir_temp("", "kadai-where-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(root)
+	config := "statuses: {review: in_progress}\npriorities: [routine, urgent]\n"
+	if !testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", root), config) == nil) do return
+	for row in ([]struct {id, status, fields: string}{
+		{"A", "todo",   "priority: urgent\ntags: [release, wip]\n"},
+		{"B", "review", "tags: [release]\ndue: '2026-11-15'\n"},
+		{"C", "review", "tags: [release, wip]\n"},
+		{"D", "todo",   "priority: urgent\n"},
+	}) {
+		source := fmt.tprintf("---\nkadai: task\nid: %s\ntitle: Example\nstatus: %s\n%s---\n", row.id, row.status, row.fields)
+		if !testing.expect(t, os.write_entire_file(fmt.tprintf("%s/%s.md", root, row.id), source) == nil) do return
+	}
+	expr := "priority=urgent OR status=review AND tag!=wip"
+	args := []string{"list", "--project", root, "--tasks-root", ".", "--tag", "release", "--where", expr, "--json"}
+	text := invoke_cli(t, args[:len(args)-1]).stdout
+	testing.expect_value(t, text, "A  [todo]  Example  (A.md)\nB  [review]  Example  (B.md)\n")
+	rows := parse_result(t, invoke_cli(t, args).stdout).(json.Array)
+	if !testing.expect_value(t, len(rows), 2) do return
+	testing.expect_value(t, rows[0].(json.Object)["id"].(string), "A")
+	testing.expect_value(t, rows[1].(json.Object)["id"].(string), "B")
+
+	args[8] = "id=b AND due=2026-11-15 AND priority!=urgent"
+	rows = parse_result(t, invoke_cli(t, args).stdout).(json.Array)
+	if !testing.expect_value(t, len(rows), 1) do return
+	testing.expect_value(t, rows[0].(json.Object)["id"].(string), "B")
+	// C has no due date and B has the requested date. Both predicates matter.
+	args[8] = "id=c AND due=2026-11-15"
+	rows = parse_result(t, invoke_cli(t, args).stdout).(json.Array)
+	testing.expect_value(t, len(rows), 0)
+	// Even an alternative with no candidate rows must reject an unknown configured value.
+	args[8] = "id=absent AND priority=high"
+	bad := invoke_cli(t, args, 1)
+	testing.expect(t, bad.stdout == "" && strings.contains(bad.stderr, "high"), bad.stderr)
+}
+
+@(test)
 json_task_preserves_numeric_lexemes_and_user_keys :: proc(t: ^testing.T) {
 	root, e := os.mkdir_temp("", "kadai-json-", context.temp_allocator)
 	if !testing.expect(t, e == nil) do return

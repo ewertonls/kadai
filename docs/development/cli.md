@@ -25,7 +25,7 @@ All commands below accept the common project and resource options.
 | --- | --- |
 | `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
-| `list` | Accepts `--status STATUS`, `--directory DIR`, `--tag TAG` and `--parent ID`. Lists tasks matching all supplied filters. |
+| `list` | Lists tasks matching all supplied filters. Accepts `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
 | `unset ID FIELD` | Remove `priority`, `due` or `tags`. Required fields cannot be unset. |
@@ -103,6 +103,26 @@ uses its last value. Results come from the complete index of the effective
 collection, so its exclusions and duplicate-ID quarantine apply to every query.
 Rows follow ascending byte order of the full collection-relative path, with
 `/` as the separator.
+
+### Filter expressions
+
+`--where` takes one quoted expression. Write each predicate as `field=value`
+or `field!=value`, with no spaces around the comparison. Join predicates with
+uppercase `AND` or `OR`, separated by whitespace. `AND` binds first. The
+grammar consists of `OR` alternatives of `AND` predicates. Other list flags
+apply to the entire expression.
+
+```sh
+kadai list --directory docs --where 'priority=high OR status=todo AND tag!=wip'
+kadai list --where 'id=T-001 OR due=2026-11-15' --json
+```
+
+The first command includes high-priority tasks in `docs/` and todo tasks there
+that lack the `wip` tag. `priority` and `status` use the project vocabulary,
+`tag` tests whole-tag membership, and `id` uses case-insensitive ID equality.
+`due` compares the exact stored date or offset datetime spelling. An absent
+optional field fails equality and satisfies inequality. Kadai validates every
+predicate even for an empty collection. Text and JSON select the same rows.
 
 ## Terminal output
 

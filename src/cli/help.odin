@@ -32,7 +32,7 @@ COMMANDS := [?]Command{
 	{
 		"list", List_Flags, "List tasks with their ID, status, title and path.",
 		"Rows match all supplied filters and are ordered by collection-relative path.",
-		{""}, {"kadai list --status todo --directory docs", "kadai list --tag release --parent 0001"},
+		{""}, {"kadai list --status todo --directory docs", "kadai list --where 'priority=high OR status=todo AND tag!=wip'"},
 	},
 	{
 		"show", Project_Flags, "Print a task's file path and Markdown contents.",

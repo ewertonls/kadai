@@ -35,6 +35,7 @@ List_Flags :: struct {
 	directory: string `usage:"Include tasks in this collection-relative directory and its subdirectories."`,
 	tag:       string `usage:"Match one exact tag."`,
 	parent:    string `usage:"List direct children of this task ID (case-insensitive)."`,
+	expression: string `args:"name=where" usage:"Combine id, status, priority, tag or due predicates with AND and OR."`,
 }
 
 Add_Flags :: struct {
@@ -156,6 +157,10 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 
 	when T == List_Flags {
 		a.list_filter = {status = options.status, directory = options.directory, tag = options.tag, parent = options.parent}
+		if options.expression != "" {
+			a.list_filter.alternatives, problem = parse_list_expression(options.expression)
+			if problem != "" do return a, flags.Validation_Error{problem}
+		}
 	} else when T == Add_Flags {
 		if options.stdin && options.body_file != "" {
 			return a, flags.Validation_Error{"choose one body source: --body-file or --stdin"}
