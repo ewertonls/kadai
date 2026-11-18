@@ -74,9 +74,11 @@ jobs:
         run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} .github/scripts/package_release.py "$VERSION" dist
       - name: Upload verified package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        env:
+          PACKAGE_NAME: kadai-${{ env.VERSION }}-${{ matrix.target }}.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
         with:
-          name: kadai-${{ needs.version.outputs.revision }}-${{ matrix.target }}
-          path: dist/kadai-${{ needs.version.outputs.version }}-${{ matrix.target }}.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+          name: ${{ env.PACKAGE_NAME }}
+          path: dist/${{ env.PACKAGE_NAME }}
+          archive: false
           if-no-files-found: error
-          compression-level: 0
           overwrite: true
