@@ -6,7 +6,6 @@ import "core:testing"
 import w "core:sys/windows"
 
 // core:os.symlink is unsupported on Windows in the reference toolchain.
-@(private)
 create_windows_test_symlink :: proc(t: ^testing.T, path, target: string, directory: bool) -> bool {
 	flags := w.SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
 	if directory do flags |= w.SYMBOLIC_LINK_FLAG_DIRECTORY

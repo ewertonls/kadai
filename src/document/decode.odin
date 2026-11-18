@@ -1,6 +1,7 @@
 package document
 
 import "base:runtime"
+import "core:fmt"
 import "core:strings"
 import "core:unicode"
 import "kadai:task"
@@ -81,6 +82,30 @@ decode_task :: proc(
 		doc = Task_Document{source = source, path = path, status = .Allocation_Error}
 	}
 	return
+}
+
+// Discovery and import must agree even when a broken header has only a
+// parser-proven marker. Report the bytes inspected for aggregate scan budgets.
+recognize_candidate :: proc(doc: ^Task_Document, limits: yaml.Limits) -> (candidate: bool, header_bytes: int, issue: string) {
+	header_bytes = doc.parts.header.end - doc.parts.header.start
+	if doc.status == .Allocation_Error do return false, header_bytes, "recognition allocation failed"
+	if doc.boundary_status == .YAML_Document_Too_Large ||
+	   doc.boundary_status == .Task_Source_Too_Large || doc.boundary_status == .Invalid_Limits ||
+	   doc.yaml_error == .Too_Deep || doc.yaml_error == .Too_Many_Nodes {
+		return false, header_bytes, fmt.tprintf("scan incomplete: %s", doc.diagnostics[0].message)
+	}
+	if doc.status == .Boundary_Error {
+		failure: yaml.Parse_Failure
+		doc.probe, header_bytes, failure = probe_broken_header(doc.source, limits)
+		switch e in failure {
+		case yaml.Error:
+			if e == .Too_Many_Nodes do return false, header_bytes, fmt.tprintf("yaml_nodes_document limit exceeded: observed %d, limit %d", doc.probe.nodes, limits.nodes)
+			if e == .Too_Deep do return false, header_bytes, fmt.tprintf("yaml_depth limit exceeded: observed %d, limit %d", limits.depth+1, limits.depth)
+		case runtime.Allocator_Error: return false, header_bytes, "recognition allocation failed"
+		}
+	}
+	if doc.status == .Boundary_Error || doc.status == .YAML_Error do return doc.probe.matched, header_bytes, ""
+	return doc.status != .Non_Task, header_bytes, ""
 }
 
 @(private)

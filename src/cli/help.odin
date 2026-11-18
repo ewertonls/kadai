@@ -30,6 +30,11 @@ COMMANDS := [?]Command{
 		{"TITLE"}, {"kadai add \"Write release notes\"", "kadai add \"Review changes\" --body-file notes.md"},
 	},
 	{
+		"import", Import_Flags, "Copy an ordinary Markdown file into a new task and print its ID.",
+		"The new task starts in todo and keeps all source bytes as its body. The source stays in place.\nUse --path to select an unused destination under the task root.",
+		{"SOURCE.md --yes"}, {"kadai import notes.md --yes", "kadai import notes.md --yes --title \"Review notes\" --path reviews/notes.md"},
+	},
+	{
 		"list", List_Flags, "List tasks with their ID, status, title and path.",
 		"Rows match all supplied filters. By default they follow collection-relative path order.",
 		{""}, {"kadai list --status todo --directory docs", "kadai list --where 'priority=high OR status=todo AND tag!=wip'", "kadai list --sort priority --order desc --long"},

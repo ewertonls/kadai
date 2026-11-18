@@ -75,6 +75,23 @@ Add_Flags :: struct {
 	path:      string `usage:"Write the task at this collection-relative path."`,
 }
 
+Import_Flags :: struct {
+	project:        string           `usage:"Select the project directory."`,
+	tasks_root:     string           `usage:"Select the task collection root."`,
+	boards_root:    string           `usage:"Select the boards directory under the task root."`,
+	id_prefix:      string           `usage:"Set the prefix for generated task IDs."`,
+	timezone:       string           `usage:"Set the project time zone."`,
+	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
+	overflow:       [dynamic]string  `args:"hidden"`,
+
+	yes:   bool   `usage:"Authorize copying the source into a new task."`,
+	title: string `usage:"Set the task title. Defaults to the source filename without .md."`,
+	path:  string `usage:"Write the new task at this unused collection-relative path."`,
+}
+
 Status_Flags :: struct {
 	project:        string           `usage:"Select the project directory."`,
 	tasks_root:     string           `usage:"Select the task collection root."`,
@@ -144,7 +161,7 @@ Arguments :: struct {
 	list_filter: app.List_Filter,
 	list_sort: app.List_Sort,
 	words: []string,
-	body_file, destination, plan, editor: string,
+	body_file, destination, plan, editor, title: string,
 	status: Maybe(string),
 	stdin, force, directory, detach, dry_run, json, yes, long: bool,
 }
@@ -171,7 +188,7 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	}
 	a.words = options.overflow[:]
 	a.json = options.json
-	when T == Remove_Flags || T == Recover_Flags {
+	when T == Remove_Flags || T == Recover_Flags || T == Import_Flags {
 		a.yes = options.yes
 	}
 
@@ -202,6 +219,9 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 		if options.status != "" do a.status = options.status
 		a.body_file = options.body_file
 		a.stdin = options.stdin
+		a.destination = options.path
+	} else when T == Import_Flags {
+		a.title = options.title
 		a.destination = options.path
 	} else when T == Status_Flags {
 		a.force = options.force

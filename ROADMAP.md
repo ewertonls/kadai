@@ -9,12 +9,12 @@
 | Milestone | Phases | Meaning |
 | --- | --- | --- |
 | **v0.1** | 0–6 | A usable local task CLI with safe Markdown editing, task relationships, and validation |
-| **v0.1.x** | 6a | Scheduled follow-up TODOs for richer CLI UX and explicit Markdown import, before boards |
+| **v0.1.x** | 6a | Richer CLI UX and explicit Markdown import, before boards |
 | **v0.2** | 7 | Optional manually curated Markdown Kanban boards |
 | **v0.3** | 8 | Search, task context, custom metadata, and agent ergonomics |
 | **v1.0** | 9 | Stability, compatibility, performance, and distribution |
 
-**Time budget:** Aim for a focused v0.1 after one week, not a guarantee. KAD-001 [defines the non-deferrable v0.1 contract](docs/specs/KAD-001-v0.1-scope.md); rich filtering, custom sorting, richer dependency views, and extra CLI conveniences are scheduled TODOs for v0.1.x. Do not sacrifice core functionality, safe file editing, integrity checks, or JSON contracts to meet a date. The YAML writer remains the primary schedule risk.
+**Time budget:** Aim for a focused v0.1 after one week, not a guarantee. Rich filtering, custom sorting, richer dependency views, and extra CLI conveniences belong to v0.1.x. [KAD-001 defines the non-deferrable v0.1 contract](docs/specs/KAD-001-v0.1-scope.md). Do not sacrifice core functionality, safe file editing, integrity checks, or JSON contracts to meet a date. The YAML writer remains the primary schedule risk.
 
 **Out of current planning scope:** TUI and desktop app. They may be considered only after the CLI is reliable; no implementation tasks or technology choices for them are committed here.
 
@@ -139,17 +139,17 @@
 
 - [x] **KAD-085** Validate KAD-029 on the available Windows 11 PC. Brought forward from post-phase 6 on 2026-11-14. The full native suite passed, including atomic replacement, supported security metadata, unsupported-metadata refusal, competing writers and rollback after interruption without overwriting a later edit. [Tested revision, results and platform limits](docs/development/windows-validation.md).
 
-### 6a. v0.1.x follow-ups (scheduled TODOs)
+### 6a. v0.1.x follow-ups
 
 **Milestone:** v0.1.x, after the safe v0.1 core and before v0.2 boards. **Goal:** Complete non-essential CLI enhancements and explicit import without weakening the v0.1 release boundary.
 
-**Depends on:** Phase 6. **Done when:** Every task below is implemented and tested. These tasks are postponed, not cancelled.
+**Depends on:** Phase 6. **Done when:** Every task below is implemented and tested.
 
 - [x] **KAD-080** Add advanced task filtering. _Acceptance:_ Support documented multi-criteria and advanced filter expressions beyond the baseline status/directory/tag/parent filters, with predictable text/JSON behavior and tests. _Reference:_ [Filter expressions](docs/development/cli.md#filter-expressions).
 - [x] **KAD-081** Add custom sorting. _Acceptance:_ Support documented user-selectable sort keys and order directions beyond the default stable order; tie-breaking stays deterministic in text and JSON. _Reference:_ [List sorting](docs/development/cli.md#list-sorting).
 - [x] **KAD-082** Add richer dependency visualizations. _Acceptance:_ Provide expanded graph or transitive dependency views beyond the v0.1 immediate prerequisites/dependents, without changing dependency semantics or task files. _Reference:_ [Dependency graphs](docs/development/cli.md#dependency-graphs).
 - [x] **KAD-083** Add CLI convenience features. _Acceptance:_ Document and implement post-v0.1 ergonomic improvements (such as richer terminal presentation and editor shortcuts), preserving script-safe defaults and existing command contracts. _Reference:_ [Terminal output](docs/development/cli.md#terminal-output) and [choosing an editor](docs/development/cli.md#choosing-an-editor).
-- [ ] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently.
+- [x] **KAD-084** Implement explicit `kadai import` for Markdown. _Acceptance:_ Convert user-selected ordinary `.md` files into valid tasks only on explicit request; preserve the existing Markdown body, handle IDs/collisions, provide a non-destructive preview or clear opt-in, and never overwrite source or destination files silently. _Reference:_ [Importing Markdown](docs/development/cli.md#importing-markdown).
 
 ### 7. Manual Markdown Kanban boards
 
@@ -228,7 +228,7 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 
 ## Future ideas, not scheduled
 
-Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI. These are not part of the current CLI milestones; the v0.1.x enhancements and `kadai import` above are explicitly scheduled, not unscheduled ideas.
+Filtered/dynamic boards, historical board snapshots, optional project-local caching, cross-project queries, TUI, and desktop UI.
 
 ## References
 

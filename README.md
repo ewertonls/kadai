@@ -179,6 +179,8 @@ kadai edit 0001
 
 `add --body-file PATH` and `add --stdin` preserve the supplied Markdown body. `move --directory SOURCE DEST` renames a directory after checking its contents and destination. Moves preserve frontmatter IDs.
 
+`kadai import notes.md --yes` creates a new `todo` task with the entire file as its body and leaves `notes.md` in place. Use `--title` to override the filename-derived title or `--path` to choose an unused destination. [Importing Markdown](docs/development/cli.md#importing-markdown).
+
 `remove ID --yes` deletes an unreferenced task. Preview detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. Removal returns an operation ID for `recover rollback OPERATION --yes`. For an interrupted operation in the same collection, use `recover resume --yes` or `recover rollback --yes`. These commands run without prompts. [Noninteractive use](docs/development/cli.md#noninteractive-use).
 
 Use `kadai parent add CHILD PARENT` to set a parent and `kadai parent remove CHILD` to clear it. `kadai tree` shows the hierarchy and identifies broken parent links and cycles.
@@ -193,7 +195,7 @@ Use `kadai dep graph ID` to follow a chain of prerequisites, or `kadai dep graph
 
 The full implementation plan, task IDs, dependencies, and release criteria are in [ROADMAP.md](ROADMAP.md). Accepted specifications: [KAD-001: v0.1 scope](docs/specs/KAD-001-v0.1-scope.md), [KAD-002: task frontmatter v1](docs/specs/KAD-002-frontmatter-v1.md), and [KAD-003: project configuration v1](docs/specs/KAD-003-project-config-v1.md).
 
-The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. Advanced CLI enhancements and explicit `kadai import` are scheduled for **v0.1.x**, before optional manual Kanban boards in v0.2. Agent workflow enhancements follow in v0.3. TUI and desktop are not planned for the current development cycle.
+The first milestone is a reliable **Odin CLI** for project-local Markdown tasks, hierarchy, dependencies, and validation. The **v0.1.x** CLI enhancements and explicit Markdown import are implemented. Optional manual Kanban boards are planned for v0.2 and agent workflow enhancements for v0.3. TUI and desktop are not planned for the current development cycle.
 
 ## Contributing
 

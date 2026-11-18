@@ -2,6 +2,7 @@ package app
 
 import "core:fmt"
 import "core:io"
+import "core:strings"
 import "kadai:document"
 import "kadai:identity"
 import "kadai:project"
@@ -31,13 +32,18 @@ plan_create :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 	status := c.status.? or_else "todo"
 	if !task.valid_title(c.title) do return nil, "invalid title"
 	if !task.valid_status(status, view.config.vocabulary) do return nil, "invalid status"
-	if len(c.body) > view.limits.source_bytes || len(c.title) > view.limits.yaml.bytes do return nil, "task exceeds size limit"
+	if len(c.body) > view.limits.source_bytes do return nil, fmt.tprintf("task_source_bytes limit exceeded: observed %d, limit %d", len(c.body), view.limits.source_bytes)
+	if len(c.title) > view.limits.yaml.bytes do return nil, fmt.tprintf("title exceeds yaml_document_bytes: observed %d, limit %d", len(c.title), view.limits.yaml.bytes)
 	id, path, issue := identity.allocate(&view.history, view.config.id_prefix, view.config.tasks, storage.slash(c.destination))
 	if issue != "" do return nil, issue
 	c.result = {id, path, c.title, status}
-	source := fmt.tprintf("---\nkadai: task\nid: %q\ntitle: %q\nstatus: %q\n---\n%s", id, c.title, status, c.body)
+	header := fmt.tprintf("---\nkadai: task\nid: %q\ntitle: %q\nstatus: %q\n---\n", id, c.title, status)
+	if len(header) > view.limits.source_bytes - len(c.body) do return nil, fmt.tprintf("task_source_bytes limit exceeded: observed %d, limit %d", len(header)+len(c.body), view.limits.source_bytes)
+	source, alloc_err := strings.concatenate({header, c.body}, context.temp_allocator)
+	if alloc_err != nil do return nil, "cannot allocate task source"
 	doc := document.decode_task(source, view.config.vocabulary, view.limits.source_bytes, view.limits.yaml, path)
-	if doc.status != .Decoded || doc.fields.title != c.title || doc.fields.id != id || doc.fields.status != status {
+	if len(doc.diagnostics) > 0 && doc.diagnostics[0].code == "limit_exceeded" do return nil, doc.diagnostics[0].message
+	if doc.status != .Decoded || doc.parts.body.start != len(header) || doc.fields.title != c.title || doc.fields.id != id || doc.fields.status != status {
 		return nil, "unable to encode task within source and YAML limits"
 	}
 	if issue = identity.observe(&view.history, id); issue != "" do return nil, issue

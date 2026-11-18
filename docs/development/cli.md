@@ -25,6 +25,7 @@ All commands below accept the common project and resource options.
 | --- | --- |
 | `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
+| `import SOURCE.md --yes` | Copy one ordinary Markdown file into a new `todo` task and print its ID. Use `--title TITLE` to override the filename-derived title and `--path FILE` to choose an unused destination. |
 | `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. `--long` adds priority and due date to text output. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
@@ -55,6 +56,29 @@ Body bytes from files/stdin are preserved, including line endings and the final
 newline. `--path` and move destinations are relative to the effective task root
 and must remain discoverable. Parent directories may be created as needed.
 
+### Importing Markdown
+
+`kadai import` requires an explicit source file and `--yes`. Resolve a relative
+source path from the invocation's working directory, even when `--project`
+selects another project. The source must be a regular UTF-8 file ending in
+`.md`. A symbolic link as the source file is rejected.
+
+The new task starts in `todo` with the source filename minus its final `.md`
+as its title. Its body contains the complete original file, including any
+foreign frontmatter, UTF-8 BOM, line endings and final newline if present.
+Kadai leaves the original file in place. It rejects existing Kadai tasks,
+including invalid or unsupported-schema candidates.
+
+The collection allocates a fresh ID for each import. The default destination
+is `<ID>.md`, skipping occupied filenames. An explicit `--path` must be
+unused, even when it names the selected source itself. The source and the
+resulting task must both fit `task_source_bytes`.
+
+```sh
+kadai import notes.md --yes
+kadai import ../drafts/release.md --project ./repo --yes --title "Review release" --path reviews/release.md
+```
+
 ## Noninteractive use
 
 Kadai never prompts for missing arguments or confirmation. Commands behave the
@@ -83,7 +107,7 @@ can remove or replace files. To undo a completed removal, use
 `kadai recover rollback OPERATION --yes` with the operation ID returned by
 `remove`. Omit the ID to select the pending operation. An explicitly empty ID
 is a usage error. Recovery verifies recorded state before modifying files. Missing
-authorization for deletion or recovery exits with code 2 before opening the project.
+authorization for import, deletion or recovery exits with code 2 before opening the project.
 
 ### Choosing an editor
 
@@ -218,7 +242,7 @@ Consumers should look up object fields by name.
 | Command | `result` |
 | --- | --- |
 | `list` | Array of task summaries using the same filters and sort order as text output. The default is ascending collection-relative path order. |
-| `add` | Summary of the task created, including the allocated ID and actual destination. |
+| `add`, `import` | Summary of the task created, including the allocated ID and actual destination. |
 | `show` | Task summary plus integer `schema_version`, nullable strings `priority`, `parent` and `due`, string arrays `tags` and `depends_on`, `custom` and the original Markdown `source` including delimiters and line endings. |
 | `tree` | Array of task summaries with nullable `parent`, integer `depth` and `position` (`root`, `child`, `unresolved_parent` or `parent_cycle`). |
 | `ready [ID]` | Array of task summaries with derived `readiness` (`ready`, `blocked` or `unresolved`). |
@@ -277,7 +301,7 @@ project warnings with `kadai: warning:`. Warnings and an unavailable stderr
 leave the command's exit code intact. In JSON mode the editor's output also
 goes to stderr. In text mode the editor inherits the terminal streams.
 
-For `add --json`, path encoding is checked before reserving an ID or creating
+For `add --json` and `import --json`, path encoding is checked before reserving an ID or creating
 files. A rejected mutating invocation may still create the collection's lock
 infrastructure. Once writing starts, codes 5 and 6 take precedence over the
 underlying error. Inspect the reported task or operation before retrying.

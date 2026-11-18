@@ -151,21 +151,26 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		}
 		if a.json do return json_result(result)
 		return fmt.tprintf("%s\n%s", result.item.path, result.source), "", .Success
-	case "add":
-		if len(a.words) != 1 do return "", "add requires a title", .Usage
+	case "add", "import":
+		if command == "import" {
+			if len(a.words) != 1 do return "", "import requires one Markdown source file", .Usage
+			if !a.yes do return "", "import requires --yes to copy the source into a new task", .Usage
+		} else if len(a.words) != 1 do return "", "add requires a title", .Usage
 		if a.json && !utf8.valid_string(a.destination) do return "", "unsupported_output: JSON requires a UTF-8 task path", .Output_Failed
-		body := ""
-		if a.stdin {
+		request := app.Create_Task{title = a.words[0], destination = a.destination, status = a.status}
+		if command == "import" {
+			request.title, request.body, issue = app.read_import(cwd, a.words[0], a.title, a.limits)
+		} else if a.stdin {
 			if stdin.procedure == nil do return "", "stdin unavailable", .Failure
-			body, issue = app.read_body(stdin, a.limits.source_bytes)
+			request.body, issue = app.read_body(stdin, a.limits.source_bytes)
 		} else if a.body_file != "" {
 			f, err := os.open(a.body_file)
 			if err != nil do return "", fmt.tprintf("%s: %s", a.body_file, os.error_string(err)), .Failure
 			defer os.close(f)
-			body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
+			request.body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
 		}
 		if issue != "" do return "", issue, .Failure
-		created, problem := app.create_task_result(cwd, a.project, {title = a.words[0], body = body, destination = a.destination, status = a.status}, a.limits)
+		created, problem := app.create_task_result(cwd, a.project, request, a.limits)
 		if problem != "" do return "", problem, .Failure
 		completed^ = fmt.tprintf("created task %s", created.id)
 		if a.json do return json_result(created)
@@ -189,6 +194,7 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
 	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
+	case Import_Flags:  a, parse_err = parse_options(Import_Flags, args)
 	case Edit_Flags:    a, parse_err = parse_options(Edit_Flags, args)
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
 	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)

@@ -45,6 +45,8 @@ Reader :: struct {
 	source:     string,
 	limits:     Limits,
 	node_count: int,
+	open_collections: int,
+	probe_expects_value, probe_key_matched, probe_done: bool,
 	char_index: uint,
 	byte_index: int,
 	field: [dynamic]union {^Entry, int},
@@ -55,9 +57,48 @@ Reader :: struct {
 }
 
 @(private)
+matches_probe_scalar :: proc(event: ^oyaml.event, expected: string) -> bool {
+	if event.type != .SCALAR_EVENT do return false
+	scalar := event.data.scalar
+	// An anchor on a literal does not change its text. Never dereference an
+	// alias or infer a string from an unknown tag.
+	if scalar.tag != nil && string(scalar.tag) != "tag:yaml.org,2002:str" do return false
+	text := strings.string_from_ptr((^u8)(scalar.value), int(scalar.length))
+	return text == expected && (scalar.tag != nil || scalar.style != .PLAIN_SCALAR_STYLE || plain_kind(text) == .String)
+}
+
+@(private)
 advance :: proc(r: ^Reader) -> Error {
 	oyaml.event_delete(&r.event)
 	if oyaml.parser_parse(&r.parser, &r.event) == 0 do return .Syntax
+	#partial switch r.event.type {
+	case .MAPPING_START_EVENT, .SEQUENCE_START_EVENT, .SCALAR_EVENT, .ALIAS_EVENT:
+		r.node_count += 1
+		if r.node_count > r.limits.nodes do return .Too_Many_Nodes
+		depth := r.open_collections + 1
+		if depth > r.limits.depth {
+			r.failed_depth = depth
+			return .Too_Deep
+		}
+		if r.probe != nil && !r.probe_done && !r.probe.matched {
+			if depth == 1 {
+				r.probe_done = r.event.type != .MAPPING_START_EVENT
+			} else if depth == 2 {
+				if !r.probe_expects_value {
+					r.probe_key_matched = matches_probe_scalar(&r.event, r.probe.key)
+				} else if r.probe_key_matched {
+					r.probe.matched = matches_probe_scalar(&r.event, r.probe.value)
+				}
+				r.probe_expects_value = !r.probe_expects_value
+			}
+		}
+		if r.event.type == .MAPPING_START_EVENT || r.event.type == .SEQUENCE_START_EVENT do r.open_collections += 1
+	case .MAPPING_END_EVENT, .SEQUENCE_END_EVENT:
+		r.open_collections -= 1
+		if r.open_collections == 0 do r.probe_done = true
+	case .DOCUMENT_END_EVENT, .STREAM_END_EVENT:
+		r.probe_done = true
+	}
 	return .None
 }
 
@@ -114,13 +155,7 @@ check_properties :: proc(anchor, tag: cstring) -> Error {
 // Continuations need one more space than the enclosing block indentation. The
 // one-based block column gives that count, including across nested flow nodes.
 @(private)
-read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> Parse_Failure {
-	r.node_count += 1
-	if r.node_count > r.limits.nodes do return Error.Too_Many_Nodes
-	if depth > r.limits.depth {
-		r.failed_depth = depth
-		return Error.Too_Deep
-	}
+read_node :: proc(r: ^Reader, node: ^Node, required_spaces := 1) -> Parse_Failure {
 	node.span.start = byte_offset(r, r.event.start_mark, required_spaces) or_return
 	node.line, node.column = int(r.event.start_mark.line) + 1, int(r.event.start_mark.column) + 1
 	#partial switch r.event.type {
@@ -150,7 +185,7 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> 
 		for r.event.type != .SEQUENCE_END_EVENT {
 			_ = append(&node.items, Node{}) or_return
 			_ = append(&r.field, len(node.items) - 1) or_return
-			read_node(r, &node.items[len(node.items)-1], depth + 1, child_indent) or_return
+			read_node(r, &node.items[len(node.items)-1], child_indent) or_return
 			pop(&r.field)
 			advance(r) or_return
 		}
@@ -166,7 +201,7 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> 
 		for r.event.type != .MAPPING_END_EVENT {
 			_ = append(&node.entries, Entry{}) or_return
 			pair := &node.entries[len(node.entries)-1]
-			read_node(r, &pair.key, depth + 1, child_indent) or_return
+			read_node(r, &pair.key, child_indent) or_return
 			if pair.key.kind == .Mapping || pair.key.kind == .Sequence {
 				r.offender = &pair.key
 				return Error.Invalid_Key
@@ -178,11 +213,7 @@ read_node :: proc(r: ^Reader, node: ^Node, depth: int, required_spaces := 1) -> 
 			}
 			_ = map_insert(&seen, pair.key.text, true) or_return
 			advance(r) or_return
-			read_node(r, &pair.value, depth + 1, child_indent) or_return
-			if depth == 1 && r.probe != nil && pair.key.kind == .String && pair.value.kind == .String &&
-			   pair.key.text == r.probe.key && pair.value.text == r.probe.value {
-				r.probe.matched = true
-			}
+			read_node(r, &pair.value, child_indent) or_return
 			pop(&r.field)
 			advance(r) or_return
 		}
@@ -205,7 +236,7 @@ read_document :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 	doc := r.event.data.document_start
 	if doc.version_directive_m != nil || doc.tag_directives.start != doc.tag_directives.end do return Error.Directive
 	advance(r) or_return
-	read_node(r, root, 1) or_return
+	read_node(r, root) or_return
 	if root.kind != .Mapping {
 		r.offender = root
 		return Error.Not_Mapping
@@ -226,10 +257,6 @@ parse_input :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 		r.bad_offset = offset
 		return Error.Invalid_UTF8
 	}
-	if strings.has_prefix(r.source, "\uFEFF") {
-		r.bad_offset = 0
-		return Error.Unexpected_BOM
-	}
 	for c, i in r.source {
 		if unsupported_line_break(c, r.source[i:]) {
 			r.bad_offset = i
@@ -241,6 +268,10 @@ parse_input :: proc(r: ^Reader, root: ^Node) -> Parse_Failure {
 	}
 	r.initialized = true
 	oyaml.parser_set_input_string(&r.parser, raw_data(r.source), uint(len(r.source)))
+	if strings.has_prefix(r.source, "\uFEFF") {
+		r.bad_offset = 0
+		return Error.Unexpected_BOM
+	}
 	return read_document(r, root)
 }
 
@@ -259,12 +290,33 @@ parse_mapping_checked :: proc(source: string, limits := DEFAULT_LIMITS, report: 
 	root: Node
 	switch failure in parse_input(&r, &root) {
 	case Error:
+		defer destroy(&root)
 		if r.parser.error == .MEMORY_ERROR {
-			destroy(&root)
 			return {}, runtime.Allocator_Error.Out_Of_Memory
 		}
 		if report != nil do report^ = parser_diagnostic(&r, failure, path)
-		destroy(&root)
+		// A policy error invalidates the tree, but LibYAML can still prove a
+		// later root scalar pair. Consume only this document's bounded events.
+		policy_errors :: bit_set[Error]{.Duplicate_Key, .Invalid_Key, .Anchor, .Alias, .Tag, .Directive, .Invalid_Indentation, .Unexpected_BOM}
+		if probe != nil && r.initialized && failure in policy_errors {
+			for !probe.matched && !r.probe_done {
+				next := advance(&r)
+				if next == .None do continue
+				if r.parser.error == .MEMORY_ERROR {
+					if report != nil do destroy_diagnostic(report)
+					return {}, runtime.Allocator_Error.Out_Of_Memory
+				}
+				if next == .Too_Deep || next == .Too_Many_Nodes {
+					if report != nil {
+						destroy_diagnostic(report)
+						r.offender, r.bad_offset = nil, -1
+						report^ = parser_diagnostic(&r, next, path)
+					}
+					return {}, next
+				}
+				break // A syntax error ends the provable prefix.
+			}
+		}
 		return {}, failure
 	case runtime.Allocator_Error:
 		destroy(&root)
