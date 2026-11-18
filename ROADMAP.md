@@ -133,7 +133,7 @@
 - [x] **KAD-052** Support automation defaults. _Acceptance:_ Avoid mandatory prompts; use explicit flags for destructive operations and support safe noninteractive use. _Reference:_ [Noninteractive use](docs/development/cli.md#noninteractive-use).
 - [x] **KAD-053** Test end-to-end command workflows. _Acceptance:_ In initialized and unconfigured projects, create title-only and file/stdin-body tasks; hand-edit, update, move, relate, validate, and read the same tasks via CLI. _Test:_ [CLI workflow](src/cli/workflow_test.odin).
 - [x] **KAD-054** Run the cross-platform test matrix. _Acceptance:_ Test path separators, UTF-8, permissions/ACLs/xattrs, symlinks/hardlinks, replacement/recovery and competing writers on macOS, Linux and Windows. The native Windows checks for KAD-029 are recorded separately in KAD-085. [Native CI results, coverage and merge checks](docs/development/test-matrix.md#native-ci-results).
-- [ ] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready.
+- [x] **KAD-055** Publish v0.1 pre-release. _Acceptance:_ Document real syntax, build/package binaries, verify license notices and secrets, and publish when ready. [v0.1.0-rc.1](https://github.com/ewertonls/kadai/releases/tag/v0.1.0-rc.1) · [Published download checksums verified](https://github.com/ewertonls/kadai/actions/runs/44219689158/job/134518584772).
 
 ### Post-phase 6. Native storage validation on Windows 11
 
@@ -218,11 +218,10 @@ This schedule is a planning target, not a promised delivery. Manual boards begin
 - [ ] `kadai validate` reports duplicate IDs, broken references, and cycles.
 - [x] `--json` output is parseable and does not mix in log messages.
 - [x] CI exercises builds/tests for macOS, Linux, and Windows. [Native CI results](docs/development/test-matrix.md#native-ci-results).
-- [ ] Real commands, installation steps, and any known limitations are documented before release.
+- [x] Real commands, installation steps, and known limitations are documented before release. [Binary installation](README.md#install-a-release-binary) · [CLI guide](docs/development/cli.md) · [Storage limitations](docs/development/storage.md).
 
 ## Technical decisions pending
 
-- **YAML distribution:** KAD-013 selected LibYAML. Release packaging still needs to verify native linking and include the appropriate license notices for each target. [Development link options](docs/development/yaml-parser.md#licensing-and-linking).
 - **ID generation:** KAD-002 fixes collection-local case-insensitive sequential IDs with optional prefix and durable used-ID history; KAD-004 owns the record format, post-merge repair, filenames and collision details.
 - **YAML patch scope:** Specify readable-but-uneditable YAML constructs, parser resource limits, v1 deadline grammar and lossless JSON numeric handoff.
 - **Board columns:** In v0.2, column status mappings must be unambiguous; custom workflow rules can come later.
