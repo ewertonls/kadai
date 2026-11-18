@@ -142,3 +142,11 @@ version=$(python3 .github/scripts/release_version.py "$tag") &&
 ```
 
 In a tag-triggered GitHub Actions job, use `GITHUB_REF_NAME` as the tag input. The same Python script works on Windows with `python`. In PowerShell, check `$LASTEXITCODE` after validation and stop on failure before invoking Odin.
+
+### Rehearse release packaging
+
+In GitHub Actions, open **Release → Run workflow**, select the branch and enter a version tag such as `v0.1.0-rc.1`. The branch selects the commit to build. The tag input sets the binary version. Pushing a `v*` tag runs packaging on the tagged commit after the version passes validation.
+
+The [release workflow](../../.github/workflows/release.yml) runs the full suite on Linux AMD64, Linux ARM64, Windows AMD64 and macOS ARM64. Each runner extracts its finished package, compares the executable and the three license notices with their inputs, checks `--version` and inspects the executable for a shared LibYAML dependency.
+
+The run stores four Actions artifacts named `kadai-<commit>-<target>`. Each contains one tested archive, such as `kadai-0.1.0-rc.1-linux-arm64.tar.gz` or `kadai-0.1.0-rc.1-windows-amd64.zip`. The root contains the executable and Kadai's `LICENSE`. The `licenses/` directory contains the LibYAML 0.2.5 and Odin bindings notices. [Upstream LibYAML notice](https://github.com/yaml/libyaml/blob/0.2.5/License)
