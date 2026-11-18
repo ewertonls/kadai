@@ -8,6 +8,30 @@ Kadai is meant to help you keep track of work inside a project without depending
 
 **Kadai is being built in [Odin](https://odin-lang.org/), with the CLI as the sole development focus for now.** Additional interfaces may be explored later, but are not part of the current roadmap.
 
+## Install a release binary
+
+Open [Kadai releases](https://github.com/ewertonls/kadai/releases), select the version, and download `SHA256SUMS` and the package for your machine. The four targets are `linux-amd64`, `linux-arm64`, `darwin-arm64` (Apple silicon), and `windows-amd64`. The binary includes LibYAML.
+
+For example, on Linux x64, run these commands in a directory containing the two downloads for `v0.1.0-rc.1`:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS &&
+  tar -xzf kadai-0.1.0-rc.1-linux-amd64.tar.gz &&
+  ./kadai --version
+```
+
+On Linux ARM64, extract the `linux-arm64.tar.gz` package for your version. On macOS, use `shasum -a 256 kadai-0.1.0-rc.1-darwin-arm64.tar.gz`, compare its digest with the matching line of `SHA256SUMS`, then extract with `tar -xzf`. On either system, copy `kadai` to a directory on your `PATH` to run it from any project.
+
+On Windows x64, use PowerShell. Compare the first command's hash with the entry for the ZIP in `SHA256SUMS` before extracting:
+
+```powershell
+Get-FileHash .\kadai-0.1.0-rc.1-windows-amd64.zip -Algorithm SHA256
+Expand-Archive .\kadai-0.1.0-rc.1-windows-amd64.zip -DestinationPath .\kadai-cli
+.\kadai-cli\kadai.exe --version
+```
+
+The expected output for this version is `kadai 0.1.0-rc.1`. Add the extracted directory to your Windows `Path` to use `kadai` from any project.
+
 ## Build the CLI
 
 Install [Odin](docs/development/toolchain.md#installation) and run this from the repository root. Kadai's standard build selects static LibYAML with `-define:YAML_STATIC=true`, so users do not need a separate LibYAML installation to run the executable.
