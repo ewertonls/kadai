@@ -49,31 +49,34 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	testing.expect_value(t, missing["location"].(json.Object)["column"].(i64), 17)
 }
 
-// Error paths must not let a repository-controlled filename clear the terminal
-// or forge an extra diagnostic line.
+// A filename must not reorder or split the diagnostic printed by the CLI.
 @(test)
 terminal_errors_escape_file_names :: proc(t: ^testing.T) {
 	root, err := os.mkdir_temp("", "kadai-terminal-error-", context.temp_allocator)
 	if !testing.expect(t, err == nil) do return
 	defer os.remove_all(root)
-	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", root)) == nil)
-	name := "task\x1b[2J\nFAKE SUCCESS.md"
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/%s", root, name), "---\nkadai: task\n---\n") == nil)
+	if !testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", root)) == nil) do return
+	// The direction override is legal in filenames on all supported hosts.
+	name := "task\u202efake.md"
+	err = os.write_entire_file(fmt.tprintf("%s/tasks/%s", root, name), "---\nkadai: task\n---\n")
+	if !testing.expect(t, err == nil, os.error_string(err)) do return
 	out := invoke_cli(t, {"list", "--project", root, "--limit=task_source_bytes=10"}, 1)
 	testing.expect_value(t, out.stdout, "")
 	start := strings.last_index(out.stderr, "kadai: error:")
 	if !testing.expect(t, start >= 0) do return
 	line := out.stderr[start:]
-	testing.expect(t, strings.count(line, "\n") == 1 && !strings.contains_rune(line, '\x1b'), line)
-	testing.expect(t, strings.contains(line, `\e[2J`) && strings.contains(line, `\nFAKE SUCCESS.md`), line)
+	testing.expect(t, strings.count(line, "\n") == 1 && !strings.contains_rune(line, '\u202e'), line)
+	testing.expect(t, strings.contains(line, `task\u202efake.md`), line)
 
-	// The same emission point handles malformed UTF-8 and direction controls.
-	err_line: strings.Builder
-	defer strings.builder_destroy(&err_line)
-	code := diagnose(strings.to_writer(&err_line), .Failure, "bad\xff\u202efile.md")
-	text := strings.to_string(err_line)
-	testing.expect_value(t, code, Exit_Code.Failure)
-	testing.expect(t, strings.count(text, "\n") == 1 && !strings.contains(text, "\xff") &&
-	                  !strings.contains(text, "\u202e") && strings.contains(text, `\xff`) &&
-	                  strings.contains(text, `\u202e`), text)
+	// Pass bytes that Windows cannot store in filenames directly to the diagnostic.
+	for sample in ([]struct {name, escaped: string}{
+		{"task\x1b[2J\nFAKE SUCCESS.md", `task\e[2J\nFAKE SUCCESS.md`},
+		{"bad\xff.md", `bad\xff.md`},
+	}) {
+		err_line: strings.Builder
+		defer strings.builder_destroy(&err_line)
+		code := diagnose(strings.to_writer(&err_line), .Failure, sample.name)
+		testing.expect_value(t, code, Exit_Code.Failure)
+		testing.expect_value(t, strings.to_string(err_line), fmt.tprintf("kadai: error: \"%s\"\n", sample.escaped))
+	}
 }
