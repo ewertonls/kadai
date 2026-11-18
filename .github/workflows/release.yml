@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to rehearse (e.g. v0.1.0-rc.1)
+        type: string
+        required: true
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Resolve release version
+    if: github.event_name != 'push' || !github.event.deleted
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      revision: ${{ steps.release.outputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: release
+        name: Validate tag and identify the checked-out commit
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          version=$(python3 .github/scripts/release_version.py "$TAG")
+          revision=$(git rev-parse HEAD)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package ${{ matrix.target }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-amd64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-2025
+            target: windows-amd64
+          - runner: macos-15
+            target: darwin-arm64
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-odin
+      - name: Build release binary
+        run: odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true "-define:KADAI_VERSION=$VERSION"
+      - name: Run full suite
+        run: >-
+          odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party
+          -define:YAML_STATIC=true "-define:KADAI_VERSION=$VERSION"
+          ${{ runner.os == 'Windows' && '-define:ODIN_TEST_THREADS=1' || '' }}
+      - name: Package and verify extracted binary
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} .github/scripts/package_release.py "$VERSION" dist
+      - name: Upload verified package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kadai-${{ needs.version.outputs.revision }}-${{ matrix.target }}
+          path: dist/kadai-${{ needs.version.outputs.version }}-${{ matrix.target }}.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
