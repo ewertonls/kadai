@@ -24,6 +24,8 @@ import_reads_only_ordinary_markdown_within_limits :: proc(t: ^testing.T) {
 		{"---\nkadai: note\nkadai: other\n---\n", ""},
 		{"---\ntitle: &n Draft\nkadai: task\n---\n", "Kadai task marker"},
 		{"---\nkadai: &n !!str task\n---\n", "Kadai task marker"},
+		{"---\n! kadai: ! task\n---\n", "Kadai task marker"},
+		{"---\nkadai: !foreign task\n---\n", ""},
 		{"---\n\uFEFFkadai: task\nid: A\ntitle: Draft\nstatus: todo\n---\n", "Kadai task marker"},
 		{"---\ntitle: First\ntitle: Second\nkadai: task\n---\n", "Kadai task marker"},
 		{"---\nforeign: &n Draft\nnested: [{kadai: task}]\n---\n", ""},

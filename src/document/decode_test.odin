@@ -165,6 +165,8 @@ diagnostics_locate_the_original_markdown :: proc(t: ^testing.T) {
 		token, advice: string,
 	}{
 		{duplicate, "duplicate_mapping_key", "custom.grupos[0].café", 3, 29, "\"caf\\u00e9\"", "single entry"},
+		{"---\nkadai: task\nkadai: note\n---", "duplicate_mapping_key", "kadai", 3, 1, "kadai", "single entry"},
+		{"---\nkadai: note\nkadai: task\n---", "duplicate_mapping_key", "kadai", 3, 1, "kadai", "single entry"},
 		{"---\nkadai: task\ncustom: {a.b: [*bad]}\n---", "unsupported_alias", "custom[\"a.b\"][0]", 3, 16, "*bad", "explicit value"},
 		{"---\r\nkadai: task\ntags: [\"é\", }\r\n---", "yaml_syntax", "tags", 3, 13, "}", "expected node content"},
 		{"---\nkadai: task\ntitle: \"open\n---", "yaml_syntax", "title", 4, 1, "", "quoted scalar"},

@@ -60,11 +60,14 @@ Reader :: struct {
 matches_probe_scalar :: proc(event: ^oyaml.event, expected: string) -> bool {
 	if event.type != .SCALAR_EVENT do return false
 	scalar := event.data.scalar
-	// An anchor on a literal does not change its text. Never dereference an
-	// alias or infer a string from an unknown tag.
-	if scalar.tag != nil && string(scalar.tag) != "tag:yaml.org,2002:str" do return false
 	text := strings.string_from_ptr((^u8)(scalar.value), int(scalar.length))
-	return text == expected && (scalar.tag != nil || scalar.style != .PLAIN_SCALAR_STYLE || plain_kind(text) == .String)
+	if text != expected do return false
+	if scalar.tag != nil {
+		// Both ! and !!str identify a scalar as a string for recognition.
+		tag := string(scalar.tag)
+		return tag == "!" || tag == "tag:yaml.org,2002:str"
+	}
+	return scalar.style != .PLAIN_SCALAR_STYLE || plain_kind(text) == .String
 }
 
 @(private)

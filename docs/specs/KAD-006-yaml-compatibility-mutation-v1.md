@@ -89,16 +89,24 @@ No duplicate key takes precedence, even if the repeated values are identical. Do
 
 Use KAD-002's four categories: **non-task**, **valid task**, **invalid task candidate**, **unsupported-schema task**.
 
-For syntactically valid YAML, identify `kadai` as a unique decoded top-level string key and `task` as its exact string value. Other/missing discriminator values make it ordinary non-task Markdown; do not automatically import it.
+For frontmatter that passes Section 2, identify `kadai` as a unique decoded top-level string key and `task` as its exact string value. Other or missing discriminator values make it ordinary non-task Markdown. Importing ordinary Markdown requires explicit selection.
 
-If syntax parsing fails, use **conservative fallback recognition** only:
+For malformed headers or unsupported YAML constructs, **conservative fallback recognition** requires all of the following.
 
 1. The file has the initial frontmatter opening delimiter.
 2. A bounded lexical/token-prefix scan can prove a complete top-level scalar key/value declaration equivalent to `kadai: task`, including safe quoted forms and an optional trailing comment.
-3. The declaration is not inside a comment, quotation, block scalar, sequence, nested mapping or Markdown body.
-4. No ambiguous discriminator or conflicting duplicate `kadai` declaration has been observed. If duplicate detection cannot be completed, identity and mutation eligibility remain unavailable.
+3. The declaration is not inside a comment, quotation, block scalar, sequence, nested mapping or Markdown body. Text such as `# kadai: task` or `description: |\n  kadai: task` is insufficient.
 
-A proven marker makes a malformed document an **invalid candidate**, never a valid task. Mere substring/regex matches such as `# kadai: task` or `description: |\n  kadai: task` are insufficient. If lexical context cannot be established, do not invent recognition. For an invalid YAML document, partial ID-based indexing is unavailable even if an `id` substring is visible; a confidently parseable schema-invalid document with a unique, well-formed ID may still have KAD-002's diagnostic-only partial read.
+A proven marker makes the malformed document an **invalid candidate**. Conflicting untagged declarations such as `kadai: task` and `kadai: note` produce `duplicate_mapping_key` in either order. The scalar tags `!` and `!!str` identify a marker key or value as a string for recognition, even though Section 2.2 rejects explicit tags.
+
+When an unsupported tag and a duplicate key occur together, the parser reports whichever it encounters first. It checks each key for duplication before reading its value.
+
+| First declaration | Second declaration | Diagnostic |
+| --- | --- | --- |
+| `kadai: ! task` | `kadai: note` | `unsupported_tag` on the first value |
+| `kadai: note` | `kadai: ! task` | `duplicate_mapping_key` on the second key |
+
+`import` rejects these candidates. Invalid YAML prevents ID-based indexing even when an `id` is visible. An in-collection candidate with an unverifiable ID blocks new ID allocation until it is repaired or excluded. A fully parsed document with schema errors and a unique, well-formed ID may still have KAD-002's diagnostic-only partial read.
 
 Invalid candidates must remain diagnosable by path, with classification confidence made explicit; they are never silently promoted to valid tasks or automatically rewritten. An incomplete scan due to **resource exhaustion or unreadable/unresolved filesystem entries** is separately fatal to collection completeness (Section 4), even if task recognition cannot finish. Lack of readable bytes is not proof of a non-task.
 
