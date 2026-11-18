@@ -3,9 +3,11 @@ package cli
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "kadai:app"
 
 // A tab in a title must stay inside one field. An unresolved edge must still
 // identify its two endpoints and leave a source location in validation output.
@@ -47,6 +49,62 @@ terminal_queries_show_task_and_reference_context :: proc(t: ^testing.T) {
 	testing.expect_value(t, missing["code"].(string), "missing_prerequisite")
 	testing.expect_value(t, missing["target_id"].(string), "Lost")
 	testing.expect_value(t, missing["location"].(json.Object)["column"].(i64), 17)
+}
+
+// A shared prerequisite and a handwritten cycle retain all their edges.
+// Ambiguous references stay visible without choosing a file to traverse.
+@(test)
+dependency_graph_follows_only_the_selected_direction :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-dep-graph-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	for row, i in ([]struct {id, refs: string}{
+		{"A", "[b, C]"}, {"B", "[D, Lost, DuP]"}, {"C", "[D]"}, {"D", "[b]"},
+		{"E", "[A]"}, {"F", "[E]"}, {"Dup", "[F]"}, {"dup", "[]"},
+	}) {
+		source := fmt.tprintf("---\nkadai: task\nid: %s\ntitle: Example\nstatus: todo\ndepends_on: %s\n---\n", row.id, row.refs)
+		if !testing.expect(t, os.write_entire_file(fmt.tprintf("%s/%d.md", root, i), source) == nil) do return
+	}
+	up := invoke_cli(t, {"dep", "graph", "a", "--project", root, "--tasks-root", ".", "--json"})
+	graph := parse_result(t, up.stdout).(json.Object)
+	testing.expect_value(t, graph["direction"].(string), "prerequisites")
+	testing.expect_value(t, graph["task"].(json.Object)["id"].(string), "A")
+	edges := graph["edges"].(json.Array)
+	expected := []struct {prerequisite, dependent, resolution: string}{
+		{"B", "A", "resolved"}, {"C", "A", "resolved"}, {"D", "B", "resolved"},
+		{"Lost", "B", "missing"}, {"DuP", "B", "ambiguous"}, {"D", "C", "resolved"}, {"B", "D", "resolved"},
+	}
+	if !testing.expect_value(t, len(edges), len(expected)) do return
+	for row, i in expected {
+		edge := edges[i].(json.Object)
+		testing.expect_value(t, edge["prerequisite"].(string), row.prerequisite)
+		testing.expect_value(t, edge["dependent"].(string), row.dependent)
+		testing.expect_value(t, edge["resolution"].(string), row.resolution)
+	}
+	down := invoke_cli(t, {"dep", "graph", "A", "dependents", "--project", root, "--tasks-root", "."})
+	testing.expect_value(t, down.stdout, "Dependent graph for A (prerequisite -> dependent)\n  A -> E\n  E -> F\n")
+	testing.expect(t, !os.exists(fmt.tprintf("%s/.kadai", root)))
+}
+
+@(test)
+dependency_graph_encoding_discards_incomplete_output :: proc(t: ^testing.T) {
+	item := app.Task_Candidate{fields = {id = "A"}}
+	edges: [8]app.Dependency_Edge
+	for &edge in edges do edge = {"Prerequisite", "Dependent", .Resolved}
+	view := app.Dependency_Graph{task = &item, edges = edges[:]}
+	for as_json in ([2]bool{false, true}) {
+		space: [128]byte
+		arena: mem.Arena
+		mem.arena_init(&arena, space[:])
+		out: string
+		code: Exit_Code
+		{
+			context.temp_allocator = mem.arena_allocator(&arena)
+			out, _, code = dependency_graph_output(view, as_json)
+		}
+		testing.expect_value(t, code, Exit_Code.Output_Failed)
+		testing.expect_value(t, out, "")
+	}
 }
 
 // A filename must not reorder or split the diagnostic printed by the CLI.

@@ -39,6 +39,7 @@ All commands below accept the common project and resource options.
 | `dep add TASK PREREQUISITE` | Add a direct prerequisite. A duplicate case-insensitive reference is an error. |
 | `dep remove TASK PREREQUISITE` | Remove a direct prerequisite. |
 | `dep show ID` | Show immediate prerequisites and dependents as `prerequisite -> dependent`. |
+| `dep graph ID [prerequisites\|dependents]` | Show all reachable prerequisite edges (default), or follow dependents downstream. |
 | `tree` | No operands. Show the logical parent hierarchy. |
 | `ready [ID]` | Without an ID, list actionable ready tasks; with an ID, report `ready`, `blocked` or `unresolved`. |
 | `validate` | No operands. Read-only validation of config, tasks, relationships and internal state. |
@@ -151,6 +152,25 @@ Task summaries, validation findings and command errors escape tabs, line breaks 
 prerequisite to dependent. An unresolved prerequisite keeps its written ID and
 shows the reason. When several files claim that ID, their paths appear beneath the edge.
 
+### Dependency graphs
+
+`kadai dep graph ID` follows the subject's prerequisites recursively.
+`kadai dep graph ID dependents` follows the reverse links to find every task
+that depends directly or indirectly on the subject. In both directions,
+`A -> B` means B declares A in `depends_on`. For example, a task C that
+depends on B, which depends on A, produces the edges `B -> C` and `A -> B`
+in `kadai dep graph C`.
+
+The graph expands tasks breadth-first. Within each task it emits prerequisites
+in frontmatter order or dependents in collection-relative path order. Each
+task is expanded once, so cycles terminate and shared prerequisites keep all
+their declared edges. A resolved endpoint uses its stored ID. An unresolved
+prerequisite keeps its written ID and resolution reason, and traversal stops
+at that endpoint. Use `dep show` on the declaring task to inspect candidate
+paths. The graph is read-only. Readiness continues to use direct prerequisites.
+
+### Validation output
+
 `validate` prints the source path and available line and column alongside each
 finding, followed by its severity, code and message. Related files and cycle
 edges appear on indented lines. The report names incomplete checks and gives
@@ -179,6 +199,7 @@ Consumers should look up object fields by name.
 | `tree` | Array of task summaries with nullable `parent`, integer `depth` and `position` (`root`, `child`, `unresolved_parent` or `parent_cycle`). |
 | `ready [ID]` | Array of task summaries with derived `readiness` (`ready`, `blocked` or `unresolved`). |
 | `dep show` | Subject summary in `task`, direct `prerequisites` in source order, and `dependents` as summaries in path order. Each prerequisite has its written `id`, `resolution` (`resolved`, `missing`, `ambiguous`, `invalid` or `unsupported`), and an array of candidate `{id,path}` objects. |
+| `dep graph` | Subject summary in `task`, the chosen `direction` (`prerequisites` or `dependents`), and an ordered `edges` array. Each edge contains string IDs `prerequisite` and `dependent`, plus the same `resolution` values as `dep show`. An isolated task has an empty array. |
 | `validate` | Counts `errors` and `warnings`, booleans `scan_complete`, `history_complete` and `recovery_complete`, and a `findings` array. A completed report is available on stdout even when findings produce a nonzero exit. |
 | `remove --dry-run` | A `plan` token and an `edits` array with `id`, `path`, `field` and a half-open byte `span` (`start`, `end`) in the original file. |
 | `init`, `set`, `unset`, `status`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |

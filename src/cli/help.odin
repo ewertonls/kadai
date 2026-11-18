@@ -76,9 +76,9 @@ COMMANDS := [?]Command{
 	},
 	{
 		"dep", Project_Flags, "Show, add or remove task dependencies.",
-		"Use show to list direct prerequisites and dependents.\nWith add or remove, TASK depends on PREREQUISITE.",
-		{"show ID", "add TASK PREREQUISITE", "remove TASK PREREQUISITE"},
-		{"kadai dep add 0002 0001", "kadai dep show 0002"},
+		"Use show for direct edges or graph to follow prerequisite chains. Select dependents to walk downstream.\nWith add or remove, TASK depends on PREREQUISITE.",
+		{"show ID", "graph ID [prerequisites|dependents]", "add TASK PREREQUISITE", "remove TASK PREREQUISITE"},
+		{"kadai dep add 0002 0001", "kadai dep show 0002", "kadai dep graph 0001 dependents"},
 	},
 	{
 		"edit", Project_Flags, "Open a task's Markdown file in $EDITOR.",

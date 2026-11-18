@@ -2,6 +2,7 @@
 package cli
 
 import "core:fmt"
+import "core:io"
 import "core:strings"
 import "core:unicode"
 import "core:unicode/utf8"
@@ -46,6 +47,36 @@ tree_text :: proc(rows: []app.Tree_Row) -> string {
 	return strings.to_string(b)
 }
 
+@(rodata)
+PREREQUISITE_NOTES := [app.Target_Status]string{
+	.Resolved = "", .Missing = "missing prerequisite", .Ambiguous = "ambiguous prerequisite ID",
+	.Invalid = "invalid prerequisite", .Unsupported = "unsupported prerequisite schema",
+}
+
+write_dependency_graph_text :: proc(w: io.Writer, view: app.Dependency_Graph) -> io.Error {
+	label := "Prerequisite" if view.direction == .Prerequisites else "Dependent"
+	for part in ([]string{label, " graph for ", view.task.fields.id, " (prerequisite -> dependent)\n"}) do io.write_string(w, part) or_return
+	if len(view.edges) == 0 do io.write_string(w, "  (none)\n") or_return
+	for edge in view.edges {
+		for part in ([]string{"  ", edge.prerequisite, " -> ", edge.dependent}) do io.write_string(w, part) or_return
+		if edge.resolution != .Resolved {
+			for part in ([]string{"  [", PREREQUISITE_NOTES[edge.resolution], "]"}) do io.write_string(w, part) or_return
+		}
+		io.write_byte(w, '\n') or_return
+	}
+	return nil
+}
+
+dependency_graph_output :: proc(view: app.Dependency_Graph, as_json: bool) -> (string, string, Exit_Code) {
+	b, alloc_err := strings.builder_make(context.temp_allocator)
+	if alloc_err != nil do return "", "cannot allocate dependency graph output", .Output_Failed
+	w := strings.to_writer(&b)
+	err := write_dependency_graph_json(w, view) if as_json else write_dependency_graph_text(w, view)
+	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", .Output_Failed
+	if err != nil do return "", "cannot encode dependency graph output", .Output_Failed
+	return strings.to_string(b), "", .Success
+}
+
 dependency_text :: proc(view: app.Dependency_View) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	fields := &view.task.fields
@@ -53,17 +84,11 @@ dependency_text :: proc(view: app.Dependency_View) -> string {
 	strings.write_string(&b, "\nPrerequisites (prerequisite -> dependent)\n")
 	if len(view.prerequisites) == 0 do strings.write_string(&b, "  (none)\n")
 	for ref in view.prerequisites {
-		note: string
-		switch ref.status {
-		case .Resolved:
-			fmt.sbprintf(&b, "  %s -> %s\n", ref.candidates[0].fields.id, fields.id)
+		if ref.status == .Resolved {
+			fmt.sbprintf(&b, "  %s -> %s\n", app.target_display_id(ref), fields.id)
 			continue
-		case .Missing:     note = "missing prerequisite"
-		case .Ambiguous:   note = "ambiguous prerequisite ID"
-		case .Invalid:     note = "invalid prerequisite"
-		case .Unsupported: note = "unsupported prerequisite schema"
 		}
-		fmt.sbprintf(&b, "  %s -> %s  [%s]\n", ref.written_id, fields.id, note)
+		fmt.sbprintf(&b, "  %s -> %s  [%s]\n", ref.written_id, fields.id, PREREQUISITE_NOTES[ref.status])
 		for item in ref.candidates do fmt.sbprintf(&b, "    %s\n", terminal_field(item.path))
 	}
 	strings.write_string(&b, "Dependents\n")

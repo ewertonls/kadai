@@ -156,14 +156,33 @@ json_refs :: proc(items: []^app.Task_Candidate) -> json.Array {
 	return refs
 }
 
-json_dependencies :: proc(view: app.Dependency_View) -> json.Object {
-	states := [app.Target_Status]string{
-		.Resolved = "resolved", .Missing = "missing", .Ambiguous = "ambiguous",
-		.Invalid = "invalid", .Unsupported = "unsupported",
+@(rodata)
+TARGET_RESOLUTIONS := [app.Target_Status]string{
+	.Resolved = "resolved", .Missing = "missing", .Ambiguous = "ambiguous",
+	.Invalid = "invalid", .Unsupported = "unsupported",
+}
+
+write_dependency_graph_json :: proc(w: io.Writer, view: app.Dependency_Graph) -> io.Error {
+	if !utf8.valid_string(view.task.path) do return .Unsupported
+	Edge :: struct {prerequisite, dependent, resolution: string}
+	Result :: struct {task: app.Task_Summary, direction: string, edges: []Edge}
+	edges, err := make([]Edge, len(view.edges), context.temp_allocator)
+	if err != nil do return .Buffer_Full
+	for edge, i in view.edges {
+		edges[i] = {edge.prerequisite, edge.dependent, TARGET_RESOLUTIONS[edge.resolution]}
 	}
+	direction := "prerequisites" if view.direction == .Prerequisites else "dependents"
+	fields := &view.task.fields
+	summary := app.Task_Summary{id = fields.id, path = view.task.path, status = fields.status, title = fields.title}
+	response := struct {version: int, result: Result}{1, {summary, direction, edges}}
+	if json.marshal_to_writer(w, response, {spec = .JSON}) != nil do return .Buffer_Full
+	return io.write_byte(w, '\n')
+}
+
+json_dependencies :: proc(view: app.Dependency_View) -> json.Object {
 	refs := make(json.Array, len(view.prerequisites))
 	for ref, i in view.prerequisites {
-		refs[i] = json.Object{"id" = ref.written_id, "resolution" = states[ref.status], "candidates" = json_refs(ref.candidates)}
+		refs[i] = json.Object{"id" = ref.written_id, "resolution" = TARGET_RESOLUTIONS[ref.status], "candidates" = json_refs(ref.candidates)}
 	}
 	return {"task" = json_task(view.task), "prerequisites" = refs, "dependents" = json_tasks(view.dependents)}
 }

@@ -69,6 +69,7 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"remove"}, 2, "requires an ID"},
 		{{"parent", "add", "0001"}, 2, "parent add CHILD PARENT"},
 		{{"dep", "add", "0001"}, 2, "dep add|remove TASK PREREQUISITE"},
+		{{"dep", "graph", "A", "both"}, 2, "prerequisites or dependents"},
 		{{"tree", "extra"}, 2, "no positional arguments"},
 		{{"ready", "0001", "0002"}, 2, "optional task ID"},
 		{{"validate", "extra"}, 2, "no positional arguments"},

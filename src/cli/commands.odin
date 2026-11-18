@@ -88,13 +88,27 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		if !a.yes do return "", "recover requires --yes to apply the operation", .Usage
 		operation, issue = app.recover_collection(cwd, a.project, mode, id, a.limits)
 	case "dep":
+		if len(a.words) > 0 && a.words[0] == "graph" {
+			if len(a.words) < 2 || len(a.words) > 3 do return "", "expected dep graph ID [prerequisites|dependents]", .Usage
+			direction := app.Dependency_Direction.Prerequisites
+			if len(a.words) == 3 {
+				switch a.words[2] {
+				case "prerequisites":
+				case "dependents": direction = .Dependents
+				case: return "", "dep graph direction must be prerequisites or dependents", .Usage
+				}
+			}
+			view, problem := app.dependency_graph(cwd, a.project, a.words[1], direction, a.limits)
+			if problem != "" do return "", problem, .Failure
+			return dependency_graph_output(view, a.json)
+		}
 		if len(a.words) == 2 && a.words[0] == "show" {
 			view, problem := app.dependencies(cwd, a.project, a.words[1], a.limits)
 			if problem != "" do return "", problem, .Failure
 			if a.json do return json_result(view)
 			return dependency_text(view), "", .Success
 		}
-		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID or dep add|remove TASK PREREQUISITE", .Usage
+		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID, dep graph ID [prerequisites|dependents] or dep add|remove TASK PREREQUISITE", .Usage
 		operation, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {

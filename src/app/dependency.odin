@@ -79,6 +79,11 @@ Target :: struct {
 	candidates: []^project.Candidate,
 }
 
+target_display_id :: proc(target: Target) -> string {
+	if target.status == .Resolved do return target.candidates[0].fields.id
+	return target.written_id
+}
+
 @(private)
 resolve_reference :: proc(index: ^project.Index, id: string) -> (target: Target, ok: bool) {
 	group, state := project.lookup(index, id)
