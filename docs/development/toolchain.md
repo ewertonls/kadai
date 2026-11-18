@@ -9,7 +9,7 @@
 - **Published:** 2026-11-03.
 - **Upstream note:** Hotfix to `dev-2026-11` correcting a BNG/LZ4 enum clash.
 
-This is the recommended compiler for contributors and the future CI baseline. Contributors may use other Odin versions. Compatibility with those versions is unverified.
+This is the recommended compiler for contributors and the pinned compiler for [CI](../../.github/workflows/ci.yml). Contributors may use other Odin versions. Compatibility with those versions is unverified.
 
 ## Official artifacts
 
@@ -69,7 +69,7 @@ These SHA-256 values are from the official release's GitHub asset metadata.
 ## Ownership and update policy
 
 - The reference is **advisory**, not a minimum supported version or compatibility gate.
-- When changing the baseline, update the tag, commit, links and SHA-256 values together.
+- When changing the baseline, update the tag, commit, links and SHA-256 values here. Keep the version and checksums in the [shared setup action](../../.github/actions/setup-odin/action.yml) in sync.
 - Contributors manage their own compiler installation. If tooling detects a version mismatch, it may warn and continue.
 
 Upstream: [official Odin installation guide](https://odin-lang.org/docs/install/).

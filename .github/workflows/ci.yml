@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux x64
+            runner: ubuntu-24.04
+            cli: ./kadai
+          - platform: macOS ARM64
+            runner: macos-15
+            cli: ./kadai
+          - platform: Windows x64
+            runner: windows-2025
+            cli: .\kadai.exe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-odin
+      - name: Check
+        run: odin check src/app -collection:kadai=src -collection:third_party=third_party -no-entry-point -vet
+      - name: Build
+        run: odin build cmd/kadai -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+      - name: Test
+        run: odin test tests -all-packages -collection:kadai=src -collection:third_party=third_party -define:YAML_STATIC=true
+      - name: CLI help
+        run: ${{ matrix.cli }} --help
+      - name: CLI version
+        run: ${{ matrix.cli }} --version

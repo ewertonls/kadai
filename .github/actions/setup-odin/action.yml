@@ -1,0 +1,46 @@
+name: Set up Odin
+description: Install the Kadai reference compiler from a verified release archive
+runs:
+  using: composite
+  steps:
+    - name: Download and verify Odin
+      shell: ${{ runner.os == 'Windows' && 'python' || 'python3 {0}' }}
+      run: |
+        import hashlib
+        import os
+        from pathlib import Path
+        import shutil
+        import subprocess
+        import tempfile
+
+        version = "dev-2026-11a"
+        checksums = {
+            "linux-amd64": "65c9f6e97d6f8a30930e151f270ce5aeaa98fe8b2ba49fe067394e2af04f7618",
+            "linux-arm64": "5bdba22447ea46a99765235e401c2ad83930f967f987aab1531ed76c3aa7ea3b",
+            "macos-arm64": "fa10eee280c8786758e3ff0b8fdd9355e1c9447b1f0b8c72764e25ee4ebc3e22",
+            "windows-amd64": "259effedf2997293c8fa4a5e497496f8ebce9f826652d9dd353a9dd2113c31fd",
+        }
+        system = os.environ["RUNNER_OS"].lower()
+        arch = {"X64": "amd64", "ARM64": "arm64"}[os.environ["RUNNER_ARCH"]]
+        target = f"{system}-{arch}"
+        expected = checksums[target]
+        extension = "zip" if system == "windows" else "tar.gz"
+        directory = Path(tempfile.mkdtemp(prefix="odin-", dir=os.environ["RUNNER_TEMP"]))
+        archive = directory / f"odin-{target}-{version}.{extension}"
+        url = f"https://github.com/odin-lang/Odin/releases/download/{version}/{archive.name}"
+        subprocess.run(["curl", "--fail", "--location", "--retry", "3", "--silent", "--show-error",
+                        "--output", str(archive), url], check=True)
+        with archive.open("rb") as source:
+            actual = hashlib.file_digest(source, "sha256").hexdigest()
+        if actual != expected:
+            raise SystemExit(f"{archive.name}: expected SHA-256 {expected}, got {actual}")
+        print(f"Verified {archive.name} (SHA-256 {actual})")
+
+        shutil.unpack_archive(archive, directory)
+        executable = "odin.exe" if system == "windows" else "odin"
+        compiler, = (path for path in directory.rglob(executable) if path.is_file())
+        with open(os.environ["GITHUB_PATH"], "a", encoding="utf-8") as path_file:
+            print(compiler.parent, file=path_file)
+    - name: Odin version
+      shell: bash
+      run: odin version
