@@ -1,7 +1,10 @@
 #+test
 package app
 
+import "core:fmt"
+import "core:mem"
 import "core:os"
+import "core:strings"
 import "core:testing"
 import "kadai:project"
 import "kadai:storage"
@@ -37,6 +40,32 @@ validate_reports_multiple_issues_and_respects_discovery_boundaries :: proc(t: ^t
 	testing.expect(t, issue == "" && !report.scan_complete && count_finding(report, "scan_incomplete") == 1)
 	testing.expect_value(t, count_finding(report, "missing_parent"), 0)
 	testing.expect(t, !os.exists(storage.child(tmp, ".kadai")))
+}
+
+@(test)
+validate_releases_task_bodies_during_the_scan :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-validate-bodies-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	tasks := storage.child(tmp, "tasks")
+	if !testing.expect(t, os.mkdir(tasks) == nil) do return
+	body := strings.repeat("a", 48 << 10, context.temp_allocator)
+	for id in ([3]string{"A", "B", "C"}) {
+		source := fmt.tprintf("---\nkadai: task\nid: %s\ntitle: Example\nstatus: todo\n---\n%s", id, body)
+		if !testing.expect(t, os.write_entire_file(storage.child(tasks, fmt.tprintf("%s.md", id)), source) == nil) do return
+	}
+
+	// Each task fits on its own. Keeping all three bodies would exhaust the report arena.
+	space := make([]byte, 128 << 10)
+	defer delete(space)
+	arena: mem.Arena
+	mem.arena_init(&arena, space)
+	{
+		context.temp_allocator = mem.arena_allocator(&arena)
+		report, issue := validate_project(tmp)
+		testing.expect_value(t, issue, "")
+		testing.expect(t, report.scan_complete && report.errors == 0)
+	}
 }
 
 @(test)

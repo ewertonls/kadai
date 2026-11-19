@@ -33,6 +33,8 @@ state_findings :: proc(report: ^Validation, root, area: string, audit: storage.S
 
 @(private)
 collect_validation :: proc(r: ^Validation, cwd: string, options: Project_Options, l: project.Scan_Limits) -> (err: runtime.Allocator_Error) {
+	// Keep the report in scratch storage. The scanner frees each task source with the caller's allocator.
+	r.findings = make([dynamic]Finding, context.temp_allocator) or_return
 	if !project.valid_scan_limits(l) {
 		_ = append(&r.findings, Finding{code = "invalid_limit", message = "Invalid scan limits."}) or_return
 		return
@@ -71,7 +73,6 @@ collect_validation :: proc(r: ^Validation, cwd: string, options: Project_Options
 }
 
 validate_project :: proc(cwd: string, options := Project_Options{}, limits := project.DEFAULT_SCAN_LIMITS) -> (r: Validation, issue: string) {
-	context.allocator = context.temp_allocator
 	if collect_validation(&r, cwd, options, limits) != nil do return {}, "validation incomplete: allocation failed"
 	slice.sort_by(r.findings[:], proc(a, b: Finding) -> bool {
 		if a.path != b.path do return a.path < b.path
