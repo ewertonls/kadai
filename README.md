@@ -2,7 +2,7 @@
 
 Local-first, Markdown-native task and issue tracking for developers and AI agents.
 
-> **Status:** Early development. The CLI supports task creation, metadata edits, moves, removal, recovery, hierarchy, dependencies and read-only validation. Queries and mutations support [versioned JSON output](docs/development/cli.md#json-output-v1) with `--json`.
+> **Status:** Early development. The CLI supports task creation, activity logs, metadata edits, moves, removal, recovery, hierarchy, dependencies and read-only validation. Queries and mutations support [versioned JSON output](docs/development/cli.md#json-output-v1) with `--json`.
 
 Kadai is meant to help you keep track of work inside a project without depending on GitHub Issues, GitLab, Jira, or a hosted service. Tasks live alongside your code and can be edited as plain text or managed through a CLI.
 
@@ -53,7 +53,7 @@ odin test tests -all-packages -collection:kadai=src -collection:third_party=thir
 
 ## Design goals
 
-- **Markdown is the source of truth.** Each task is a `.md` file with YAML frontmatter. Its body and sections are entirely up to the author.
+- **Markdown is the source of truth.** Each task is a `.md` file with YAML frontmatter. Authors choose their own sections and can keep an optional activity log at the end.
 - **Folders are yours to organize.** Tasks can live in nested directories under a configurable project-local root.
 - **Plain text and CLI stay in sync.** Editing a task manually or through the CLI changes the same Markdown file. There is no separate authoritative database.
 - **Hierarchy and dependencies are separate.** A task can have a parent and depend on other tasks independently of where its file lives.
@@ -178,6 +178,8 @@ kadai edit 0001
 ```
 
 `add --body-file PATH` and `add --stdin` preserve the supplied Markdown body. `move --directory SOURCE DEST` renames a directory after checking its contents and destination. Moves preserve frontmatter IDs.
+
+Use `kadai log add 0001 "Parser handles empty files"` to append a timestamped Markdown entry. Use `kadai log list 0001` to read the entries in file order. For longer notes, pass `--stdin` or `--body-file PATH`, or edit the log directly in the task file. [Activity log format](docs/development/cli.md#task-activity-logs).
 
 `kadai import notes.md --yes` creates a new `todo` task with the entire file as its body and leaves `notes.md` in place. Use `--title` to override the filename-derived title or `--path` to choose an unused destination. [Importing Markdown](docs/development/cli.md#importing-markdown).
 

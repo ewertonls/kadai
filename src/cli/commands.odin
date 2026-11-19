@@ -12,6 +12,19 @@ import "kadai:app"
 READINESS_LABELS := [app.Readiness]string{.Ready = "ready", .Blocked = "blocked", .Unresolved = "unresolved"}
 
 @(private)
+read_body_input :: proc(a: Arguments, stdin: io.Reader) -> (string, string) {
+	if a.stdin {
+		if stdin.procedure == nil do return "", "stdin unavailable"
+		return app.read_body(stdin, a.limits.source_bytes)
+	}
+	if a.body_file == "" do return "", ""
+	f, err := os.open(a.body_file)
+	if err != nil do return "", fmt.tprintf("%s: %s", a.body_file, os.error_string(err))
+	defer os.close(f)
+	return app.read_body(os.to_reader(f), a.limits.source_bytes)
+}
+
+@(private)
 execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed: ^string) -> (output, issue: string, code: Exit_Code) {
 	operation: string
 	switch command {
@@ -79,6 +92,29 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		}
 		if !a.yes do return "", "recover requires --yes to apply the operation", .Usage
 		operation, issue = app.recover_collection(cwd, a.project, mode, id, a.limits)
+	case "log":
+		if len(a.words) < 2 do return "", "expected log list ID or log add ID (MESSAGE | --stdin | --body-file FILE)", .Usage
+		external_body := a.stdin || a.body_file != ""
+		switch a.words[0] {
+		case "list":
+			if len(a.words) != 2 || external_body do return "", "log list takes only a task ID", .Usage
+			entries, problem := app.list_log(cwd, a.project, a.words[1], a.limits)
+			if problem != "" do return "", problem, .Failure
+			if a.json do return json_result(entries)
+			return task_text_result(entries)
+		case "add":
+			content: string
+			if external_body && len(a.words) == 2 {
+				content, issue = read_body_input(a, stdin)
+				if issue != "" do return "", issue, .Failure
+			} else if !external_body && len(a.words) == 3 {
+				content = a.words[2]
+			} else {
+				return "", "log add requires exactly one entry source: MESSAGE, --stdin or --body-file FILE", .Usage
+			}
+			operation, issue = app.add_log(cwd, a.project, a.words[1], content, a.limits)
+		case: return "", "expected log add or log list", .Usage
+		}
 	case "dep":
 		if len(a.words) > 0 && a.words[0] == "graph" {
 			if len(a.words) < 2 || len(a.words) > 3 do return "", "expected dep graph ID [prerequisites|dependents]", .Usage
@@ -156,14 +192,8 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		request := app.Create_Task{title = a.words[0], destination = a.destination, status = a.status}
 		if command == "import" {
 			request.title, request.body, issue = app.read_import(cwd, a.words[0], a.title, a.limits)
-		} else if a.stdin {
-			if stdin.procedure == nil do return "", "stdin unavailable", .Failure
-			request.body, issue = app.read_body(stdin, a.limits.source_bytes)
-		} else if a.body_file != "" {
-			f, err := os.open(a.body_file)
-			if err != nil do return "", fmt.tprintf("%s: %s", a.body_file, os.error_string(err)), .Failure
-			defer os.close(f)
-			request.body, issue = app.read_body(os.to_reader(f), a.limits.source_bytes)
+		} else {
+			request.body, issue = read_body_input(a, stdin)
 		}
 		if issue != "" do return "", issue, .Failure
 		created, problem := app.create_task_result(cwd, a.project, request, a.limits)
@@ -190,6 +220,7 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
 	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
+	case Log_Flags:     a, parse_err = parse_options(Log_Flags, args)
 	case Import_Flags:  a, parse_err = parse_options(Import_Flags, args)
 	case Edit_Flags:    a, parse_err = parse_options(Edit_Flags, args)
 	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
