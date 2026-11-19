@@ -69,6 +69,28 @@ validate_releases_task_bodies_during_the_scan :: proc(t: ^testing.T) {
 }
 
 @(test)
+validate_locates_a_malformed_log_without_quarantining_the_task :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-validate-log-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	if !testing.expect(t, os.mkdir(storage.child(tmp, "tasks")) == nil) do return
+	source := "---\nkadai: task\nid: A\ntitle: Parser\nstatus: todo\n---\n\n<!-- kadai:log:end -->\n"
+	if !testing.expect(t, os.write_entire_file(storage.child(tmp, "tasks/a.md"), source) == nil) do return
+	report, issue := validate_project(tmp)
+	if !testing.expect_value(t, issue, "") || !testing.expect_value(t, len(report.findings), 1) do return
+	f := report.findings[0]
+	testing.expect(t, report.scan_complete && report.errors == 1)
+	testing.expect(t, f.code == "invalid_log" && f.path == "a.md" && f.id == "A")
+	testing.expect(t, f.location.line == 8 && f.location.column == 1)
+	testing.expect(t, !os.exists(storage.child(tmp, "tasks/.kadai")))
+	op, write_issue := add_log(tmp, {}, "A", "New entry")
+	testing.expect(t, op == "" && write_issue != "")
+	item, read_issue := get_task(tmp, {}, "A")
+	testing.expect_value(t, read_issue, "")
+	testing.expect_value(t, item.source, source)
+}
+
+@(test)
 validate_checks_history_journals_and_snapshots_read_only :: proc(t: ^testing.T) {
 	tmp, e := os.mkdir_temp("", "kadai-validate-state-", context.temp_allocator)
 	if !testing.expect(t, e == nil) do return

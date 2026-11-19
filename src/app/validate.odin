@@ -49,7 +49,7 @@ collect_validation :: proc(r: ^Validation, cwd: string, options: Project_Options
 		}
 		return
 	}
-	view := Collection{config = cfg, limits = l, index = project.build_index(project.scan(cfg, l))}
+	view := Collection{config = cfg, limits = l, index = project.build_index(project.scan(cfg, l, validate_logs = true))}
 	r.scan_complete = view.index.complete
 	for &item in view.index.candidates {
 		for d in item.diagnostics { _ = append(&r.findings, source_finding(d, item.fields.id)) or_return }

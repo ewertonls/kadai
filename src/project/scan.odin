@@ -1,5 +1,6 @@
 package project
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:slice"
@@ -31,6 +32,7 @@ Candidate :: struct {
 	diagnostics: []yaml.Diagnostic,
 	info: os.File_Info,
 	version: string,
+	body_start: int, // Markdown body offset in this version of the file.
 	id_location: yaml.Location,
 	references: []document.Task_Reference,
 }
@@ -81,7 +83,7 @@ same_identity :: proc(a, b: os.File_Info) -> bool {
 }
 
 @(private)
-read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relative: string, limits: Scan_Limits) -> string {
+read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relative: string, limits: Scan_Limits, validate_logs: bool) -> string {
 	inv.markdown += 1
 	if inv.markdown > limits.candidates do return "markdown_candidates limit exceeded"
 	f, err := storage.read_file(storage.child(cfg.tasks, relative))
@@ -122,11 +124,22 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	if inv.bytes > limits.total_bytes || doc.boundary_status == .YAML_Document_Too_Large && bytes_left < i64(limits.yaml.bytes) do return "scan_yaml_bytes limit exceeded"
 	if inv.nodes > limits.total_nodes do return "scan_yaml_nodes limit exceeded"
 	if issue != "" || !recognized do return issue
+	if validate_logs && doc.fields.schema_version.digits == "1" {
+		context.allocator = context.temp_allocator
+		_, log_err := document.parse_log(doc.source, doc.parts.body, relative, collect = false)
+		switch problem in log_err {
+		case yaml.Diagnostic:
+			if _, err := append(&doc.diagnostics, problem); err != nil do return "cannot allocate log diagnostic"
+		case runtime.Allocator_Error:
+			return "cannot validate task log"
+		}
+	}
 	id_loc, refs, loc_err := document.reference_locations(&doc)
 	if loc_err != nil do return "cannot allocate reference locations"
 	candidate := Candidate{
 		path = relative, status = doc.status, fields = doc.fields, diagnostics = doc.diagnostics[:],
-		info = now, version = storage.file_version(now, source), id_location = id_loc, references = refs[:],
+		info = now, version = storage.file_version(now, source), body_start = doc.parts.body.start,
+		id_location = id_loc, references = refs[:],
 	}
 	if _, add_err := append(&inv.candidates, candidate); add_err != nil {
 		return "candidate allocation failed"
@@ -135,7 +148,7 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 }
 
 @(private)
-walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_Info, limits: Scan_Limits, budget: ^Glob_Budget) -> string {
+walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_Info, limits: Scan_Limits, budget: ^Glob_Budget, validate_logs: bool) -> string {
 	path := cfg.tasks if relative == "" else storage.child(cfg.tasks, relative)
 	dir, err := storage.open_dir(path)
 	if err != nil do return fmt.tprintf("%s: %s", path, os.error_string(err))
@@ -169,15 +182,15 @@ walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_I
 		if exclusion_issue != "" do return fmt.tprintf("%s: %s", rel, exclusion_issue)
 		if skip_entry do continue
 		if fi.type == .Directory {
-			if issue := walk(cfg, inv, rel, fi, limits, budget); issue != "" do return issue
+			if issue := walk(cfg, inv, rel, fi, limits, budget, validate_logs); issue != "" do return issue
 		} else if strings.has_suffix(rel, ".md") && fi.type == .Regular {
-			if issue := read_candidate(cfg, inv, fi, rel, limits); issue != "" do return fmt.tprintf("%s: %s", rel, issue)
+			if issue := read_candidate(cfg, inv, fi, rel, limits, validate_logs); issue != "" do return fmt.tprintf("%s: %s", rel, issue)
 		}
 	}
 	return ""
 }
 
-scan :: proc(cfg: Config, limits := DEFAULT_SCAN_LIMITS, shared_budget: ^Glob_Budget = nil) -> (inv: Inventory) {
+scan :: proc(cfg: Config, limits := DEFAULT_SCAN_LIMITS, shared_budget: ^Glob_Budget = nil, validate_logs := false) -> (inv: Inventory) {
 	inv.candidates = make([dynamic]Candidate, context.temp_allocator)
 	if !valid_scan_limits(limits) { inv.problem = "invalid scan limits"; return }
 	local_budget := Glob_Budget{limit = limits.exclude_match_steps}
@@ -188,7 +201,7 @@ scan :: proc(cfg: Config, limits := DEFAULT_SCAN_LIMITS, shared_budget: ^Glob_Bu
 		inv.problem = fmt.tprintf("cannot scan %s: %s", cfg.tasks, os.error_string(err))
 		return
 	}
-	inv.problem = walk(cfg, &inv, "", info, limits, budget)
+	inv.problem = walk(cfg, &inv, "", info, limits, budget, validate_logs)
 	inv.complete = inv.problem == ""
 	slice.sort_by(inv.candidates[:], proc(a, b: Candidate) -> bool { return a.path < b.path })
 	return
