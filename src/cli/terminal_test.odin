@@ -111,6 +111,23 @@ dependency_graph_encoding_discards_incomplete_output :: proc(t: ^testing.T) {
 }
 
 @(test)
+log_json_discards_partial_output :: proc(t: ^testing.T) {
+	entries: [8]app.Log_Entry
+	for &entry in entries do entry = {"2026-11-17T14:30:00Z", "One note"}
+	space: [128]byte
+	arena: mem.Arena
+	mem.arena_init(&arena, space[:])
+	output: string
+	code: Exit_Code
+	{
+		context.temp_allocator = mem.arena_allocator(&arena)
+		output, _, code = json_result(entries[:])
+	}
+	testing.expect_value(t, code, Exit_Code.Output_Failed)
+	testing.expect_value(t, output, "")
+}
+
+@(test)
 task_queries_discard_partial_text :: proc(t: ^testing.T) {
 	expect_output_failure :: proc(t: ^testing.T, view: $T) {
 		space: [256]byte

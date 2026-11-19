@@ -45,6 +45,12 @@ COMMANDS := [?]Command{
 		{"ID"}, {"kadai show 0001"},
 	},
 	{
+		"log", Log_Flags, "Append or list Markdown entries in a task's activity log.",
+		"Supply one message, or read Markdown with --stdin or --body-file. Entries appear in file order.",
+		{"add ID MESSAGE", "add ID --stdin", "add ID --body-file FILE", "list ID"},
+		{"kadai log add 0001 \"Reviewed the parser\"", "kadai log list 0001 --json"},
+	},
+	{
 		"tree", Project_Flags, "Display tasks in their parent-child hierarchy.",
 		"Indentation follows parent links. The tree marks unresolved parents and cycles.",
 		{""}, {"kadai tree"},

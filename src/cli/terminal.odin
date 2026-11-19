@@ -152,7 +152,16 @@ write_dependency_text :: proc(w: io.Writer, view: app.Dependency_View) -> io.Err
 	return nil
 }
 
-write_task_text :: proc{write_ready_text, write_tree_text, write_dependency_text}
+write_log_text :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {
+	for entry, i in entries {
+		if i > 0 do io.write_byte(w, '\n') or_return
+		write_parts(w, "### ", entry.timestamp, "\n\n", entry.content) or_return
+		if !strings.has_suffix(entry.content, "\n") do io.write_byte(w, '\n') or_return
+	}
+	return nil
+}
+
+write_task_text :: proc{write_ready_text, write_tree_text, write_dependency_text, write_log_text}
 
 task_text_result :: proc(value: $T) -> (string, string, Exit_Code) {
 	b, alloc_err := strings.builder_make(context.temp_allocator)

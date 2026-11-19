@@ -75,6 +75,22 @@ Add_Flags :: struct {
 	path:      string `usage:"Write the task at this collection-relative path."`,
 }
 
+Log_Flags :: struct {
+	project:        string           `usage:"Select the project directory."`,
+	tasks_root:     string           `usage:"Select the task collection root."`,
+	boards_root:    string           `usage:"Select the boards directory under the task root."`,
+	id_prefix:      string           `usage:"Set the prefix for generated task IDs."`,
+	timezone:       string           `usage:"Set the project time zone."`,
+	exclude:        [dynamic]string  `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool             `usage:"Clear configured exclusions."`,
+	limit:          [dynamic]string  `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json:           bool             `usage:"Write the command result as JSON."`,
+	overflow:       [dynamic]string  `args:"hidden"`,
+
+	body_file: string `usage:"Read the new log entry from this file."`,
+	stdin:     bool   `usage:"Read the new log entry from stdin."`,
+}
+
 Import_Flags :: struct {
 	project:        string           `usage:"Select the project directory."`,
 	tasks_root:     string           `usage:"Select the task collection root."`,
@@ -191,6 +207,13 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	when T == Remove_Flags || T == Recover_Flags || T == Import_Flags {
 		a.yes = options.yes
 	}
+	when T == Add_Flags || T == Log_Flags {
+		if options.stdin && options.body_file != "" {
+			return a, flags.Validation_Error{"choose one body source: --body-file or --stdin"}
+		}
+		a.body_file = options.body_file
+		a.stdin = options.stdin
+	}
 
 	when T == List_Flags {
 		if options.long && options.json do return a, flags.Validation_Error{"choose either --long or --json"}
@@ -213,12 +236,7 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 	} else when T == Edit_Flags {
 		a.editor = options.editor
 	} else when T == Add_Flags {
-		if options.stdin && options.body_file != "" {
-			return a, flags.Validation_Error{"choose one body source: --body-file or --stdin"}
-		}
 		if options.status != "" do a.status = options.status
-		a.body_file = options.body_file
-		a.stdin = options.stdin
 		a.destination = options.path
 	} else when T == Import_Flags {
 		a.title = options.title

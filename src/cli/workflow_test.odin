@@ -17,6 +17,41 @@ expect_workflow_body :: proc(t: ^testing.T, task: json.Object, expected: string)
 }
 
 @(test)
+log_accepts_each_message_source_and_lists_entries_in_order :: proc(t: ^testing.T) {
+	root, err := os.mkdir_temp("", "kadai-log-cli-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(root)
+	project := fmt.tprintf("--project=%s", root)
+	id := strings.trim_space(invoke_cli(t, {"add", "Parser", project}).stdout)
+	empty := invoke_cli(t, {"log", "list", id, "--json", project})
+	testing.expect_value(t, len(parse_result(t, empty.stdout).(json.Array)), 0)
+
+	from_arg :: "- Initial findings"
+	from_pipe :: "Checks\n\n- Bounds\n- UTF-8"
+	from_file :: "Ready for review."
+	receipt := invoke_cli(t, {"log", "add", id, project, "--json", "--", from_arg})
+	testing.expect(t, parse_result(t, receipt.stdout).(json.Object)["ok"].(bool))
+	reader: strings.Reader
+	input := strings.to_reader(&reader, from_pipe)
+	_ = invoke_cli(t, {"log", "add", id, "--stdin", project}, stdin = input)
+	path := fmt.tprintf("%s/review.md", root)
+	if !testing.expect(t, os.write_entire_file(path, from_file) == nil) do return
+	_ = invoke_cli(t, {"log", "add", id, "--body-file", path, project})
+
+	listed := invoke_cli(t, {"log", "list", id, project, "--json"})
+	rows := parse_result(t, listed.stdout).(json.Array)
+	if !testing.expect_value(t, len(rows), 3) do return
+	for expected, i in ([]string{from_arg, from_pipe, from_file}) {
+		row := rows[i].(json.Object)
+		testing.expect_value(t, len(row), 2)
+		testing.expect(t, row["timestamp"].(string) != "")
+		testing.expect_value(t, row["content"].(string), expected)
+	}
+	list_text := invoke_cli(t, {"log", "list", id, project}).stdout
+	testing.expect(t, strings.contains(list_text, fmt.tprintf("### %s\n\n%s", rows[1].(json.Object)["timestamp"].(string), from_pipe)), list_text)
+}
+
+@(test)
 import_preserves_markdown_and_avoids_collisions :: proc(t: ^testing.T) {
 	root, err := os.mkdir_temp("", "kadai-import-", context.temp_allocator)
 	if !testing.expect(t, err == nil) do return

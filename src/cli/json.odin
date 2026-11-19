@@ -50,9 +50,15 @@ json_projection :: proc{
 
 json_result :: proc(value: $T, code := Exit_Code.Success) -> (string, string, Exit_Code) {
 	context.allocator = context.temp_allocator
-	b := strings.builder_make(context.temp_allocator)
+	b, alloc_err := strings.builder_make(context.temp_allocator)
+	if alloc_err != nil do return "", "cannot encode JSON response", .Output_Failed
 	w := strings.to_writer(&b)
-	err := write_json_value(w, json.Object{"version" = i64(1), "result" = json_projection(value)})
+	err: io.Error
+	when T == []app.Log_Entry {
+		err = write_log_json(w, value)
+	} else {
+		err = write_json_value(w, json.Object{"version" = i64(1), "result" = json_projection(value)})
+	}
 	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", .Output_Failed
 	if err != .None || io.write_byte(w, '\n') != .None do return "", "cannot encode JSON response", .Output_Failed
 	return strings.to_string(b), "", code
@@ -73,6 +79,15 @@ json_summary :: proc(task: app.Task_Summary) -> json.Object {
 
 json_receipt :: proc(operation: string) -> json.Object {
 	return {"ok" = true, "operation" = optional_string(operation)}
+}
+
+write_log_json :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {
+	for entry in entries {
+		if !utf8.valid_string(entry.timestamp) || !utf8.valid_string(entry.content) do return .Unsupported
+	}
+	response := struct {version: int, result: []app.Log_Entry}{1, entries}
+	if json.marshal_to_writer(w, response, {spec = .JSON}) != nil do return .Buffer_Full
+	return nil
 }
 
 json_tasks :: proc(items: []^app.Task_Candidate) -> json.Array {

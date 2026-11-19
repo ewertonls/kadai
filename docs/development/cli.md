@@ -28,6 +28,8 @@ All commands below accept the common project and resource options.
 | `import SOURCE.md --yes` | Copy one ordinary Markdown file into a new `todo` task and print its ID. Use `--title TITLE` to override the filename-derived title and `--path FILE` to choose an unused destination. |
 | `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. `--long` adds priority and due date to text output. |
 | `show ID` | Print the collection-relative path and original task source, or report diagnostic-only metadata. |
+| `log add ID [MESSAGE]` | Append one timestamped Markdown entry. Supply a message argument, `--stdin`, or `--body-file PATH`. |
+| `log list ID` | Print entries as Markdown in file order. An empty or absent log produces empty output. |
 | `set ID FIELD [VALUE ...]` | Fields: `title`, `status`, `priority`, `due`, `tags`. Scalars require exactly one value. Tags take zero or more values; zero clears the sequence. `--force` is accepted only for `status`. |
 | `unset ID FIELD` | Remove `priority`, `due` or `tags`. Required fields cannot be unset. |
 | `status ID STATUS` | Alias for setting the status. `--force` permits completion with blocked/unresolved prerequisites. |
@@ -79,10 +81,63 @@ kadai import notes.md --yes
 kadai import ../drafts/release.md --project ./repo --yes --title "Review release" --path reviews/release.md
 ```
 
+### Task activity logs
+
+`kadai log add` creates the log on the first append. The entry must contain
+nonblank UTF-8 Markdown. A relative `--body-file` path resolves from the current
+working directory. For example, either command below appends one entry.
+
+```sh
+kadai log add T-007 "Parser now handles empty files."
+printf '%s\n' 'Remaining checks' '' '- Duplicate IDs' '- Invalid dates' | kadai log add T-007 --stdin
+```
+
+You can also add or edit entries directly in the task file.
+
+```markdown
+---
+kadai: task
+id: T-007
+title: Implement the parser
+status: in_progress
+---
+
+Keep the parser compatible with existing task files.
+
+<!-- kadai:log:start -->
+
+## Log
+
+### 2026-11-17T14:30:00-03:00
+
+Parser now handles empty files.
+
+<!-- kadai:log:end -->
+```
+
+Put each marker on a line by itself, exactly as shown, with no surrounding
+spaces. Start the section with `## Log`. Only blank lines may follow the closing marker. Each entry starts
+with a `###` heading containing an RFC 3339 timestamp and consists of the
+Markdown up to the next entry or closing marker. Other headings, lists, and
+fenced code blocks can appear in an entry. Put literal examples of markers or
+timestamp headings inside a backtick or tilde fence. The blank lines separating
+the heading, content, and next entry are formatting. Additional newlines and
+Markdown hard breaks in an entry are preserved.
+
+New timestamps use the numeric UTC offset in effect in the project time zone
+at the time of the append. `--timezone` overrides the configured zone. The
+default is system local time. Handwritten entries can use a numeric offset
+or `Z` and may include fractional seconds. Entries stay in file order even
+when their timestamps repeat or go backward.
+
+`log add`, `log list`, and `validate` report malformed logs with a source
+location. The file remains available through `show` and `edit` for repair.
+Appending uses the same version checks and recovery journal as other task edits.
+
 ## Noninteractive use
 
 Kadai never prompts for missing arguments or confirmation. Commands behave the
-same in a terminal and in a pipeline. Only `add --stdin` reads task data from
+same in a terminal and in a pipeline. Only `add --stdin` and `log add --stdin` read task data from
 standard input. A title-only `add` creates an empty body even with piped input.
 Only `edit` launches an editor and waits for it, so scripts using `edit` should
 select an editor that runs unattended.
@@ -242,6 +297,7 @@ Consumers should look up object fields by name.
 | Command | `result` |
 | --- | --- |
 | `list` | Array of task summaries using the same filters and sort order as text output. The default is ascending collection-relative path order. |
+| `log list` | Array of entries in file order, each with string fields `timestamp` and `content`. An empty or absent log returns `[]`. |
 | `add`, `import` | Summary of the task created, including the allocated ID and actual destination. |
 | `show` | Task summary plus integer `schema_version`, nullable strings `priority`, `parent` and `due`, string arrays `tags` and `depends_on`, `custom` and the original Markdown `source` including delimiters and line endings. |
 | `tree` | Array of task summaries with nullable `parent`, integer `depth` and `position` (`root`, `child`, `unresolved_parent` or `parent_cycle`). |
@@ -250,7 +306,7 @@ Consumers should look up object fields by name.
 | `dep graph` | Subject summary in `task`, the chosen `direction` (`prerequisites` or `dependents`), and an ordered `edges` array. Each edge contains string IDs `prerequisite` and `dependent`, plus the same `resolution` values as `dep show`. An isolated task has an empty array. |
 | `validate` | Counts `errors` and `warnings`, booleans `scan_complete`, `history_complete` and `recovery_complete`, and a `findings` array. A completed report is available on stdout even when findings produce a nonzero exit. |
 | `remove --dry-run` | A `plan` token and an `edits` array with `id`, `path`, `field` and a half-open byte `span` (`start`, `end`) in the original file. |
-| `init`, `set`, `unset`, `status`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |
+| `init`, `set`, `unset`, `status`, `log add`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |
 
 A validation finding carries `severity` (`error` or `warning`), `code`, `message`,
 and nullable `path`, `id`, `field` and `target_id`. A known `location` contains
