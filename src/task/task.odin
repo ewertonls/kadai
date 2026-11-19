@@ -89,30 +89,38 @@ decimal_component :: proc(s: string) -> int {
 	return n
 }
 
-valid_due :: proc(s: string) -> bool {
-	if len(s) != 10 && len(s) != 20 && len(s) != 25 do return false
-
-	if s[4] != '-' || s[7] != '-' do return false
-
+@(private)
+valid_date :: proc(s: string) -> bool {
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' do return false
 	year := decimal_component(s[:4])
 	month, day := decimal_component(s[5:7]), decimal_component(s[8:10])
+	return year >= 0 && datetime.validate_year_month_day(year, month, day) == .None
+}
 
-	if year < 0 || datetime.validate_year_month_day(year, month, day) != .None do return false
-
-	if len(s) == 10 do return true
-
-	if s[10] != 'T' || s[13] != ':' || s[16] != ':' do return false
-
+valid_timestamp :: proc(s: string, due_field := false) -> bool {
+	if len(s) < 20 || !valid_date(s[:10]) do return false
+	if (s[10] != 'T' && (due_field || s[10] != 't')) || s[13] != ':' || s[16] != ':' do return false
 	hh, mm, ss :=
 		decimal_component(s[11:13]), decimal_component(s[14:16]), decimal_component(s[17:19])
-
+	// The v1 due field excludes leap seconds and fractional seconds. Log
+	// timestamps retain the original RFC 3339 spelling, including :60.
+	if !due_field && ss == 60 do ss = 59
 	if datetime.validate_hour_minute_second(hh, mm, ss, 0) != .None do return false
 
-	if len(s) == 20 do return s[19] == 'Z'
-
-	if (s[19] != '+' && s[19] != '-') || s[22] != ':' do return false
-
-	hours, minutes := decimal_component(s[20:22]), decimal_component(s[23:])
-
+	zone := s[19:]
+	if !due_field && zone[0] == '.' {
+		i := 1
+		for i < len(zone) && '0' <= zone[i] && zone[i] <= '9' do i += 1
+		if i == 1 do return false
+		zone = zone[i:]
+	}
+	if zone == "Z" || (!due_field && zone == "z") do return true
+	if len(zone) != 6 || (zone[0] != '+' && zone[0] != '-') || zone[3] != ':' do return false
+	hours, minutes := decimal_component(zone[1:3]), decimal_component(zone[4:])
 	return 0 <= hours && hours < 24 && 0 <= minutes && minutes < 60
+}
+
+valid_due :: proc(s: string) -> bool {
+	if len(s) == 10 do return valid_date(s)
+	return valid_timestamp(s, due_field = true)
 }
