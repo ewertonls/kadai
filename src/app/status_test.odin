@@ -11,9 +11,21 @@ completion_checks_direct_prerequisites_and_own_cycles :: proc(t: ^testing.T) {
 	tmp, e := os.mkdir_temp("", "kadai-status-", context.temp_allocator)
 	if !testing.expect(t, e == nil) do return
 	defer os.remove_all(tmp)
-	testing.expect(t, os.write_entire_file(storage.child(tmp, ".kadai.yaml"), "tasks: {root: .}\nstatuses: {shipped: done}") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(
+			storage.child(tmp, ".kadai.yaml"),
+			"tasks: {root: .}\nstatuses: {shipped: done}",
+		) ==
+		nil,
+	)
 	write :: proc(tmp, id, status, deps: string) -> bool {
-		doc := fmt.tprintf("---\nkadai: task\nid: %s\ntitle: Example\nstatus: %s\ndepends_on: [%s]\n---\n", id, status, deps)
+		doc := fmt.tprintf(
+			"---\nkadai: task\nid: %s\ntitle: Example\nstatus: %s\ndepends_on: [%s]\n---\n",
+			id,
+			status,
+			deps,
+		)
 		return os.write_entire_file(storage.child(tmp, fmt.tprintf("%s.md", id)), doc) == nil
 	}
 	testing.expect(t, write(tmp, "A", "todo", "b"))

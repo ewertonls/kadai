@@ -13,7 +13,7 @@ import "kadai:app"
 needs_terminal_quotes :: proc(value: string) -> bool {
 	for r, i in value {
 		switch r {
-		case '\u061c', '\u200e', '\u200f', '\u2028'..='\u202e', '\u2066'..='\u2069':
+		case '\u061c', '\u200e', '\u200f', '\u2028' ..= '\u202e', '\u2066' ..= '\u2069':
 			return true // Line separators and bidirectional controls.
 		case utf8.RUNE_ERROR:
 			_, width := utf8.decode_rune_in_string(value[i:])
@@ -80,7 +80,7 @@ write_ready_text :: proc(w: io.Writer, rows: []app.Ready_Task) -> io.Error {
 write_tree_text :: proc(w: io.Writer, rows: []app.Tree_Row) -> io.Error {
 	for row in rows {
 		// Cap indentation so a long chain still uses linear output space.
-		for _ in 0..<min(row.depth, 16) do io.write_string(w, "  ") or_return
+		for _ in 0 ..< min(row.depth, 16) do io.write_string(w, "  ") or_return
 		if row.depth > 16 {
 			io.write_string(w, "[depth ") or_return
 			io.write_int(w, row.depth) or_return
@@ -89,8 +89,10 @@ write_tree_text :: proc(w: io.Writer, rows: []app.Tree_Row) -> io.Error {
 		if row.position == .Child do io.write_string(w, "- ") or_return
 		write_task_label(w, row.item) or_return
 		switch row.position {
-		case .Unresolved_Parent: write_parts(w, "  [unresolved parent: ", row.item.fields.parent, "]") or_return
-		case .Parent_Cycle: write_parts(w, "  [parent cycle: ", row.item.fields.parent, "]") or_return
+		case .Unresolved_Parent:
+			write_parts(w, "  [unresolved parent: ", row.item.fields.parent, "]") or_return
+		case .Parent_Cycle:
+			write_parts(w, "  [parent cycle: ", row.item.fields.parent, "]") or_return
 		case .Root, .Child:
 		}
 		io.write_byte(w, '\n') or_return
@@ -99,14 +101,23 @@ write_tree_text :: proc(w: io.Writer, rows: []app.Tree_Row) -> io.Error {
 }
 
 @(rodata)
-PREREQUISITE_NOTES := [app.Target_Status]string{
-	.Resolved = "", .Missing = "missing prerequisite", .Ambiguous = "ambiguous prerequisite ID",
-	.Invalid = "invalid prerequisite", .Unsupported = "unsupported prerequisite schema",
+PREREQUISITE_NOTES := [app.Target_Status]string {
+	.Resolved    = "",
+	.Missing     = "missing prerequisite",
+	.Ambiguous   = "ambiguous prerequisite ID",
+	.Invalid     = "invalid prerequisite",
+	.Unsupported = "unsupported prerequisite schema",
 }
 
 write_dependency_graph_text :: proc(w: io.Writer, view: app.Dependency_Graph) -> io.Error {
 	label := "Prerequisite" if view.direction == .Prerequisites else "Dependent"
-	write_parts(w, label, " graph for ", view.task.fields.id, " (prerequisite -> dependent)\n") or_return
+	write_parts(
+		w,
+		label,
+		" graph for ",
+		view.task.fields.id,
+		" (prerequisite -> dependent)\n",
+	) or_return
 	if len(view.edges) == 0 do io.write_string(w, "  (none)\n") or_return
 	for edge in view.edges {
 		write_parts(w, "  ", edge.prerequisite, " -> ", edge.dependent) or_return
@@ -118,11 +129,19 @@ write_dependency_graph_text :: proc(w: io.Writer, view: app.Dependency_Graph) ->
 	return nil
 }
 
-dependency_graph_output :: proc(view: app.Dependency_Graph, as_json: bool) -> (string, string, Exit_Code) {
+dependency_graph_output :: proc(
+	view: app.Dependency_Graph,
+	as_json: bool,
+) -> (
+	string,
+	string,
+	Exit_Code,
+) {
 	b, alloc_err := strings.builder_make(context.temp_allocator)
 	if alloc_err != nil do return "", "cannot allocate dependency graph output", .Output_Failed
 	w := strings.to_writer(&b)
-	err := write_dependency_graph_json(w, view) if as_json else write_dependency_graph_text(w, view)
+	err :=
+		write_dependency_graph_json(w, view) if as_json else write_dependency_graph_text(w, view)
 	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", .Output_Failed
 	if err != nil do return "", "cannot encode dependency graph output", .Output_Failed
 	return strings.to_string(b), "", .Success
@@ -161,7 +180,12 @@ write_log_text :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {
 	return nil
 }
 
-write_task_text :: proc{write_ready_text, write_tree_text, write_dependency_text, write_log_text}
+write_task_text :: proc {
+	write_ready_text,
+	write_tree_text,
+	write_dependency_text,
+	write_log_text,
+}
 
 task_text_result :: proc(value: $T) -> (string, string, Exit_Code) {
 	b, alloc_err := strings.builder_make(context.temp_allocator)

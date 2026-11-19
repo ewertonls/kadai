@@ -11,7 +11,7 @@ CORPUS :: "tests/fixtures/v1"
 @(private)
 check_path :: proc(path: string, leaf_type: os.File_Type) -> os.Error {
 	start := 0
-	for end in 0..=len(path) {
+	for end in 0 ..= len(path) {
 		if end != len(path) && path[end] != '/' {
 			continue
 		}
@@ -36,7 +36,9 @@ read_bytes :: proc(path: string) -> (data: []byte, err: os.Error) {
 
 Catalog :: struct {
 	fixture_version: int,
-	cases: []struct {id, manifest: string},
+	cases          : []struct {
+		id, manifest: string,
+	},
 }
 
 // Only the selected case is opened. Its location must agree with its catalog ID.

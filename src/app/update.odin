@@ -8,16 +8,24 @@ import "kadai:storage"
 import "kadai:yaml"
 
 Update :: struct {
-	id, field: string,
-	values: []string,
+	id, field   : string,
+	values      : []string,
 	unset, force: bool,
 }
 
 @(private)
 patch_issue :: proc(e: document.Header_Edit_Error) -> string {
 	switch problem in e {
-	case yaml.Diagnostic: return fmt.tprintf("%s: %s (%s): %s", problem.path, problem.code, problem.field, problem.message)
-	case runtime.Allocator_Error: return fmt.tprintf("patch allocation failed: %v", problem)
+	case yaml.Diagnostic:
+		return fmt.tprintf(
+			"%s: %s (%s): %s",
+			problem.path,
+			problem.code,
+			problem.field,
+			problem.message,
+		)
+	case runtime.Allocator_Error:
+		return fmt.tprintf("patch allocation failed: %v", problem)
 	}
 	return ""
 }
@@ -37,43 +45,92 @@ plan_update :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 	scalar: document.Scalar_Field
 	field: document.Metadata_Field
 	switch op.field {
-	case "title": field, scalar = .Title, .Title
-	case "status": field, scalar = .Status, .Status
-	case "priority": field, scalar = .Priority, .Priority
-	case "due": field, scalar = .Due, .Due
-	case "tags": field = .Tags
-	case: return nil, fmt.tprintf("not an editable core field: %s", op.field)
+	case "title":
+		field, scalar = .Title, .Title
+	case "status":
+		field, scalar = .Status, .Status
+	case "priority":
+		field, scalar = .Priority, .Priority
+	case "due":
+		field, scalar = .Due, .Due
+	case "tags":
+		field = .Tags
+	case:
+		return nil, fmt.tprintf("not an editable core field: %s", op.field)
 	}
 	edited: string
 	e: document.Header_Edit_Error
 	if op.unset {
 		if len(op.values) != 0 do return nil, "unset does not take a value"
-		edited, e = document.plan_key_patch(source, field, document.Unset_Field{}, vocab, l.source_bytes, l.yaml, item.path)
+		edited, e = document.plan_key_patch(
+			source,
+			field,
+			document.Unset_Field{},
+			vocab,
+			l.source_bytes,
+			l.yaml,
+			item.path,
+		)
 	} else if field == .Tags {
 		edited, e = document.plan_tags(&doc, op.values, vocab, l.yaml)
 	} else {
 		if len(op.values) != 1 do return nil, "set requires one scalar value"
 		if yaml.lookup(&doc.root, op.field) == nil {
-			edited, e = document.plan_key_patch(source, field, document.Insert_Field{value = op.values[0]}, vocab, l.source_bytes, l.yaml, item.path)
+			edited, e = document.plan_key_patch(
+				source,
+				field,
+				document.Insert_Field{value = op.values[0]},
+				vocab,
+				l.source_bytes,
+				l.yaml,
+				item.path,
+			)
 		} else {
-			edited, e = document.plan_scalar_patch(source, scalar, op.values[0], vocab, l.source_bytes, l.yaml, item.path)
+			edited, e = document.plan_scalar_patch(
+				source,
+				scalar,
+				op.values[0],
+				vocab,
+				l.source_bytes,
+				l.yaml,
+				item.path,
+			)
 		}
 	}
 	if problem := patch_issue(e); problem != "" do return nil, problem
 	if op.force && (field != .Status || op.unset) do return nil, "force applies only to a status transition"
-	if field == .Status && !op.unset && !op.force && category(&view.config, item.fields.status) != "done" &&
+	if field == .Status &&
+	   !op.unset &&
+	   !op.force &&
+	   category(&view.config, item.fields.status) != "done" &&
 	   category(&view.config, op.values[0]) == "done" {
 		if ready := task_readiness(view, item); ready != .Ready {
-			return nil, fmt.tprintf("%s: prerequisites are %v; completing this task requires --force", item.path, ready)
+			return nil, fmt.tprintf(
+				"%s: prerequisites are %v; completing this task requires --force",
+				item.path,
+				ready,
+			)
 		}
 	}
 	if edited == source do return nil, ""
 	change := make([]storage.Change, 1)
-	change[0] = {kind = .Replace, path = item.path, expected = item.version, data = transmute([]byte)edited}
+	change[0] = {
+		kind     = .Replace,
+		path     = item.path,
+		expected = item.version,
+		data     = transmute([]byte)edited,
+	}
 	return change, ""
 }
 
-update_task :: proc(cwd: string, options: Project_Options, update: Update, limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
+update_task :: proc(
+	cwd: string,
+	options: Project_Options,
+	update: Update,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
 	op := update
 	return mutate_collection(cwd, options, plan_update, &op, limits)
 }

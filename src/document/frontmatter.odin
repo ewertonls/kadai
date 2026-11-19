@@ -29,15 +29,15 @@ Frontmatter_Limits :: struct {
 }
 
 DEFAULT_FRONTMATTER_LIMITS :: Frontmatter_Limits{16 * 1024 * 1024, yaml.DEFAULT_LIMITS.bytes}
-MAX_FRONTMATTER_LIMITS :: Frontmatter_Limits{256 * 1024 * 1024, yaml.MAX_LIMITS.bytes}
+MAX_FRONTMATTER_LIMITS     :: Frontmatter_Limits{256 * 1024 * 1024, yaml.MAX_LIMITS.bytes}
 
 // Called only at the start of a line. A delimiter owns its line ending, if any.
 @(private)
 delimiter :: proc(line: string) -> (size: int, status: Frontmatter_Status) {
 	if !strings.has_prefix(line, "---") do return 0, .Absent
 	suffix := line[3:]
-	if suffix == ""                       do return 3, .Present
-	if suffix[0] == '\n'                  do return 4, .Present
+	if suffix == "" do return 3, .Present
+	if suffix[0] == '\n' do return 4, .Present
 	if strings.has_prefix(suffix, "\r\n") do return 5, .Present
 	r, _ := utf8.decode_rune_in_string(suffix)
 	if yaml.unsupported_line_break(r, suffix) do return 0, .Unsupported_Line_Break
@@ -45,7 +45,13 @@ delimiter :: proc(line: string) -> (size: int, status: Frontmatter_Status) {
 }
 
 @(private)
-find_closing_delimiter :: proc(source: string, header_start, limit: int) -> (Byte_Range, Frontmatter_Status) {
+find_closing_delimiter :: proc(
+	source: string,
+	header_start, limit: int,
+) -> (
+	Byte_Range,
+	Frontmatter_Status,
+) {
 	scan_end := header_start + min(len(source) - header_start, limit)
 	pos := header_start
 	failure: Frontmatter_Status = .Missing_Close
@@ -73,7 +79,10 @@ extract_frontmatter :: proc(
 	limits := DEFAULT_FRONTMATTER_LIMITS,
 	report: ^yaml.Diagnostic = nil,
 	path := "",
-) -> (parts: Frontmatter, status: Frontmatter_Status) {
+) -> (
+	parts: Frontmatter,
+	status: Frontmatter_Status,
+) {
 	bad_offset := -1
 	defer if report != nil && status != .Present && status != .Absent {
 		loc: yaml.Location
@@ -82,8 +91,10 @@ extract_frontmatter :: proc(
 		}
 		report^ = boundary_diagnostic(source, path, status, limits, loc)
 	}
-	if limits.task_source_bytes <= 0 || limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes ||
-	   limits.yaml_document_bytes <= 0 || limits.yaml_document_bytes > MAX_FRONTMATTER_LIMITS.yaml_document_bytes {
+	if limits.task_source_bytes <= 0 ||
+	   limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes ||
+	   limits.yaml_document_bytes <= 0 ||
+	   limits.yaml_document_bytes > MAX_FRONTMATTER_LIMITS.yaml_document_bytes {
 		return {}, .Invalid_Limits
 	}
 
@@ -97,7 +108,11 @@ extract_frontmatter :: proc(
 	if len(source) > limits.task_source_bytes do return {}, .Task_Source_Too_Large
 
 	header_start := bom_size + open_size
-	closing, close_status := find_closing_delimiter(source, header_start, limits.yaml_document_bytes)
+	closing, close_status := find_closing_delimiter(
+		source,
+		header_start,
+		limits.yaml_document_bytes,
+	)
 	if close_status != .Present {
 		bad_offset = len(source) if close_status == .Missing_Close else closing.start
 		return {}, close_status
@@ -114,33 +129,80 @@ extract_frontmatter :: proc(
 		}
 	}
 	return {
-		bom     = {0, bom_size},
-		opening = {bom_size, header_start},
-		header  = {header_start, closing.start},
-		closing = closing,
-		body    = {closing.end, len(source)},
-	}, .Present
+			bom = {0, bom_size},
+			opening = {bom_size, header_start},
+			header = {header_start, closing.start},
+			closing = closing,
+			body = {closing.end, len(source)},
+		},
+		.Present
 }
 
 @(private)
 boundary_diagnostic :: proc(
-	source, path: string, status: Frontmatter_Status, limits: Frontmatter_Limits, loc: yaml.Location,
-) -> (d: yaml.Diagnostic, err: runtime.Allocator_Error) #optional_allocator_error {
+	source, path: string,
+	status: Frontmatter_Status,
+	limits: Frontmatter_Limits,
+	loc: yaml.Location,
+) -> (
+	d: yaml.Diagnostic,
+	err: runtime.Allocator_Error,
+) #optional_allocator_error {
 	switch status {
 	case .Invalid_Limits:
-		if limits.task_source_bytes <= 0 || limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes {
-			return yaml.limit_diagnostic(path, "task_source_bytes", limits.task_source_bytes, MAX_FRONTMATTER_LIMITS.task_source_bytes, invalid = true)
+		if limits.task_source_bytes <= 0 ||
+		   limits.task_source_bytes > MAX_FRONTMATTER_LIMITS.task_source_bytes {
+			return yaml.limit_diagnostic(
+				path,
+				"task_source_bytes",
+				limits.task_source_bytes,
+				MAX_FRONTMATTER_LIMITS.task_source_bytes,
+				invalid = true,
+			)
 		}
-		return yaml.limit_diagnostic(path, "yaml_document_bytes", limits.yaml_document_bytes, yaml.MAX_LIMITS.bytes, invalid = true)
+		return yaml.limit_diagnostic(
+			path,
+			"yaml_document_bytes",
+			limits.yaml_document_bytes,
+			yaml.MAX_LIMITS.bytes,
+			invalid = true,
+		)
 	case .Task_Source_Too_Large:
-		return yaml.limit_diagnostic(path, "task_source_bytes", len(source), limits.task_source_bytes)
+		return yaml.limit_diagnostic(
+			path,
+			"task_source_bytes",
+			len(source),
+			limits.task_source_bytes,
+		)
 	case .YAML_Document_Too_Large:
 		// Extraction stops at the first byte beyond the budget.
-		return yaml.limit_diagnostic(path, "yaml_document_bytes", limits.yaml_document_bytes + 1, limits.yaml_document_bytes, loc)
-	case .Missing_Close: return yaml.diagnostic(path, "frontmatter_missing_close", "", "Add a closing --- line before the Markdown body.", loc)
-	case .Unsupported_Line_Break: return yaml.diagnostic(path, "unsupported_line_break", "", "Use LF or CRLF line endings in frontmatter.", loc)
-	case .Invalid_UTF8: return yaml.diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
-	case .Absent, .Present: return {}, nil
+		return yaml.limit_diagnostic(
+			path,
+			"yaml_document_bytes",
+			limits.yaml_document_bytes + 1,
+			limits.yaml_document_bytes,
+			loc,
+		)
+	case .Missing_Close:
+		return yaml.diagnostic(
+			path,
+			"frontmatter_missing_close",
+			"",
+			"Add a closing --- line before the Markdown body.",
+			loc,
+		)
+	case .Unsupported_Line_Break:
+		return yaml.diagnostic(
+			path,
+			"unsupported_line_break",
+			"",
+			"Use LF or CRLF line endings in frontmatter.",
+			loc,
+		)
+	case .Invalid_UTF8:
+		return yaml.diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
+	case .Absent, .Present:
+		return {}, nil
 	}
 	return {}, nil
 }
@@ -154,7 +216,14 @@ potential_header :: proc(prefix: string) -> bool {
 
 // Recover only a parser-proven discriminator when extraction fails. Stop at
 // the closing delimiter or the first invalid line. Never inspect body text.
-probe_broken_header :: proc(source: string, limits: yaml.Limits) -> (probe: yaml.Mapping_Probe, bytes: int, failure: yaml.Parse_Failure) {
+probe_broken_header :: proc(
+	source: string,
+	limits: yaml.Limits,
+) -> (
+	probe: yaml.Mapping_Probe,
+	bytes: int,
+	failure: yaml.Parse_Failure,
+) {
 	s := strings.trim_prefix(source, "\uFEFF")
 	start, status := delimiter(s)
 	if status != .Present do return
@@ -168,12 +237,15 @@ probe_broken_header :: proc(source: string, limits: yaml.Limits) -> (probe: yaml
 		if _, invalid := yaml.first_invalid_utf8(line); invalid do break
 		invalid := false
 		for r, i in line {
-			if yaml.unsupported_line_break(r, line[i:]) { invalid = true; break }
+			if yaml.unsupported_line_break(r, line[i:]) {invalid = true; break}
 		}
 		if invalid do break
 		bytes, pos = end, end
 	}
-	probe = {key = "kadai", value = "task"}
+	probe = {
+		key   = "kadai",
+		value = "task",
+	}
 	node: yaml.Node
 	node, failure = yaml.parse_mapping_checked(s[:bytes], limits, probe = &probe)
 	yaml.destroy(&node)

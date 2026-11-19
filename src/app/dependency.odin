@@ -9,7 +9,11 @@ import "kadai:storage"
 // A new subject -> target reference closes a cycle exactly when the target
 // already reaches the subject by references of the same kind.
 @(private)
-check_new_link :: proc(view: ^Collection, subject, target: ^project.Candidate, kind: Relation) -> string {
+check_new_link :: proc(
+	view: ^Collection,
+	subject, target: ^project.Candidate,
+	kind: Relation,
+) -> string {
 	context.allocator = context.temp_allocator
 	seen: map[^project.Candidate]bool
 	pending: [dynamic]^project.Candidate
@@ -38,7 +42,10 @@ check_new_link :: proc(view: ^Collection, subject, target: ^project.Candidate, k
 }
 
 @(private)
-Dependency_Edit :: struct { task, prerequisite: string, remove: bool }
+Dependency_Edit :: struct {
+	task, prerequisite: string,
+	remove            : bool,
+}
 
 @(private)
 plan_dependency :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string) {
@@ -60,22 +67,50 @@ plan_dependency :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, s
 	source, read_err := read_versioned(view, item, mutation = true)
 	if read_err != "" do return nil, read_err
 	op := document.Sequence_Edit.Remove if edit.remove else document.Sequence_Edit.Append
-	edited, e := document.plan_sequence_patch(source, .Depends_On, op, value, view.config.vocabulary, view.limits.source_bytes, view.limits.yaml, item.path)
+	edited, e := document.plan_sequence_patch(
+		source,
+		.Depends_On,
+		op,
+		value,
+		view.config.vocabulary,
+		view.limits.source_bytes,
+		view.limits.yaml,
+		item.path,
+	)
 	if problem := patch_issue(e); problem != "" do return nil, problem
 	change := make([]storage.Change, 1)
-	change[0] = {kind = .Replace, path = item.path, expected = item.version, data = transmute([]byte)edited}
+	change[0] = {
+		kind     = .Replace,
+		path     = item.path,
+		expected = item.version,
+		data     = transmute([]byte)edited,
+	}
 	return change, ""
 }
 
-change_dependency :: proc(cwd: string, options: Project_Options, task, prerequisite: string, remove := false, limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
+change_dependency :: proc(
+	cwd: string,
+	options: Project_Options,
+	task, prerequisite: string,
+	remove := false,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
 	edit := Dependency_Edit{task, prerequisite, remove}
 	return mutate_collection(cwd, options, plan_dependency, &edit, limits)
 }
 
-Target_Status :: enum {Resolved, Missing, Ambiguous, Invalid, Unsupported}
-Target :: struct {
+Target_Status :: enum {
+	Resolved,
+	Missing,
+	Ambiguous,
+	Invalid,
+	Unsupported,
+}
+Target        :: struct {
 	written_id: string,
-	status: Target_Status,
+	status    : Target_Status,
 	candidates: []^project.Candidate,
 }
 
@@ -89,22 +124,35 @@ resolve_reference :: proc(index: ^project.Index, id: string) -> (target: Target,
 	group, state := project.lookup(index, id)
 	target.written_id, target.candidates = id, group
 	switch state {
-	case .Valid: target.status = .Resolved
-	case .Missing: target.status = .Missing
-	case .Ambiguous: target.status = .Ambiguous
-	case .Diagnostic_Only: target.status = .Unsupported if group[0].status == .Unsupported_Schema else .Invalid
-	case .Incomplete: return {}, false
+	case .Valid:
+		target.status = .Resolved
+	case .Missing:
+		target.status = .Missing
+	case .Ambiguous:
+		target.status = .Ambiguous
+	case .Diagnostic_Only:
+		target.status = .Unsupported if group[0].status == .Unsupported_Schema else .Invalid
+	case .Incomplete:
+		return {}, false
 	}
 	return target, true
 }
 
 Dependency_View :: struct {
-	task: ^project.Candidate,
-	prerequisites: []Target, // Retains frontmatter order, including unresolved references.
-	dependents: []^project.Candidate, // Unique valid tasks, in collection-relative path order.
+	task         : ^project.Candidate,
+	prerequisites: []Target,             // Retains frontmatter order, including unresolved references.
+	dependents   : []^project.Candidate, // Unique valid tasks, in collection-relative path order.
 }
 
-dependencies :: proc(cwd: string, options: Project_Options, id: string, limits := project.DEFAULT_SCAN_LIMITS) -> (result: Dependency_View, issue: string) {
+dependencies :: proc(
+	cwd: string,
+	options: Project_Options,
+	id: string,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	result: Dependency_View,
+	issue: string,
+) {
 	context.allocator = context.temp_allocator
 	view: Collection
 	view, issue = read_collection(cwd, options, limits)

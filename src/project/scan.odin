@@ -9,51 +9,89 @@ import "kadai:document"
 import "kadai:storage"
 import "kadai:yaml"
 
-Scan_Limits :: struct {
-	yaml: yaml.Limits,
-	source_bytes, entries, candidates: int,
+Scan_Limits         :: struct {
+	yaml                                         : yaml.Limits,
+	source_bytes, entries, candidates            : int,
 	total_bytes, total_nodes, exclude_match_steps: i64,
 }
-DEFAULT_SCAN_LIMITS :: Scan_Limits{yaml.DEFAULT_LIMITS, 16<<20, 250_000, 50_000, 256<<20, 1_000_000, 100_000_000}
-MAX_SCAN_LIMITS :: Scan_Limits{yaml.MAX_LIMITS, 256<<20, 2_000_000, 500_000, 2<<30, 10_000_000, 1_000_000_000}
+DEFAULT_SCAN_LIMITS :: Scan_Limits {
+	yaml.DEFAULT_LIMITS,
+	16 << 20,
+	250_000,
+	50_000,
+	256 << 20,
+	1_000_000,
+	100_000_000,
+}
+MAX_SCAN_LIMITS     :: Scan_Limits {
+	yaml.MAX_LIMITS,
+	256 << 20,
+	2_000_000,
+	500_000,
+	2 << 30,
+	10_000_000,
+	1_000_000_000,
+}
 
 valid_scan_limits :: proc(l: Scan_Limits) -> bool {
 	m := MAX_SCAN_LIMITS
-	return yaml.valid_limits(l.yaml) && 0 < l.source_bytes && l.source_bytes <= m.source_bytes &&
-	       0 < l.entries && l.entries <= m.entries && 0 < l.candidates && l.candidates <= m.candidates &&
-	       0 < l.total_bytes && l.total_bytes <= m.total_bytes && 0 < l.total_nodes && l.total_nodes <= m.total_nodes &&
-	       0 < l.exclude_match_steps && l.exclude_match_steps <= m.exclude_match_steps
+	return(
+		yaml.valid_limits(l.yaml) &&
+		0 < l.source_bytes &&
+		l.source_bytes <= m.source_bytes &&
+		0 < l.entries &&
+		l.entries <= m.entries &&
+		0 < l.candidates &&
+		l.candidates <= m.candidates &&
+		0 < l.total_bytes &&
+		l.total_bytes <= m.total_bytes &&
+		0 < l.total_nodes &&
+		l.total_nodes <= m.total_nodes &&
+		0 < l.exclude_match_steps &&
+		l.exclude_match_steps <= m.exclude_match_steps \
+	)
 }
 
 Candidate :: struct {
-	path: string, // Relative to the physical collection.
-	status: document.Decode_Status,
-	fields: document.Task_Fields,
+	path       : string, // Relative to the physical collection.
+	status     : document.Decode_Status,
+	fields     : document.Task_Fields,
 	diagnostics: []yaml.Diagnostic,
-	info: os.File_Info,
-	version: string,
-	body_start: int, // Markdown body offset in this version of the file.
+	info       : os.File_Info,
+	version    : string,
+	body_start : int, // Markdown body offset in this version of the file.
 	id_location: yaml.Location,
-	references: []document.Task_Reference,
+	references : []document.Task_Reference,
 }
 
 Inventory :: struct {
-	candidates: [dynamic]Candidate,
-	complete: bool,
-	problem: string,
+	candidates       : [dynamic]Candidate,
+	complete         : bool,
+	problem          : string,
 	entries, markdown: int,
-	bytes, nodes: i64,
+	bytes, nodes     : i64,
 }
 
 @(private)
-excluded :: proc(cfg: Config, relative: string, dir: bool, budget: ^Glob_Budget) -> (excluded: bool, issue: string) {
+excluded :: proc(
+	cfg: Config,
+	relative: string,
+	dir: bool,
+	budget: ^Glob_Budget,
+) -> (
+	excluded: bool,
+	issue: string,
+) {
 	if dir {
 		path := storage.child(cfg.tasks, relative)
 		name := os.base(relative)
 		if name == ".git" || name == ".kadai" || storage.within(cfg.boards, path) do return true, ""
 		for reserved in ([]string{".git", ".kadai"}) {
 			if strings.equal_fold(name, reserved) {
-				other, err := storage.physical(storage.child(storage.slash(os.dir(path)), reserved), .Directory)
+				other, err := storage.physical(
+					storage.child(storage.slash(os.dir(path)), reserved),
+					.Directory,
+				)
 				if err == nil && other == path do return true, ""
 			}
 		}
@@ -83,7 +121,14 @@ same_identity :: proc(a, b: os.File_Info) -> bool {
 }
 
 @(private)
-read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relative: string, limits: Scan_Limits, validate_logs: bool) -> string {
+read_candidate :: proc(
+	cfg: Config,
+	inv: ^Inventory,
+	info: os.File_Info,
+	relative: string,
+	limits: Scan_Limits,
+	validate_logs: bool,
+) -> string {
 	inv.markdown += 1
 	if inv.markdown > limits.candidates do return "markdown_candidates limit exceeded"
 	f, err := storage.read_file(storage.child(cfg.tasks, relative))
@@ -102,7 +147,9 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	if e != nil do return os.error_string(e)
 	defer delete(source)
 	after, after_err := storage.file_info(f)
-	if after_err != nil || after.size != now.size || after.modification_time != now.modification_time {
+	if after_err != nil ||
+	   after.size != now.size ||
+	   after.modification_time != now.modification_time {
 		return "candidate changed during read"
 	}
 
@@ -116,7 +163,13 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	doc: document.Task_Document
 	{
 		context.allocator = context.temp_allocator
-		doc = document.decode_task(string(source), cfg.vocabulary, limits.source_bytes, parse_limits, relative)
+		doc = document.decode_task(
+			string(source),
+			cfg.vocabulary,
+			limits.source_bytes,
+			parse_limits,
+			relative,
+		)
 	}
 	recognized, header_bytes, issue := document.recognize_candidate(&doc, parse_limits)
 	inv.bytes += i64(header_bytes)
@@ -136,10 +189,16 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 	}
 	id_loc, refs, loc_err := document.reference_locations(&doc)
 	if loc_err != nil do return "cannot allocate reference locations"
-	candidate := Candidate{
-		path = relative, status = doc.status, fields = doc.fields, diagnostics = doc.diagnostics[:],
-		info = now, version = storage.file_version(now, source), body_start = doc.parts.body.start,
-		id_location = id_loc, references = refs[:],
+	candidate := Candidate {
+		path        = relative,
+		status      = doc.status,
+		fields      = doc.fields,
+		diagnostics = doc.diagnostics[:],
+		info        = now,
+		version     = storage.file_version(now, source),
+		body_start  = doc.parts.body.start,
+		id_location = id_loc,
+		references  = refs[:],
 	}
 	if _, add_err := append(&inv.candidates, candidate); add_err != nil {
 		return "candidate allocation failed"
@@ -148,14 +207,24 @@ read_candidate :: proc(cfg: Config, inv: ^Inventory, info: os.File_Info, relativ
 }
 
 @(private)
-walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_Info, limits: Scan_Limits, budget: ^Glob_Budget, validate_logs: bool) -> string {
+walk :: proc(
+	cfg: Config,
+	inv: ^Inventory,
+	relative: string,
+	expected: os.File_Info,
+	limits: Scan_Limits,
+	budget: ^Glob_Budget,
+	validate_logs: bool,
+) -> string {
 	path := cfg.tasks if relative == "" else storage.child(cfg.tasks, relative)
 	dir, err := storage.open_dir(path)
 	if err != nil do return fmt.tprintf("%s: %s", path, os.error_string(err))
 	defer storage.close_dir(&dir)
 	f := dir.file
 	actual, stat_err := storage.file_info(f)
-	if stat_err != nil || actual.type != .Directory || actual.inode == 0 ||
+	if stat_err != nil ||
+	   actual.type != .Directory ||
+	   actual.inode == 0 ||
 	   (relative != "" || expected.inode != 0) && !same_identity(expected, actual) {
 		return fmt.tprintf("%s: directory changed", path)
 	}
@@ -174,7 +243,7 @@ walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_I
 		if _, append_err := append(&entries, entry); append_err != nil do return "directory allocation failed"
 	}
 	if bad, e := os.read_directory_iterator_error(&it); e != nil do return fmt.tprintf("%s: %s", bad, os.error_string(e))
-	slice.sort_by(entries[:], proc(a, b: os.File_Info) -> bool { return a.name < b.name })
+	slice.sort_by(entries[:], proc(a, b: os.File_Info) -> bool {return a.name < b.name})
 	for fi in entries {
 		rel := fi.name if relative == "" else storage.child(relative, fi.name)
 		if fi.type == .Symlink do continue
@@ -190,19 +259,28 @@ walk :: proc(cfg: Config, inv: ^Inventory, relative: string, expected: os.File_I
 	return ""
 }
 
-scan :: proc(cfg: Config, limits := DEFAULT_SCAN_LIMITS, shared_budget: ^Glob_Budget = nil, validate_logs := false) -> (inv: Inventory) {
+scan :: proc(
+	cfg: Config,
+	limits := DEFAULT_SCAN_LIMITS,
+	shared_budget: ^Glob_Budget = nil,
+	validate_logs := false,
+) -> (
+	inv: Inventory,
+) {
 	inv.candidates = make([dynamic]Candidate, context.temp_allocator)
-	if !valid_scan_limits(limits) { inv.problem = "invalid scan limits"; return }
-	local_budget := Glob_Budget{limit = limits.exclude_match_steps}
+	if !valid_scan_limits(limits) {inv.problem = "invalid scan limits"; return}
+	local_budget := Glob_Budget {
+		limit = limits.exclude_match_steps,
+	}
 	budget := shared_budget if shared_budget != nil else &local_budget
 	info, err := os.lstat(cfg.tasks, context.temp_allocator)
-	if err == os.General_Error.Not_Exist { inv.complete = true; return }
+	if err == os.General_Error.Not_Exist {inv.complete = true; return}
 	if err != nil || info.type != .Directory {
 		inv.problem = fmt.tprintf("cannot scan %s: %s", cfg.tasks, os.error_string(err))
 		return
 	}
 	inv.problem = walk(cfg, &inv, "", info, limits, budget, validate_logs)
 	inv.complete = inv.problem == ""
-	slice.sort_by(inv.candidates[:], proc(a, b: Candidate) -> bool { return a.path < b.path })
+	slice.sort_by(inv.candidates[:], proc(a, b: Candidate) -> bool {return a.path < b.path})
 	return
 }

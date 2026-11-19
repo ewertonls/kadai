@@ -6,12 +6,18 @@ import "core:testing"
 
 @(private)
 graph_fixture :: proc(name: string, opt := Project_Options{}) -> (Collection, string) {
-	return read_collection(fmt.tprintf("%s/../../tests/fixtures/v1/cases/graph/%s/input/project", #directory, name), opt)
+	return read_collection(
+		fmt.tprintf("%s/../../tests/fixtures/v1/cases/graph/%s/input/project", #directory, name),
+		opt,
+	)
 }
 
 @(test)
 diagnose_reference_resolution_without_picking_a_winner :: proc(t: ^testing.T) {
-	cases := []struct {fixture, code, source, target: string, related: int}{
+	cases := []struct {
+		fixture, code, source, target: string,
+		related                      : int,
+	} {
 		{"missing-parent", "missing_parent", "C", "GHOST", 0},
 		{"duplicate-target-unresolved", "ambiguous_parent", "C", "SAME", 2},
 		{"duplicate-target-unresolved", "ambiguous_prerequisite", "C", "same", 2},
@@ -27,7 +33,11 @@ diagnose_reference_resolution_without_picking_a_winner :: proc(t: ^testing.T) {
 		found := false
 		for f in issues {
 			if f.code != c.code do continue
-			found = f.id == c.source && f.target_id == c.target && f.location.line > 0 && len(f.related) == c.related
+			found =
+				f.id == c.source &&
+				f.target_id == c.target &&
+				f.location.line > 0 &&
+				len(f.related) == c.related
 		}
 		testing.expect(t, found, c.code)
 	}

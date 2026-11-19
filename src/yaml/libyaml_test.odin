@@ -36,8 +36,16 @@ quoted_scalar_source_marks :: proc(t: ^testing.T) {
 			testing.expect_value(t, scalar.style, .DOUBLE_QUOTED_SCALAR_STYLE)
 			testing.expect_value(t, decoded, "ação\nCLI")
 			// Both characters of CRLF count toward the index.
-			testing.expect_value(t, event.start_mark.index, uint(utf8.rune_count_in_string(prefix)))
-			testing.expect_value(t, event.end_mark.index, uint(utf8.rune_count_in_string(prefix + lexeme)))
+			testing.expect_value(
+				t,
+				event.start_mark.index,
+				uint(utf8.rune_count_in_string(prefix)),
+			)
+			testing.expect_value(
+				t,
+				event.end_mark.index,
+				uint(utf8.rune_count_in_string(prefix + lexeme)),
+			)
 			testing.expect_value(t, event.start_mark.line, uint(1))
 			testing.expect_value(t, event.start_mark.column, uint(7))
 		}

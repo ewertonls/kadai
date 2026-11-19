@@ -19,13 +19,32 @@ manual_save_between_commands :: proc(t: ^testing.T) {
 	manual := "\uFEFF---\r\nkadai: task\r\nid: HAND\r\ntitle: 'Editor title' # keep\r\nstatus: todo\r\ncustom: {x: 007}\r\n---\r\n## Body\r\nplain text"
 	testing.expect(t, os.write_entire_file(save, manual) == nil)
 	testing.expect(t, os.rename(save, path) == nil)
-	testing.expect(t, strings.contains(invoke_cli(t, {"show", "0001", "--project", tmp}, 3).stderr, "unknown task ID"))
+	testing.expect(
+		t,
+		strings.contains(
+			invoke_cli(t, {"show", "0001", "--project", tmp}, 3).stderr,
+			"unknown task ID",
+		),
+	)
 	row := invoke_cli(t, {"list", "--project", tmp}).stdout
 	for value in ([]string{"HAND", "[todo]", "Editor title", "0001.md"}) do testing.expect(t, strings.contains(row, value), row)
-	testing.expect_value(t, invoke_cli(t, {"show", "hand", "--project", tmp}).stdout, fmt.tprintf("0001.md\n%s", manual))
+	testing.expect_value(
+		t,
+		invoke_cli(t, {"show", "hand", "--project", tmp}).stdout,
+		fmt.tprintf("0001.md\n%s", manual),
+	)
 	_ = invoke_cli(t, {"status", "HAND", "in_progress", "--project", tmp})
-	testing.expect_value(t, invoke_cli(t, {"list", "--project", tmp, "--status", "todo"}).stdout, "")
+	testing.expect_value(
+		t,
+		invoke_cli(t, {"list", "--project", tmp, "--status", "todo"}).stdout,
+		"",
+	)
 	current, e := os.read_entire_file(path, context.temp_allocator)
-	expected, _ := strings.replace_all(manual, "status: todo", "status: in_progress", context.temp_allocator)
+	expected, _ := strings.replace_all(
+		manual,
+		"status: todo",
+		"status: in_progress",
+		context.temp_allocator,
+	)
 	testing.expect(t, e == nil && string(current) == expected)
 }

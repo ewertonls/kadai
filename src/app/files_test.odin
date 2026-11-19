@@ -12,12 +12,18 @@ move_preserves_identity_and_discoverability :: proc(t: ^testing.T) {
 	tmp, err := os.mkdir_temp("", "kadai-move-", context.temp_allocator)
 	if !testing.expect(t, err == nil) do return
 	defer os.remove_all(tmp)
-	opts := Project_Options{override_exclude = true, exclude = {"ignored/"}}
+	opts := Project_Options {
+		override_exclude = true,
+		exclude          = {"ignored/"},
+	}
 	view, issue := read_collection(tmp, opts)
 	if !testing.expect_value(t, issue, "") do return
 	bytes: string = "---\nkadai: task\nid: T\ntitle: Title\nstatus: todo\n---\nbody"
 	testing.expect(t, os.mkdir(view.config.tasks) == nil)
-	testing.expect(t, os.write_entire_file(storage.child(view.config.tasks, "old.md"), bytes) == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(storage.child(view.config.tasks, "old.md"), bytes) == nil,
+	)
 	ref := "---\nkadai: task\nid: R\ntitle: Ref\nstatus: todo\nparent: t\ndepends_on: [T]\n---\n"
 	ref_path := storage.child(view.config.tasks, "ref.md")
 	testing.expect(t, os.write_entire_file(ref_path, ref) == nil)
@@ -35,7 +41,10 @@ move_preserves_identity_and_discoverability :: proc(t: ^testing.T) {
 	group, status := project.lookup(&view.index, "t")
 	if !testing.expect(t, issue == "" && status == .Valid) do return
 	testing.expect_value(t, group[0].path, "nested/renamed.md")
-	data, _ := os.read_entire_file(storage.child(view.config.tasks, group[0].path), context.temp_allocator)
+	data, _ := os.read_entire_file(
+		storage.child(view.config.tasks, group[0].path),
+		context.temp_allocator,
+	)
 	testing.expect_value(t, string(data), bytes)
 	references, _ := os.read_entire_file(ref_path, context.temp_allocator)
 	testing.expect_value(t, string(references), ref)
@@ -46,7 +55,10 @@ directory_move_preserves_members_and_guards_rollback :: proc(t: ^testing.T) {
 	tmp, e := os.mkdir_temp("", "kadai-directory-", context.temp_allocator)
 	if !testing.expect(t, e == nil) do return
 	defer os.remove_all(tmp)
-	opts := Project_Options{override_exclude = true, exclude = {"hidden/deep/*"}}
+	opts := Project_Options {
+		override_exclude = true,
+		exclude          = {"hidden/deep/*"},
+	}
 	id, issue := create_task(tmp, opts, {title = "Nested", destination = "old/deep/name.md"})
 	if !testing.expect_value(t, issue, "") do return
 	root := storage.child(tmp, "tasks")
@@ -63,7 +75,10 @@ directory_move_preserves_members_and_guards_rollback :: proc(t: ^testing.T) {
 	read, problem := get_task(tmp, opts, id)
 	if !testing.expect_value(t, problem, "") do return
 	testing.expect_value(t, read.item.path, "new/deep/name.md")
-	testing.expect(t, !os.exists(storage.child(root, "old")) && os.is_dir(storage.child(root, "new/empty")))
+	testing.expect(
+		t,
+		!os.exists(storage.child(root, "old")) && os.is_dir(storage.child(root, "new/empty")),
+	)
 	changed := storage.child(root, "new/note.txt")
 	testing.expect(t, os.write_entire_file(changed, "later") == nil)
 	_, issue = recover_collection(tmp, opts, .Rollback, op)

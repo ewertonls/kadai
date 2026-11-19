@@ -21,7 +21,11 @@ glob_charge :: proc(budget: ^Glob_Budget, steps: i64) -> bool {
 }
 
 glob_limit_issue :: proc(budget: ^Glob_Budget) -> string {
-	return fmt.tprintf("exclude_match_steps limit exceeded (observed %d, limit %d)", budget.observed, budget.limit)
+	return fmt.tprintf(
+		"exclude_match_steps limit exceeded (observed %d, limit %d)",
+		budget.observed,
+		budget.limit,
+	)
 }
 
 // Retry only the most recent star. Both literal comparisons and ? advance
@@ -39,7 +43,7 @@ segment_matches :: proc(pattern, name: string, budget: ^Glob_Budget) -> (matched
 		char, width := utf8.decode_rune_in_string(name[n:])
 		if p < len(pattern) {
 			lit, w := utf8.decode_rune_in_string(pattern[p:])
-			if !glob_charge(budget, i64(width+w)) do return false, false
+			if !glob_charge(budget, i64(width + w)) do return false, false
 			if lit == '?' || lit == char {
 				p += w
 				n += width
@@ -62,12 +66,18 @@ segment_matches :: proc(pattern, name: string, budget: ^Glob_Budget) -> (matched
 }
 
 @(private)
-matches :: proc(pattern, relative: string, dir: bool, budget: ^Glob_Budget = nil) -> (matched, ok: bool) {
+matches :: proc(
+	pattern, relative: string,
+	dir: bool,
+	budget: ^Glob_Budget = nil,
+) -> (
+	matched, ok: bool,
+) {
 	if !glob_charge(budget, 1) do return false, false
 	pattern := pattern
 	if strings.has_suffix(pattern, "/") {
 		if !dir do return false, true
-		pattern = pattern[:len(pattern)-1]
+		pattern = pattern[:len(pattern) - 1]
 	}
 	// Slice views only; retry ** at successive segment boundaries.
 	p, n := pattern, relative
@@ -77,7 +87,7 @@ matches :: proc(pattern, relative: string, dir: bool, budget: ^Glob_Budget = nil
 		pp, nn := p, n
 		part, has := strings.split_iterator(&pp, "/")
 		name, _ := strings.split_iterator(&nn, "/")
-		if !glob_charge(budget, i64(len(part)+len(name)+2)) do return false, false
+		if !glob_charge(budget, i64(len(part) + len(name) + 2)) do return false, false
 		if has && part == "**" {
 			star, rest, retry, p = true, pp, n, pp
 			continue
@@ -85,15 +95,15 @@ matches :: proc(pattern, relative: string, dir: bool, budget: ^Glob_Budget = nil
 		if has {
 			part_matched, complete := segment_matches(part, name, budget)
 			if !complete do return false, false
-			if part_matched { p, n = pp, nn; continue }
+			if part_matched {p, n = pp, nn; continue}
 		}
 		if !star || retry == "" do return false, true
 		skipped, _ := strings.split_iterator(&retry, "/")
-		if !glob_charge(budget, i64(len(skipped)+1)) do return false, false
+		if !glob_charge(budget, i64(len(skipped) + 1)) do return false, false
 		p, n = rest, retry
 	}
 	for part in strings.split_iterator(&p, "/") {
-		if !glob_charge(budget, i64(len(part)+1)) do return false, false
+		if !glob_charge(budget, i64(len(part) + 1)) do return false, false
 		if part != "**" do return false, true
 	}
 	return true, true

@@ -18,7 +18,7 @@ task_readiness :: proc(view: ^Collection, item: ^project.Candidate) -> graph.Rea
 		if d.field == "depends_on" do return .Unresolved
 	}
 	context.allocator = context.temp_allocator
-	nodes := make(map[string]graph.Node, len(view.index.valid)+1)
+	nodes := make(map[string]graph.Node, len(view.index.valid) + 1)
 	for valid in view.index.valid {
 		key := strings.to_lower(valid.fields.id)
 		if len(key) != len(valid.fields.id) do return .Unresolved
@@ -30,6 +30,19 @@ task_readiness :: proc(view: ^Collection, item: ^project.Candidate) -> graph.Rea
 	return graph.readiness(nodes, id)
 }
 
-set_status :: proc(cwd: string, options: Project_Options, id, status: string, force := false, limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
-	return update_task(cwd, options, {id = id, field = "status", values = {status}, force = force}, limits)
+set_status :: proc(
+	cwd: string,
+	options: Project_Options,
+	id, status: string,
+	force := false,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
+	return update_task(
+		cwd,
+		options,
+		{id = id, field = "status", values = {status}, force = force},
+		limits,
+	)
 }

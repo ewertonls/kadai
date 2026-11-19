@@ -7,11 +7,27 @@ import "kadai:storage"
 
 // Validate the entire path against the same discovery policy as scan. A
 // directory rename also checks membership for every descendant.
-task_path :: proc(cfg: Config, relative: string, destination: bool, is_directory := false, shared_budget: ^Glob_Budget = nil) -> (path, issue: string) {
-	local_budget := Glob_Budget{limit = DEFAULT_SCAN_LIMITS.exclude_match_steps}
+task_path :: proc(
+	cfg: Config,
+	relative: string,
+	destination: bool,
+	is_directory := false,
+	shared_budget: ^Glob_Budget = nil,
+) -> (
+	path, issue: string,
+) {
+	local_budget := Glob_Budget {
+		limit = DEFAULT_SCAN_LIMITS.exclude_match_steps,
+	}
 	budget := shared_budget if shared_budget != nil else &local_budget
-	if relative == "" || os.is_absolute_path(relative) || strings.has_suffix(relative, "/") ||
-	   !is_directory && !strings.has_suffix(relative, ".md") { return "", "expected a collection-relative task path" }
+	if relative == "" ||
+	   os.is_absolute_path(relative) ||
+	   strings.has_suffix(relative, "/") ||
+	   !is_directory &&
+		   !strings.has_suffix(
+				   relative,
+				   ".md",
+			   ) {return "", "expected a collection-relative task path"}
 	parts := storage.slash(relative)
 	dir := cfg.tasks
 	rel := ""
@@ -49,8 +65,15 @@ task_path :: proc(cfg: Config, relative: string, destination: bool, is_directory
 
 // Compare membership on both sides of a directory rename, including empty
 // directories. Refuse a tree crossing an exclusion or a nested project.
-tree_destination :: proc(cfg: Config, src, dst: string, members: []storage.Tree_Entry, shared_budget: ^Glob_Budget = nil) -> string {
-	local_budget := Glob_Budget{limit = DEFAULT_SCAN_LIMITS.exclude_match_steps}
+tree_destination :: proc(
+	cfg: Config,
+	src, dst: string,
+	members: []storage.Tree_Entry,
+	shared_budget: ^Glob_Budget = nil,
+) -> string {
+	local_budget := Glob_Budget {
+		limit = DEFAULT_SCAN_LIMITS.exclude_match_steps,
+	}
 	budget := shared_budget if shared_budget != nil else &local_budget
 	for entry in members {
 		for root in ([2]string{src, dst}) {
@@ -63,7 +86,8 @@ tree_destination :: proc(cfg: Config, src, dst: string, members: []storage.Tree_
 					at_boundary, e := boundary(cfg, storage.child(cfg.tasks, path))
 					if at_boundary || e != nil do return fmt.tprintf("discovery boundary in directory move: %s", path)
 				} else if strings.equal_fold(storage.child(cfg.tasks, path), cfg.boards) ||
-				          strings.equal_fold(os.base(path), ".kadai") || strings.equal_fold(os.base(path), ".git") {
+				   strings.equal_fold(os.base(path), ".kadai") ||
+				   strings.equal_fold(os.base(path), ".git") {
 					return fmt.tprintf("reserved directory destination: %s", path)
 				}
 			}

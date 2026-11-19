@@ -12,21 +12,39 @@ import "core:testing"
 import "kadai:app"
 
 @(private)
-CLI_Output :: struct {stdout, stderr: string}
+CLI_Output :: struct {
+	stdout, stderr: string,
+}
 
 @(private)
-invoke_cli :: proc(t: ^testing.T, args: []string, expected := 0, stdin := io.Reader{}) -> CLI_Output {
+invoke_cli :: proc(
+	t: ^testing.T,
+	args: []string,
+	expected := 0,
+	stdin := io.Reader{},
+) -> CLI_Output {
 	out, err: strings.Builder
 	defer strings.builder_destroy(&out)
 	defer strings.builder_destroy(&err)
 	code := run(args, strings.to_writer(&out), strings.to_writer(&err), stdin)
-	testing.expect(t, code == expected, fmt.tprintf("%v: exit %d, expected %d: %s", args, code, expected, strings.to_string(err)))
-	return {strings.clone(strings.to_string(out), context.temp_allocator), strings.clone(strings.to_string(err), context.temp_allocator)}
+	testing.expect(
+		t,
+		code == expected,
+		fmt.tprintf("%v: exit %d, expected %d: %s", args, code, expected, strings.to_string(err)),
+	)
+	return {
+		strings.clone(strings.to_string(out), context.temp_allocator),
+		strings.clone(strings.to_string(err), context.temp_allocator),
+	}
 }
 
 @(test)
 dispatch_arguments :: proc(t: ^testing.T) {
-	cases := []struct {args: []string, code: int, contains: string}{
+	cases := []struct {
+		args    : []string,
+		code    : int,
+		contains: string,
+	} {
 		{nil, 0, "Create a Markdown task and print its ID."},
 		{{"--help"}, 0, "--version"},
 		{{"-h"}, 0, "--help"},
@@ -61,7 +79,11 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"log", "add", "0001", "--stdin", "--body-file", "note.md"}, 2, "choose one body source"},
 		{{"log", "list", "0001", "--body-file", "note.md"}, 2, "log list takes only a task ID"},
 		{{"help", "init"}, 0, "scan_yaml_nodes"},
-		{{"add", "Title", "--body-file", "missing-body.md", "--limit=yaml_depth=0"}, 2, "--limit yaml_depth"},
+		{
+			{"add", "Title", "--body-file", "missing-body.md", "--limit=yaml_depth=0"},
+			2,
+			"--limit yaml_depth",
+		},
 		{{"list", "--exclude", ""}, 2, "exclude"},
 		{{"list", "--clear-excludes", "--exclude", "archive/"}, 2, "--clear-excludes"},
 		{{"init", "extra"}, 2, "no positional arguments"},
@@ -76,7 +98,11 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"unset", "0001", "tags", "cli"}, 2, "expected an ID and field"},
 		{{"status", "0001"}, 2, "ID and status"},
 		{{"edit"}, 2, "requires an ID"},
-		{{"edit", "0001", "--editor", "'unterminated", "--json"}, 2, "unterminated quote in editor command"},
+		{
+			{"edit", "0001", "--editor", "'unterminated", "--json"},
+			2,
+			"unterminated quote in editor command",
+		},
 		{{"edit", "0001", "--editor", "   "}, 2, "specify an executable"},
 		{{"move", "0001"}, 2, "source and destination"},
 		{{"remove"}, 2, "requires an ID"},
@@ -117,7 +143,10 @@ edit_reports_argument_allocation_failure :: proc(t: ^testing.T) {
 
 @(test)
 set_operands_keep_order_around_flags :: proc(t: ^testing.T) {
-	a, err := parse_options(Status_Flags, {"0001", "--project=repo", "tags", "cli", "--", "-draft", "--help"})
+	a, err := parse_options(
+		Status_Flags,
+		{"0001", "--project=repo", "tags", "cli", "--", "-draft", "--help"},
+	)
 	if !testing.expect(t, err == nil) do return
 	testing.expect_value(t, a.project.project, "repo")
 	testing.expect(t, slice.equal(a.words, []string{"0001", "tags", "cli", "-draft", "--help"}))
@@ -125,7 +154,11 @@ set_operands_keep_order_around_flags :: proc(t: ^testing.T) {
 
 @(test)
 project_exclusion_options :: proc(t: ^testing.T) {
-	cases := []struct{args: []string, override: bool, patterns: []string}{
+	cases := []struct {
+		args    : []string,
+		override: bool,
+		patterns: []string,
+	} {
 		{nil, false, nil},
 		{{"--exclude", "archive/", "--exclude=drafts/"}, true, {"archive/", "drafts/"}},
 		{{"--clear-excludes"}, true, nil},
@@ -159,11 +192,7 @@ destructive_commands_require_explicit_flags :: proc(t: ^testing.T) {
 	created := invoke_cli(t, {"add", "Keep", "--project", tmp}, stdin = input)
 	if !testing.expect_value(t, created.stdout, "0001\n") do return
 	path := fmt.tprintf("%s/tasks/0001.md", tmp)
-	for args in ([][]string{
-		{"remove", "0001", "--project", tmp},
-		{"remove", "0001", "--detach", "--json", "--project", tmp},
-		{"recover", "resume", "--project", tmp},
-	}) {
+	for args in ([][]string{{"remove", "0001", "--project", tmp}, {"remove", "0001", "--detach", "--json", "--project", tmp}, {"recover", "resume", "--project", tmp}}) {
 		out := invoke_cli(t, args, 2, input)
 		testing.expect_value(t, out.stdout, "")
 		testing.expect(t, strings.contains(out.stderr, "--yes"))
@@ -193,7 +222,10 @@ destructive_commands_require_explicit_flags :: proc(t: ^testing.T) {
 // an explicit symlink warning on a successful scan belongs on stderr.
 @(test)
 lookup_exit_status_and_warning_stream :: proc(t: ^testing.T) {
-	project := fmt.tprintf("%s/../../tests/fixtures/v1/cases/identity/duplicate-id-repair-needs-reference-choice/input/project", #directory)
+	project := fmt.tprintf(
+		"%s/../../tests/fixtures/v1/cases/identity/duplicate-id-repair-needs-reference-choice/input/project",
+		#directory,
+	)
 	invalid := invoke_cli(t, {"show", "bad id", "--project", project}, 1)
 	testing.expect(t, strings.contains(invalid.stderr, "invalid task ID"))
 	when ODIN_OS != .Windows {
@@ -204,7 +236,11 @@ lookup_exit_status_and_warning_stream :: proc(t: ^testing.T) {
 		if !testing.expect(t, os.symlink(project, alias) == nil) do return
 		list := invoke_cli(t, {"list", "--json", "--project", alias})
 		_ = parse_result(t, list.stdout)
-		testing.expect(t, strings.has_prefix(list.stderr, "kadai: warning: ") && strings.contains(list.stderr, "alias"))
+		testing.expect(
+			t,
+			strings.has_prefix(list.stderr, "kadai: warning: ") &&
+			strings.contains(list.stderr, "alias"),
+		)
 	}
 	for args in ([][]string{{"show", "dup", "--project", project}, {"list", "--parent", "dup", "--json", "--project", project}}) {
 		out := invoke_cli(t, args, 4)
@@ -222,10 +258,23 @@ incomplete_write_exit_tracks_filesystem_effects :: proc(t: ^testing.T) {
 	defer os.remove_all(tmp)
 	recovery := fmt.tprintf("%s/tasks/.kadai/recovery", tmp)
 	_ = invoke_cli(t, {"add", "T", "--project", tmp, "--limit=yaml_document_bytes=96"}, 1)
-	_ = invoke_cli(t, {"recover", "rollback", "ffffffffffffffffffffffffffffffff", "--project", tmp, "--yes"}, 1)
+	_ = invoke_cli(
+		t,
+		{"recover", "rollback", "ffffffffffffffffffffffffffffffff", "--project", tmp, "--yes"},
+		1,
+	)
 	testing.expect(t, !os.exists(recovery))
-	out := invoke_cli(t, {"add", "T", "--json", "--project", tmp, "--limit=yaml_document_bytes=100"}, 5)
+	out := invoke_cli(
+		t,
+		{"add", "T", "--json", "--project", tmp, "--limit=yaml_document_bytes=100"},
+		5,
+	)
 	testing.expect_value(t, out.stdout, "")
-	testing.expect(t, strings.contains(out.stderr, "operation ") && strings.contains(out.stderr, "journal exceeds byte limit"), out.stderr)
+	testing.expect(
+		t,
+		strings.contains(out.stderr, "operation ") &&
+		strings.contains(out.stderr, "journal exceeds byte limit"),
+		out.stderr,
+	)
 	testing.expect(t, os.exists(recovery) && !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
 }

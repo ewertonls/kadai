@@ -8,7 +8,7 @@ import "kadai:storage"
 
 Move :: struct {
 	source, destination: string, // Task ID or, with directory set, a collection-relative directory.
-	directory: bool,
+	directory          : bool,
 }
 
 @(private)
@@ -18,7 +18,12 @@ plan_move :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string)
 	if !op.directory {
 		task, issue := unique_task(view, op.source)
 		if issue != "" do return nil, issue
-		ch[0] = {kind = .Move, path = task.path, expected = task.version, destination = storage.slash(op.destination)}
+		ch[0] = {
+			kind        = .Move,
+			path        = task.path,
+			expected    = task.version,
+			destination = storage.slash(op.destination),
+		}
 		return ch, ""
 	}
 	src, dst := storage.slash(op.source), storage.slash(op.destination)
@@ -32,7 +37,7 @@ plan_move :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string)
 	if err != nil do return nil, fmt.tprintf("%s: cannot verify directory (%s)", src, os.error_string(err))
 	versions := make(map[string]string, len(tree.entries), context.temp_allocator)
 	for entry in tree.entries {
-		if !entry.directory { versions[entry.path] = entry.version }
+		if !entry.directory {versions[entry.path] = entry.version}
 	}
 	prefix := storage.child(src, "")
 	for &candidate in view.index.candidates {
@@ -41,11 +46,24 @@ plan_move :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string)
 		state := versions[candidate.path[len(prefix):]]
 		if !strings.has_prefix(state, fmt.tprintf("%s:", candidate.version)) do return nil, "directory changed during scan"
 	}
-	ch[0] = {kind = .Move_Directory, path = src, destination = dst, expected = tree.version, members = tree.entries[:]}
+	ch[0] = {
+		kind        = .Move_Directory,
+		path        = src,
+		destination = dst,
+		expected    = tree.version,
+		members     = tree.entries[:],
+	}
 	return ch, ""
 }
 
-move_task :: proc(cwd: string, options: Project_Options, move: Move, limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
+move_task :: proc(
+	cwd: string,
+	options: Project_Options,
+	move: Move,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
 	op := move
 	return mutate_collection(cwd, options, plan_move, &op, limits)
 }

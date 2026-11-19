@@ -11,10 +11,17 @@ import "kadai:yaml"
 metadata_edit_preserves_markdown_body :: proc(t: ^testing.T) {
 	prefix :: "\uFEFF---\r\nkadai: task\nid: T\r\ntitle: Café\nstatus: "
 	suffix :: " # keep\r\n---"
-	body :: "\r\n# Heading  \r\n\n[link](./café.md)\t \n\n```yaml\r\n---\nstatus: todo\n```\r\n" +
-	        "opaque\rtext\u0085\u2028\u2029\r\n\r\n"
-	cases := []struct {source, value, expected: string}{
-		{prefix + "todo" + suffix + "\r\n" + body, "in_progress", prefix + "in_progress" + suffix + "\r\n" + body},
+	body   ::
+		"\r\n# Heading  \r\n\n[link](./café.md)\t \n\n```yaml\r\n---\nstatus: todo\n```\r\n" +
+		"opaque\rtext\u0085\u2028\u2029\r\n\r\n"
+	cases := []struct {
+		source, value, expected: string,
+	} {
+		{
+			prefix + "todo" + suffix + "\r\n" + body,
+			"in_progress",
+			prefix + "in_progress" + suffix + "\r\n" + body,
+		},
 		{prefix + "in_progress" + suffix, "todo", prefix + "todo" + suffix},
 	}
 	for c in cases {
@@ -37,7 +44,11 @@ metadata_edit_preserves_markdown_body :: proc(t: ^testing.T) {
 		defer destroy(&edited)
 		testing.expect_value(t, edited.status, .Decoded)
 		testing.expect_value(t, edited.fields.status, c.value)
-		testing.expect_value(t, candidate[edited.parts.body.start:], doc.source[doc.parts.body.start:])
+		testing.expect_value(
+			t,
+			candidate[edited.parts.body.start:],
+			doc.source[doc.parts.body.start:],
+		)
 	}
 }
 
@@ -47,7 +58,12 @@ metadata_edit_refuses_unsafe_spans_and_growth :: proc(t: ^testing.T) {
 	source :: "---\n" + header + "---\n# Body\nend"
 	inside_rune := strings.index(header, "é") + 1
 	status := strings.index(header, "todo")
-	cases := []struct {span: Byte_Range, replacement: string, file_limit, header_limit: int, code, field: string}{
+	cases := []struct {
+		span                    : Byte_Range,
+		replacement             : string,
+		file_limit, header_limit: int,
+		code, field             : string,
+	} {
 		{{-1, 0}, "", 256, 128, "unsafe_source_patch", ""},
 		{{len(header), len(header) + 1}, "", 256, 128, "unsafe_source_patch", ""},
 		{{inside_rune, inside_rune}, "", 256, 128, "unsafe_source_patch", ""},
@@ -55,13 +71,32 @@ metadata_edit_refuses_unsafe_spans_and_growth :: proc(t: ^testing.T) {
 		{{status, status + 4}, "done\n---\nextra", 256, 128, "unsafe_source_patch", ""},
 		{{len(header) - 1, len(header)}, "", 256, 128, "unsafe_source_patch", ""},
 		{{len(header) - 1, len(header)}, "", 256, len(header), "unsafe_source_patch", ""},
-		{{status, status + 4}, "in_progress", 256, len(header), "limit_exceeded", "yaml_document_bytes"},
-		{{status, status + 4}, "in_progress", len(source), 128, "limit_exceeded", "task_source_bytes"},
+		{
+			{status, status + 4},
+			"in_progress",
+			256,
+			len(header),
+			"limit_exceeded",
+			"yaml_document_bytes",
+		},
+		{
+			{status, status + 4},
+			"in_progress",
+			len(source),
+			128,
+			"limit_exceeded",
+			"task_source_bytes",
+		},
 	}
 	for c in cases {
 		limits := yaml.DEFAULT_LIMITS
 		limits.bytes = c.header_limit
-		doc := decode_task(source, task_source_bytes = c.file_limit, yaml_limits = limits, path = "tasks/T.md")
+		doc := decode_task(
+			source,
+			task_source_bytes = c.file_limit,
+			yaml_limits = limits,
+			path = "tasks/T.md",
+		)
 		defer destroy(&doc)
 		if !testing.expect_value(t, doc.status, .Decoded) {
 			continue
@@ -91,9 +126,16 @@ metadata_edit_propagates_allocation_failure :: proc(t: ^testing.T) {
 	span := yaml.lookup(&doc.root, "status").span
 	// This arena fits the invalid candidate exactly. Only its diagnostic fails to allocate.
 	storage: [len(source)]byte
-	arena := mem.Arena{data = storage[:]}
-	cases := [?]struct {allocator: runtime.Allocator, replacement: string}{
-		{runtime.nil_allocator(), "done"}, {mem.nil_allocator(), "done"}, {mem.arena_allocator(&arena), "\xffxxx"},
+	arena := mem.Arena {
+		data = storage[:],
+	}
+	cases := [?]struct {
+		allocator  : runtime.Allocator,
+		replacement: string,
+	} {
+		{runtime.nil_allocator(), "done"},
+		{mem.nil_allocator(), "done"},
+		{mem.arena_allocator(&arena), "\xffxxx"},
 	}
 	for c in cases {
 		candidate: string

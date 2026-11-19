@@ -1,5 +1,7 @@
 # Kadai
 
+If `odinfmt` is on your `PATH`, run `odinfmt . -w` from the repository root after editing Odin files.
+
 Run the full test suite from the repository root:
 
 ```sh

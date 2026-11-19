@@ -9,18 +9,32 @@ import "kadai:storage"
 import "kadai:task"
 
 @(private)
-unique_task :: proc(view: ^Collection, id: string, diagnostic := false) -> (^project.Candidate, string) {
+unique_task :: proc(
+	view: ^Collection,
+	id: string,
+	diagnostic := false,
+) -> (
+	^project.Candidate,
+	string,
+) {
 	group, status := project.lookup(&view.index, id)
 	switch status {
-	case .Valid: return group[0], ""
+	case .Valid:
+		return group[0], ""
 	case .Diagnostic_Only:
 		if diagnostic do return group[0], ""
-		return nil, fmt.tprintf("%s: task %s requires repair (%v)", group[0].path, id, group[0].status)
+		return nil, fmt.tprintf(
+			"%s: task %s requires repair (%v)",
+			group[0].path,
+			id,
+			group[0].status,
+		)
 	case .Missing:
 		if !task.valid_id(id) do return nil, fmt.tprintf("invalid task ID: %q", id)
 		if view.report != nil do view.report.lookup_failure = .Missing
 		return nil, fmt.tprintf("unknown task ID: %s", id)
-	case .Incomplete: return nil, "incomplete task index"
+	case .Incomplete:
+		return nil, "incomplete task index"
 	case .Ambiguous:
 		if view.report != nil do view.report.lookup_failure = .Ambiguous
 		paths := strings.builder_make(context.temp_allocator)
@@ -33,7 +47,14 @@ unique_task :: proc(view: ^Collection, id: string, diagnostic := false) -> (^pro
 
 // The returned bytes and the indexed fields must describe the same revision.
 @(private)
-read_versioned :: proc(view: ^Collection, item: ^project.Candidate, mutation := false) -> (string, string) {
+read_versioned :: proc(
+	view: ^Collection,
+	item: ^project.Candidate,
+	mutation := false,
+) -> (
+	string,
+	string,
+) {
 	path := storage.child(view.config.tasks, item.path)
 	f, e := storage.read_file(path, mutation)
 	if e != nil do return "", fmt.tprintf("%s: %s", item.path, os.error_string(e))
@@ -46,11 +67,19 @@ read_versioned :: proc(view: ^Collection, item: ^project.Candidate, mutation := 
 }
 
 Task_Read :: struct {
-	item: ^project.Candidate,
+	item  : ^project.Candidate,
 	source: string, // Only for ordinary readable tasks. Diagnostic-only results carry their field diagnostics.
 }
 
-get_task :: proc(cwd: string, options: Project_Options, id: string, limits := project.DEFAULT_SCAN_LIMITS) -> (result: Task_Read, issue: string) {
+get_task :: proc(
+	cwd: string,
+	options: Project_Options,
+	id: string,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	result: Task_Read,
+	issue: string,
+) {
 	view: Collection
 	view, issue = read_collection(cwd, options, limits)
 	if issue != "" do return
@@ -63,23 +92,34 @@ get_task :: proc(cwd: string, options: Project_Options, id: string, limits := pr
 List_Filter :: struct {
 	status, directory, tag, parent: string,
 	// Any group may match. Within a group every predicate must match.
-	alternatives: [][]List_Predicate,
+	alternatives                  : [][]List_Predicate,
 }
 
 List_Predicate :: struct {
-	field: enum {ID, Status, Priority, Tag, Due},
-	value: string,
+	field  : enum {
+		ID,
+		Status,
+		Priority,
+		Tag,
+		Due,
+	},
+	value  : string,
 	negated: bool,
 }
 
 @(private)
 valid_list_predicate :: proc(p: List_Predicate, vocabulary: task.Vocabulary) -> bool {
 	switch p.field {
-	case .ID:       return task.valid_id(p.value)
-	case .Status:   return task.valid_status(p.value, vocabulary)
-	case .Priority: return task.valid_priority(p.value, vocabulary)
-	case .Tag:      return task.valid_tag(p.value)
-	case .Due:      return task.valid_due(p.value)
+	case .ID:
+		return task.valid_id(p.value)
+	case .Status:
+		return task.valid_status(p.value, vocabulary)
+	case .Priority:
+		return task.valid_priority(p.value, vocabulary)
+	case .Tag:
+		return task.valid_tag(p.value)
+	case .Due:
+		return task.valid_due(p.value)
 	}
 	unreachable()
 }
@@ -91,11 +131,16 @@ matches_expression :: proc(item: ^project.Candidate, alternatives: [][]List_Pred
 		for p in group {
 			equal: bool
 			switch p.field {
-			case .ID:       equal = strings.equal_fold(item.fields.id, p.value)
-			case .Status:   equal = item.fields.status == p.value
-			case .Priority: equal = item.fields.priority == p.value
-			case .Tag:      equal = slice.contains(item.fields.tags[:], p.value)
-			case .Due:      equal = item.fields.due == p.value
+			case .ID:
+				equal = strings.equal_fold(item.fields.id, p.value)
+			case .Status:
+				equal = item.fields.status == p.value
+			case .Priority:
+				equal = item.fields.priority == p.value
+			case .Tag:
+				equal = slice.contains(item.fields.tags[:], p.value)
+			case .Due:
+				equal = item.fields.due == p.value
 			}
 			if equal == p.negated {
 				matches = false
@@ -134,7 +179,10 @@ list_tasks :: proc(
 	limits := project.DEFAULT_SCAN_LIMITS,
 	filter := List_Filter{},
 	sort := List_Sort{},
-) -> ([]^project.Candidate, string) {
+) -> (
+	[]^project.Candidate,
+	string,
+) {
 	prefix, directory_issue := list_directory_prefix(filter.directory)
 	if directory_issue != "" do return nil, directory_issue
 	if filter.tag != "" && !task.valid_tag(filter.tag) do return nil, fmt.tprintf("invalid tag: %s", filter.tag)

@@ -4,7 +4,10 @@ import "base:runtime"
 import "kadai:graph"
 import "kadai:project"
 
-Ready_Task :: struct {item: ^project.Candidate, readiness: graph.Readiness}
+Ready_Task :: struct {
+	item     : ^project.Candidate,
+	readiness: graph.Readiness,
+}
 
 @(private)
 done_categories :: proc(view: ^Collection) -> (done: []bool, err: runtime.Allocator_Error) {
@@ -13,7 +16,15 @@ done_categories :: proc(view: ^Collection) -> (done: []bool, err: runtime.Alloca
 	return
 }
 
-ready_tasks :: proc(cwd: string, options: Project_Options, id: Maybe(string) = nil, limits := project.DEFAULT_SCAN_LIMITS) -> ([]Ready_Task, string) {
+ready_tasks :: proc(
+	cwd: string,
+	options: Project_Options,
+	id: Maybe(string) = nil,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	[]Ready_Task,
+	string,
+) {
 	context.allocator = context.temp_allocator
 	view, issue := read_collection(cwd, options, limits)
 	if issue != "" do return nil, issue

@@ -6,7 +6,7 @@ import "base:runtime"
 
 Network :: struct {
 	targets, referrers: [][dynamic]int,
-	unresolved: []bool,
+	unresolved        : []bool,
 }
 
 network :: proc(n: int) -> (g: Network, err: runtime.Allocator_Error) {
@@ -23,7 +23,7 @@ link :: proc(g: ^Network, from, to: int) -> (err: runtime.Allocator_Error) {
 }
 
 Cycles :: struct {
-	leader: []int, // -1 for vertices outside cycles, otherwise the first member in task order.
+	leader : []int,          // -1 for vertices outside cycles, otherwise the first member in task order.
 	members: [][dynamic]int, // Indexed by leader. Members also follow task order.
 }
 
@@ -32,14 +32,16 @@ Cycles :: struct {
 cycles :: proc(g: Network) -> (result: Cycles, err: runtime.Allocator_Error) {
 	n := len(g.targets)
 	visited := make([]bool, n) or_return
-	Frame :: struct { v, next: int }
+	Frame :: struct {
+		v, next: int,
+	}
 	frames, finish := make([dynamic]Frame, 0, n) or_return, make([dynamic]int, 0, n) or_return
-	for start in 0..<n {
+	for start in 0 ..< n {
 		if visited[start] do continue
 		visited[start] = true
 		_ = append(&frames, Frame{v = start}) or_return
 		for len(frames) != 0 {
-			top := &frames[len(frames)-1]
+			top := &frames[len(frames) - 1]
 			edges := g.targets[top.v]
 			if top.next == len(edges) {
 				_ = append(&finish, top.v) or_return
@@ -80,7 +82,7 @@ cycles :: proc(g: Network) -> (result: Cycles, err: runtime.Allocator_Error) {
 		}
 	}
 	for leader, v in result.leader {
-		if leader >= 0 { _ = append(&result.members[leader], v) or_return }
+		if leader >= 0 {_ = append(&result.members[leader], v) or_return}
 	}
 	return
 }

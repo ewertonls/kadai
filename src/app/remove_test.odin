@@ -25,19 +25,37 @@ detached_removal_previews_then_rechecks_every_reference :: proc(t: ^testing.T) {
 	for edit in preview.edits[:2] do testing.expect_value(t, ref_doc[edit.span.start:edit.span.end], "0042")
 	testing.expect(t, !os.exists(storage.child(root, ".kadai")))
 	_, issue = remove_task(tmp, {}, {id = "0042"})
-	testing.expect(t, strings.contains(issue, "parent references") && strings.contains(issue, "depends_on references"))
+	testing.expect(
+		t,
+		strings.contains(issue, "parent references") &&
+		strings.contains(issue, "depends_on references"),
+	)
 	testing.expect(t, !os.exists(storage.child(root, ".kadai/used-ids")))
-	testing.expect(t, os.write_entire_file(ref, strings.concatenate({ref_doc, "!"}, context.temp_allocator)) == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(ref, strings.concatenate({ref_doc, "!"}, context.temp_allocator)) ==
+		nil,
+	)
 	_, issue = remove_task(tmp, {}, {id = "0042", detach = true, expected_plan = preview.token})
 	testing.expect_value(t, issue, "stale removal plan")
 	testing.expect(t, os.exists(target))
 	preview, issue = preview_removal(tmp, {}, {id = "0042", detach = true})
 	if !testing.expect_value(t, issue, "") do return
-	op, problem := remove_task(tmp, {}, {id = "0042", detach = true, expected_plan = preview.token})
+	op, problem := remove_task(
+		tmp,
+		{},
+		{id = "0042", detach = true, expected_plan = preview.token},
+	)
 	if !testing.expect_value(t, problem, "") do return
 	testing.expect(t, !os.exists(target))
 	bytes, _ := os.read_entire_file(ref, context.temp_allocator)
-	testing.expect(t, strings.contains(string(bytes), "status: done\nparent: null # family\ndepends_on: [Z] # order\n---\n0042 in body!"))
+	testing.expect(
+		t,
+		strings.contains(
+			string(bytes),
+			"status: done\nparent: null # family\ndepends_on: [Z] # order\n---\n0042 in body!",
+		),
+	)
 	id, create_err := create_task(tmp, {}, {title = "Next"})
 	testing.expect_value(t, create_err, "")
 	testing.expect_value(t, id, "0043")
@@ -49,7 +67,11 @@ detached_removal_previews_then_rechecks_every_reference :: proc(t: ^testing.T) {
 	_, issue = recover_collection(tmp, {}, .Rollback, op)
 	testing.expect_value(t, issue, "")
 	bytes, _ = os.read_entire_file(ref, context.temp_allocator)
-	testing.expect_value(t, string(bytes), strings.concatenate({ref_doc, "!"}, context.temp_allocator))
+	testing.expect_value(
+		t,
+		string(bytes),
+		strings.concatenate({ref_doc, "!"}, context.temp_allocator),
+	)
 	testing.expect(t, os.exists(target))
 }
 
@@ -62,7 +84,10 @@ unknown_inbound_references_block_deletion :: proc(t: ^testing.T) {
 	if !testing.expect_value(t, issue, "") do return
 	root := storage.child(tmp, "tasks")
 	path := storage.child(root, "future.md")
-	testing.expect(t, os.write_entire_file(path, "---\nkadai: task\nid: F\nschema_version: 2\n---\n") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(path, "---\nkadai: task\nid: F\nschema_version: 2\n---\n") == nil,
+	)
 	_, issue = remove_task(tmp, {}, {id = id, detach = true})
 	testing.expect(t, strings.contains(issue, "future.md"))
 	testing.expect(t, os.exists(storage.child(root, "0001.md")))

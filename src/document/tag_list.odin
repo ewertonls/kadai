@@ -7,7 +7,15 @@ import "kadai:yaml"
 
 // Set an ordered list. Reuse the existing item planner for single-item edits.
 // Bulk edits require simple separators and retain the spelling of surviving tags.
-plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, limits: yaml.Limits) -> (edited: string, err: Header_Edit_Error) {
+plan_tags :: proc(
+	doc: ^Task_Document,
+	tags: []string,
+	vocab: task.Vocabulary,
+	limits: yaml.Limits,
+) -> (
+	edited: string,
+	err: Header_Edit_Error,
+) {
 	node := yaml.lookup(&doc.root, "tags")
 	loc: yaml.Location
 	if node != nil do loc = markdown_location(doc.parts.header, node.location)
@@ -23,19 +31,45 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 	old := doc.fields.tags[:]
 	if node != nil && node.kind == .Sequence && len(node.items) == len(old) {
 		if slice.equal(old, tags) do return strings.clone(doc.source) or_return, nil
-		if len(tags) == len(old)+1 && slice.equal(tags[:len(old)], old) {
-			return plan_sequence_patch(doc.source, .Tags, .Append, tags[len(old)], vocab, doc.frontmatter_limits.task_source_bytes, limits, doc.path)
+		if len(tags) == len(old) + 1 && slice.equal(tags[:len(old)], old) {
+			return plan_sequence_patch(
+				doc.source,
+				.Tags,
+				.Append,
+				tags[len(old)],
+				vocab,
+				doc.frontmatter_limits.task_source_bytes,
+				limits,
+				doc.path,
+			)
 		}
-		if len(old) == len(tags)+1 {
+		if len(old) == len(tags) + 1 {
 			i := 0
 			for i < len(tags) && tags[i] == old[i] do i += 1
-			if slice.equal(old[i+1:], tags[i:]) {
-				return plan_sequence_patch(doc.source, .Tags, .Remove, old[i], vocab, doc.frontmatter_limits.task_source_bytes, limits, doc.path)
+			if slice.equal(old[i + 1:], tags[i:]) {
+				return plan_sequence_patch(
+					doc.source,
+					.Tags,
+					.Remove,
+					old[i],
+					vocab,
+					doc.frontmatter_limits.task_source_bytes,
+					limits,
+					doc.path,
+				)
 			}
 		}
 	}
 	unsafe :: proc(path: string, loc: yaml.Location) -> (e: Header_Edit_Error) {
-		return yaml.diagnostic(path, "unsafe_source_patch", "tags", "Select a simple sequence with unambiguous separators and comments.", loc) or_return
+		return(
+			yaml.diagnostic(
+				path,
+				"unsafe_source_patch",
+				"tags",
+				"Select a simple sequence with unambiguous separators and comments.",
+				loc,
+			) or_return \
+		)
 	}
 	if doc.root.style != .Block do return "", unsafe(doc.path, loc)
 	header := doc.source[doc.parts.header.start:doc.parts.header.end]
@@ -47,7 +81,9 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 	if node == nil {
 		point := field_insertion_point(doc, "tags", "") or_return
 		span, loc = point.span, point.location
-		prefix, suffix = strings.concatenate({point.indent, "tags: ["}, context.temp_allocator) or_return, strings.concatenate({"]", point.eol}, context.temp_allocator) or_return
+		prefix, suffix =
+			strings.concatenate({point.indent, "tags: ["}, context.temp_allocator) or_return,
+			strings.concatenate({"]", point.eol}, context.temp_allocator) or_return
 	} else if node.kind == .Null {
 		s, ok := null_item_splice(header, node)
 		if !ok do return "", unsafe(doc.path, loc)
@@ -59,13 +95,13 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 		for &item, i in node.items {
 			raw := header[item.span.start:item.span.end]
 			if !single_line_token(&item, raw) do return "", unsafe(doc.path, loc)
-			if item.kind != .Null { _ = map_insert(&old_tokens, item.text, raw) or_return }
+			if item.kind != .Null {_ = map_insert(&old_tokens, item.text, raw) or_return}
 			if block {
-				if _, ok := block_item_splice(header, node, i, doc.root.column-1); !ok do return "", unsafe(doc.path, loc)
+				if _, ok := block_item_splice(header, node, i, doc.root.column - 1); !ok do return "", unsafe(doc.path, loc)
 			}
 		}
 		if len(node.items) > 0 && (len(tags) > 0 || block) {
-			first, last := node.items[0].span, node.items[len(node.items)-1].span
+			first, last := node.items[0].span, node.items[len(node.items) - 1].span
 			span = {first.start, last.end}
 			prefix, suffix = "", ""
 			if block {
@@ -73,9 +109,9 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 				dash := header[start:first.start]
 				if len(tags) == 0 {
 					span.start = start
-					indent := len(dash)-len(strings.trim_left(dash, " "))
-					prefix = header[start:start+indent]
-					suffix = "  []" if indent == doc.root.column-1 else "[]"
+					indent := len(dash) - len(strings.trim_left(dash, " "))
+					prefix = header[start:start + indent]
+					suffix = "  []" if indent == doc.root.column - 1 else "[]"
 				} else if len(tags) > len(node.items) {
 					point := last.end + strings.index_byte(header[last.end:], '\n') + 1
 					eol := insertion_line_ending(doc, point, "tags", loc) or_return
@@ -85,7 +121,7 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 				separator = header[node.items[0].span.end:node.items[1].span.start]
 			}
 		}
-	} else { return "", unsafe(doc.path, loc) }
+	} else {return "", unsafe(doc.path, loc)}
 	b := strings.builder_make()
 	defer strings.builder_destroy(&b)
 	strings.write_string(&b, prefix)
@@ -93,7 +129,7 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 		if i > 0 {
 			gap := separator
 			if node != nil && i < len(node.items) {
-				gap = header[node.items[i-1].span.end:node.items[i].span.start]
+				gap = header[node.items[i - 1].span.end:node.items[i].span.start]
 			}
 			strings.write_string(&b, gap)
 		}
@@ -110,7 +146,7 @@ plan_tags :: proc(doc: ^Task_Document, tags: []string, vocab: task.Vocabulary, l
 	}
 	strings.write_string(&b, suffix)
 	edited = compose_header_edit(doc, span, strings.to_string(b)) or_return
-	defer if err != nil { delete(edited) }
+	defer if err != nil {delete(edited)}
 	verify_field_patch(doc, edited, "tags", tags, loc, vocab, limits) or_return
 	return
 }

@@ -21,8 +21,10 @@ plain_kind :: proc(s: string) -> Node_Kind {
 		return .Null
 	}
 	switch s {
-	case "true", "True", "TRUE", "false", "False", "FALSE": return .Boolean
-	case ".nan", ".NaN", ".NAN": return .Float
+	case "true", "True", "TRUE", "false", "False", "FALSE":
+		return .Boolean
+	case ".nan", ".NaN", ".NAN":
+		return .Float
 	}
 
 	if strings.has_prefix(s, "0o") || strings.has_prefix(s, "0x") {
@@ -30,7 +32,9 @@ plain_kind :: proc(s: string) -> Node_Kind {
 		for c in s[2:] {
 			if s[1] == 'o' {
 				if c < '0' || c > '7' do return .String
-			} else if !(('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')) {
+			} else if !(('0' <= c && c <= '9') ||
+				   ('a' <= c && c <= 'f') ||
+				   ('A' <= c && c <= 'F')) {
 				return .String
 			}
 		}
@@ -40,7 +44,8 @@ plain_kind :: proc(s: string) -> Node_Kind {
 	number := s
 	if s[0] == '+' || s[0] == '-' do number = s[1:]
 	switch number {
-	case ".inf", ".Inf", ".INF": return .Float
+	case ".inf", ".Inf", ".INF":
+		return .Float
 	}
 	whole := digit_count(number)
 	if whole > 0 && whole == len(number) do return .Integer
@@ -66,8 +71,8 @@ plain_kind :: proc(s: string) -> Node_Kind {
 // Magnitude digits borrow the scalar. Keeping the radix avoids conversions
 // proportional to the numeric value or narrowing to a machine integer.
 Integer :: struct {
-	digits:   string,
-	base:     int,
+	digits  : string,
+	base    : int,
 	negative: bool,
 }
 

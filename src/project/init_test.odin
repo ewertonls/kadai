@@ -12,7 +12,10 @@ init_recovers_without_rewriting_config :: proc(t: ^testing.T) {
 	if !testing.expect(t, err == nil) do return
 	defer os.remove_all(dir)
 	dir, _ = storage.physical(dir, .Directory)
-	opts := Options{tasks_root = storage.child(dir, "my tasks"), id_prefix = "KAD"}
+	opts := Options {
+		tasks_root = storage.child(dir, "my tasks"),
+		id_prefix  = "KAD",
+	}
 	limits := DEFAULT_SCAN_LIMITS
 	limits.yaml.depth = 2
 	_, limited := initialize(dir, opts, limits)

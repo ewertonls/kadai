@@ -9,7 +9,11 @@ import "kadai:document"
 
 @(test)
 discovery_boundaries_and_classification :: proc(t: ^testing.T) {
-	cases := []struct{fixture: string, count: int, status: document.Decode_Status}{
+	cases := []struct {
+		fixture: string,
+		count  : int,
+		status : document.Decode_Status,
+	} {
 		{"config/glob-excludes", 1, .Decoded},
 		{"config/nested-project-boundary", 1, .Decoded},
 		{"config/boards-excluded", 1, .Decoded},
@@ -20,7 +24,11 @@ discovery_boundaries_and_classification :: proc(t: ^testing.T) {
 		{"recognition/duplicate-marker", 1, .YAML_Error},
 	}
 	for c in cases {
-		dir := fmt.tprintf("%s/../../tests/fixtures/v1/cases/%s/input/project", #directory, c.fixture)
+		dir := fmt.tprintf(
+			"%s/../../tests/fixtures/v1/cases/%s/input/project",
+			#directory,
+			c.fixture,
+		)
 		cfg, issue := resolve(dir)
 		if !testing.expect_value(t, issue, "") do continue
 		inv := scan(cfg)
@@ -49,9 +57,10 @@ scan_ignores_file_and_directory_symlinks :: proc(t: ^testing.T) {
 	source :: "---\nkadai: task\nid: OK\ntitle: Visible\nstatus: todo\n---\n"
 	if !testing.expect(t, os.write_entire_file(file, source) == nil) do return
 
-	for link in ([]struct{name, target: string, directory: bool}{
-		{"alias.md", file, false}, {"alias-dir", dir, true},
-	}) {
+	for link in ([]struct {
+			name, target: string,
+			directory   : bool,
+		}{{"alias.md", file, false}, {"alias-dir", dir, true}}) {
 		path, _ := os.join_path({root, link.name}, context.temp_allocator)
 		when ODIN_OS == .Windows {
 			if !create_windows_test_symlink(t, path, link.target, link.directory) do return
@@ -74,8 +83,15 @@ scan_budget_includes_rejected_nodes_and_ordinary_markdown :: proc(t: ^testing.T)
 	defer os.remove_all(dir)
 	cfg, issue := resolve(dir, {tasks_root = "."})
 	if !testing.expect_value(t, issue, "") do return
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/a.md", dir), "ordinary body, ignored") == nil)
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/b.md", dir), "---\nkadai: task\nbad: [\n---\n") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/a.md", dir), "ordinary body, ignored") == nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/b.md", dir), "---\nkadai: task\nbad: [\n---\n") ==
+		nil,
+	)
 	limits := DEFAULT_SCAN_LIMITS
 	limits.entries, limits.candidates = 2, 2
 	inv := scan(cfg, limits)
@@ -95,8 +111,15 @@ exclude_work_budget_stops_incomplete_scans :: proc(t: ^testing.T) {
 	if !testing.expect(t, err == nil) do return
 	defer os.remove_all(dir)
 	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", dir)) == nil)
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", dir), "tasks:\n  exclude: [x]\n") == nil)
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/a.md", dir), "ordinary Markdown") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", dir), "tasks:\n  exclude: [x]\n") ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/tasks/a.md", dir), "ordinary Markdown") == nil,
+	)
 	cfg, issue := resolve(dir)
 	if !testing.expect_value(t, issue, "") do return
 	limits := DEFAULT_SCAN_LIMITS
@@ -105,5 +128,9 @@ exclude_work_budget_stops_incomplete_scans :: proc(t: ^testing.T) {
 	testing.expect(t, inv.complete, inv.problem)
 	limits.exclude_match_steps = 9
 	inv = scan(cfg, limits)
-	testing.expect(t, !inv.complete && strings.contains(inv.problem, "observed 10, limit 9"), inv.problem)
+	testing.expect(
+		t,
+		!inv.complete && strings.contains(inv.problem, "observed 10, limit 9"),
+		inv.problem,
+	)
 }
