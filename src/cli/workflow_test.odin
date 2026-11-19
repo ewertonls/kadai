@@ -26,7 +26,7 @@ log_accepts_each_message_source_and_lists_entries_in_order :: proc(t: ^testing.T
 	empty := invoke_cli(t, {"log", "list", id, "--json", project})
 	testing.expect_value(t, len(parse_result(t, empty.stdout).(json.Array)), 0)
 
-	from_arg :: "- Initial findings"
+	from_arg  :: "- Initial findings"
 	from_pipe :: "Checks\n\n- Bounds\n- UTF-8"
 	from_file :: "Ready for review."
 	receipt := invoke_cli(t, {"log", "add", id, project, "--json", "--", from_arg})
@@ -48,7 +48,14 @@ log_accepts_each_message_source_and_lists_entries_in_order :: proc(t: ^testing.T
 		testing.expect_value(t, row["content"].(string), expected)
 	}
 	list_text := invoke_cli(t, {"log", "list", id, project}).stdout
-	testing.expect(t, strings.contains(list_text, fmt.tprintf("### %s\n\n%s", rows[1].(json.Object)["timestamp"].(string), from_pipe)), list_text)
+	testing.expect(
+		t,
+		strings.contains(
+			list_text,
+			fmt.tprintf("### %s\n\n%s", rows[1].(json.Object)["timestamp"].(string), from_pipe),
+		),
+		list_text,
+	)
 }
 
 @(test)
@@ -67,7 +74,11 @@ import_preserves_markdown_and_avoids_collisions :: proc(t: ^testing.T) {
 
 	// The source itself and other occupied destinations both stay in place.
 	refused := invoke_cli(t, {"import", occupied, "--yes", "--path", "0001.md", project}, 1)
-	testing.expect(t, refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"), refused.stderr)
+	testing.expect(
+		t,
+		refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"),
+		refused.stderr,
+	)
 	limit := fmt.tprintf("--limit=task_source_bytes=%d", len(body))
 	too_large := invoke_cli(t, {"import", path, "--yes", project, limit}, 1)
 	testing.expect(t, strings.contains(too_large.stderr, "task_source_bytes"), too_large.stderr)
@@ -79,7 +90,11 @@ import_preserves_markdown_and_avoids_collisions :: proc(t: ^testing.T) {
 	testing.expect_value(t, created["title"].(string), "Release.notes")
 	testing.expect_value(t, created["status"].(string), "todo")
 	refused = invoke_cli(t, {"import", occupied, "--path", "0002.md", "--yes", project}, 1)
-	testing.expect(t, refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"), refused.stderr)
+	testing.expect(
+		t,
+		refused.stdout == "" && strings.contains(refused.stderr, "occupied destination"),
+		refused.stderr,
+	)
 	shown := invoke_cli(t, {"show", "0002", "--json", project})
 	expect_workflow_body(t, parse_result(t, shown.stdout).(json.Object), body)
 	original, read_err := os.read_entire_file(path, context.temp_allocator)
@@ -87,9 +102,15 @@ import_preserves_markdown_and_avoids_collisions :: proc(t: ^testing.T) {
 	untouched, occupied_err := os.read_entire_file(occupied, context.temp_allocator)
 	testing.expect(t, occupied_err == nil && string(untouched) == "Existing notes")
 
-	out = invoke_cli(t, {"import", path, "--yes", "--title", "Review", "--path", "reviews/notes.md", project})
+	out = invoke_cli(
+		t,
+		{"import", path, "--yes", "--title", "Review", "--path", "reviews/notes.md", project},
+	)
 	testing.expect_value(t, out.stdout, "0003\n")
-	second := parse_result(t, invoke_cli(t, {"show", "0003", "--json", project}).stdout).(json.Object)
+	second := parse_result(
+		t,
+		invoke_cli(t, {"show", "0003", "--json", project}).stdout,
+	).(json.Object)
 	testing.expect_value(t, second["title"].(string), "Review")
 	testing.expect_value(t, second["path"].(string), "reviews/notes.md")
 }
@@ -106,19 +127,23 @@ task_command_workflow :: proc(t: ^testing.T) {
 			testing.expect(t, os.exists(fmt.tprintf("%s/.kadai.yaml", root)))
 		}
 
-		file_body :: "# Plan\r\nKeep these notes."
+		file_body  :: "# Plan\r\nKeep these notes."
 		stdin_body :: "- [ ] Review\n"
 		body_file := fmt.tprintf("%s/input.md", root)
 		if !testing.expect(t, os.write_entire_file(body_file, file_body) == nil) do return
 		reader: strings.Reader
 		parent_id := strings.trim_space(invoke_cli(t, {"add", "Milestone", project}).stdout)
-		work_id := strings.trim_space(invoke_cli(t, {"add", "Work", "--body-file", body_file, project}).stdout)
+		work_id := strings.trim_space(
+			invoke_cli(t, {"add", "Work", "--body-file", body_file, project}).stdout,
+		)
 		input := strings.to_reader(&reader, stdin_body)
-		prerequisite_id := strings.trim_space(invoke_cli(t, {"add", "Review", "--stdin", project}, stdin = input).stdout)
+		prerequisite_id := strings.trim_space(
+			invoke_cli(t, {"add", "Review", "--stdin", project}, stdin = input).stdout,
+		)
 
-		created := []struct {id, body: string}{
-			{parent_id, ""}, {work_id, file_body}, {prerequisite_id, stdin_body},
-		}
+		created := []struct {
+			id, body: string,
+		}{{parent_id, ""}, {work_id, file_body}, {prerequisite_id, stdin_body}}
 		for task in created {
 			shown := invoke_cli(t, {"show", task.id, "--json", project})
 			expect_workflow_body(t, parse_result(t, shown.stdout).(json.Object), task.body)
@@ -131,7 +156,7 @@ task_command_workflow :: proc(t: ^testing.T) {
 		edited := fmt.tprintf("%s%s", string(source), manual_note)
 		if !testing.expect(t, os.write_entire_file(original_path, edited) == nil) do return
 
-		moved_path :: "work/計画.md"
+		moved_path  :: "work/計画.md"
 		destination :: "work" + os.Path_Separator_String + "計画.md"
 		_ = invoke_cli(t, {"status", work_id, "in_progress", project})
 		_ = invoke_cli(t, {"move", work_id, destination, project})
@@ -164,7 +189,9 @@ task_command_workflow :: proc(t: ^testing.T) {
 		list := invoke_cli(t, {"list", project, "--json"})
 		rows := parse_result(t, list.stdout).(json.Array)
 		// list orders by path: the two generated filenames precede work/.
-		final_tasks := []struct {id, path: string}{
+		final_tasks := []struct {
+			id, path: string,
+		} {
 			{parent_id, fmt.tprintf("%s.md", parent_id)},
 			{prerequisite_id, fmt.tprintf("%s.md", prerequisite_id)},
 			{work_id, moved_path},
@@ -184,7 +211,11 @@ task_command_workflow :: proc(t: ^testing.T) {
 		}
 		if !initialized {
 			_, config_err := os.lstat(fmt.tprintf("%s/.kadai.yaml", root), context.temp_allocator)
-			testing.expect(t, config_err == os.General_Error.Not_Exist, os.error_string(config_err))
+			testing.expect(
+				t,
+				config_err == os.General_Error.Not_Exist,
+				os.error_string(config_err),
+			)
 		}
 	}
 }

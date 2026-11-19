@@ -11,7 +11,12 @@ import "kadai:task"
 
 // Read the selected file before taking the collection writer lock. The entire
 // source, including any foreign frontmatter, becomes the new task's body.
-read_import :: proc(cwd, path, title_override: string, limits := project.DEFAULT_SCAN_LIMITS) -> (title, body, issue: string) {
+read_import :: proc(
+	cwd, path, title_override: string,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	title, body, issue: string,
+) {
 	if !project.valid_scan_limits(limits) do return "", "", "invalid import limits"
 	if !storage.valid_path_text(path) || !strings.has_suffix(path, ".md") do return "", "", "import requires a .md source file"
 	parent, name := os.split_path(path)
@@ -38,7 +43,12 @@ read_import :: proc(cwd, path, title_override: string, limits := project.DEFAULT
 	}
 	body = string(bytes)
 	if !utf8.valid_string(body) do return "", "", fmt.tprintf("%s: import requires UTF-8 Markdown", path)
-	doc := document.decode_task(body, task_source_bytes = limits.source_bytes, yaml_limits = limits.yaml, path = path)
+	doc := document.decode_task(
+		body,
+		task_source_bytes = limits.source_bytes,
+		yaml_limits = limits.yaml,
+		path = path,
+	)
 	defer document.destroy(&doc)
 	candidate, _, problem := document.recognize_candidate(&doc, limits.yaml)
 	if problem != "" do return "", "", fmt.tprintf("%s: %s", path, problem)

@@ -16,7 +16,10 @@ atomic_replace_preserves_metadata_and_verified_rollback :: proc(t: ^testing.T) {
 	testing.expect(t, create_file(&d, "T.md", {1, 2}) == nil)
 	path := child(root, "T.md")
 	when ODIN_OS != .Windows {
-		testing.expect(t, os.chmod(path, {.Read_User, .Write_User, .Read_Group, .Execute_User}) == nil)
+		testing.expect(
+			t,
+			os.chmod(path, {.Read_User, .Write_User, .Read_Group, .Execute_User}) == nil,
+		)
 	} else {
 		// An editor's atomic save gives the task its ordinary inherited DACL.
 		manual := child(root, "editor-save.md")
@@ -29,12 +32,18 @@ atomic_replace_preserves_metadata_and_verified_rollback :: proc(t: ^testing.T) {
 	f, ferr := regular(&d, "T.md")
 	if !testing.expect(t, ferr == nil) do return
 	info, _ := file_info(f)
-	when ODIN_OS != .Windows { set_test_security_metadata(t, f) }
+	when ODIN_OS != .Windows {set_test_security_metadata(t, f)}
 	before_metadata, metadata_err := metadata(f)
-	if !testing.expect(t, metadata_err == nil) { os.close(f); return }
+	if !testing.expect(t, metadata_err == nil) {os.close(f); return}
 	os.close(f)
 	version := file_version(info, {1, 2})
-	step, prep := prepare_step(root, &images, 0, {kind = .Replace, path = "T.md", expected = version, data = {3}}, 100)
+	step, prep := prepare_step(
+		root,
+		&images,
+		0,
+		{kind = .Replace, path = "T.md", expected = version, data = {3}},
+		100,
+	)
 	if !testing.expect(t, prep == nil, os.error_string(prep)) do return
 	when ODIN_OS == .Windows {
 		// All three images must retain the supported inherited descriptor and
@@ -69,5 +78,8 @@ atomic_replace_preserves_metadata_and_verified_rollback :: proc(t: ^testing.T) {
 	data, _ = os.read_entire_file(path, context.temp_allocator)
 	testing.expect(t, len(data) == 2 && data[0] == 1 && data[1] == 2)
 	restored, restored_err := entry_state(&d, "T.md", 100)
-	testing.expect(t, restored_err == nil && payload_signature(restored) == payload_signature(step.before))
+	testing.expect(
+		t,
+		restored_err == nil && payload_signature(restored) == payload_signature(step.before),
+	)
 }

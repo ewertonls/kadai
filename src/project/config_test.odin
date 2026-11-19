@@ -14,7 +14,10 @@ physical_collection_and_effective_config :: proc(t: ^testing.T) {
 	sub := storage.child(dir, "sub")
 	testing.expect(t, os.mkdir(sub) == nil)
 	config := storage.child(dir, ".kadai.yaml")
-	write :: proc(path, s: string) -> bool { return os.write_entire_file(path, transmute([]byte)s) == nil }
+	write :: proc(path, s: string) -> bool {return(
+			os.write_entire_file(path, transmute([]byte)s) ==
+			nil \
+		)}
 	testing.expect(t, write(config, "tasks: {root: [bad]}\nstatuses: {review: done}\n"))
 	local, issue := resolve(sub)
 	testing.expect_value(t, issue, "")
@@ -22,7 +25,10 @@ physical_collection_and_effective_config :: proc(t: ^testing.T) {
 	testing.expect(t, !os.exists(local.tasks))
 	_, issue = resolve(sub, {project = ".."})
 	testing.expect(t, issue != "")
-	options := Options{project = "..", tasks_root = "sub/queue"}
+	options := Options {
+		project    = "..",
+		tasks_root = "sub/queue",
+	}
 	cfg: Config
 	cfg, issue = resolve(sub, options)
 	testing.expect_value(t, issue, "")

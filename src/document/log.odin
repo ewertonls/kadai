@@ -7,22 +7,34 @@ import "core:unicode/utf8"
 import "kadai:task"
 import "kadai:yaml"
 
-Log_Entry :: struct {timestamp, content: string}
+Log_Entry :: struct {
+	timestamp, content: string,
+}
 
-@(private) LOG_START :: "<!-- kadai:log:start -->"
-@(private) LOG_END :: "<!-- kadai:log:end -->"
+@(private)
+LOG_START :: "<!-- kadai:log:start -->"
+@(private)
+LOG_END   :: "<!-- kadai:log:end -->"
 
 @(private)
 Log_Layout :: struct {
 	end_marker: int, // -1 when the body has no log.
-	count: int,
-	last: Log_Entry,
+	count     : int,
+	last      : Log_Entry,
 	open_fence: bool,
 }
 
 @(private)
 log_problem :: proc(source, path: string, at: int, message: string) -> (err: Header_Edit_Error) {
-	return yaml.diagnostic(path, "invalid_log", "", message, yaml.locate(source, {at, at})) or_return
+	return(
+		yaml.diagnostic(
+			path,
+			"invalid_log",
+			"",
+			message,
+			yaml.locate(source, {at, at}),
+		) or_return \
+	)
 }
 
 // A closing fence must match its opening character and be at least as long.
@@ -47,22 +59,37 @@ log_entry_content :: proc(raw: string) -> string {
 	// heading/marker. Remove only this framing. Keep indentation, hard breaks
 	// and additional newlines belonging to the entry itself.
 	text := raw
-	if strings.has_prefix(text, "\r\n") { text = text[2:] }
-	else if strings.has_prefix(text, "\n") { text = text[1:] }
-	for _ in 0..<2 {
+	if strings.has_prefix(
+		text,
+		"\r\n",
+	) {text = text[2:]} else if strings.has_prefix(text, "\n") {text = text[1:]}
+	for _ in 0 ..< 2 {
 		if !strings.has_suffix(text, "\n") do break
-		text = text[:len(text)-len(line_ending(text, len(text)-1))]
+		text = text[:len(text) - len(line_ending(text, len(text) - 1))]
 	}
 	return text
 }
 
 @(private)
-scan_log :: proc(source: string, body: Byte_Range, path: string, entries: ^[dynamic]Log_Entry = nil) -> (layout: Log_Layout, err: Header_Edit_Error) {
+scan_log :: proc(
+	source: string,
+	body: Byte_Range,
+	path: string,
+	entries: ^[dynamic]Log_Entry = nil,
+) -> (
+	layout: Log_Layout,
+	err: Header_Edit_Error,
+) {
 	layout.end_marker = -1
 	if body.start < 0 || body.end != len(source) || body.start > body.end {
 		return {}, log_problem(source, path, 0, "Read the log from the task's Markdown body.")
 	}
-	stage: enum {Before, Title, Entries, After}
+	stage: enum {
+		Before,
+		Title,
+		Entries,
+		After,
+	}
 	fence, timestamp: string
 	content_start, heading_start: int
 	for pos := body.start; pos < body.end; {
@@ -93,9 +120,10 @@ scan_log :: proc(source: string, body: Byte_Range, path: string, entries: ^[dyna
 		}
 		// A misspelled reserved marker must not be mistaken for a task without a log.
 		trimmed := strings.trim_left(line, " ")
-		if !end && len(line)-len(trimmed) <= 3 && strings.has_prefix(trimmed, "<!--") {
+		if !end && len(line) - len(trimmed) <= 3 && strings.has_prefix(trimmed, "<!--") {
 			comment := strings.trim_left(trimmed[4:], " \t")
-			if strings.has_prefix(comment, "kadai:log:") || strings.trim_right(comment, " \t->") == "kadai:log" {
+			if strings.has_prefix(comment, "kadai:log:") ||
+			   strings.trim_right(comment, " \t->") == "kadai:log" {
 				return {}, log_problem(source, path, start, "Put <!-- kadai:log:start --> or <!-- kadai:log:end --> alone on an unindented line.")
 			}
 		}
@@ -117,7 +145,7 @@ scan_log :: proc(source: string, body: Byte_Range, path: string, entries: ^[dyna
 				if strings.trim_space(content) == "" do return {}, log_problem(source, path, heading_start, "Add Markdown content under this log timestamp.")
 				layout.last = {timestamp, content}
 				layout.count += 1
-				if entries != nil { _ = append(entries, layout.last) or_return }
+				if entries != nil {_ = append(entries, layout.last) or_return}
 			}
 			if end {
 				layout.end_marker = start
@@ -135,18 +163,40 @@ scan_log :: proc(source: string, body: Byte_Range, path: string, entries: ^[dyna
 }
 
 // Entries borrow their strings from source. The caller owns the entry array.
-parse_log :: proc(source: string, body: Byte_Range, path := "", collect := true) -> (entries: [dynamic]Log_Entry, err: Header_Edit_Error) {
+parse_log :: proc(
+	source: string,
+	body: Byte_Range,
+	path := "",
+	collect := true,
+) -> (
+	entries: [dynamic]Log_Entry,
+	err: Header_Edit_Error,
+) {
 	list := &entries if collect else nil
 	_, err = scan_log(source, body, path, list)
-	if err != nil { delete(entries); entries = nil }
+	if err != nil {delete(entries); entries = nil}
 	return
 }
 
 // Compose one source-preserving insertion. The caller owns the candidate.
-append_log :: proc(source: string, body: Byte_Range, timestamp, content: string, path := "", limits := DEFAULT_FRONTMATTER_LIMITS) -> (candidate: string, err: Header_Edit_Error) {
+append_log :: proc(
+	source: string,
+	body: Byte_Range,
+	timestamp, content: string,
+	path := "",
+	limits := DEFAULT_FRONTMATTER_LIMITS,
+) -> (
+	candidate: string,
+	err: Header_Edit_Error,
+) {
 	layout := scan_log(source, body, path) or_return
 	if strings.trim_space(content) == "" || !utf8.valid_string(content) {
-		return "", log_problem(source, path, body.end, "Supply a nonblank UTF-8 Markdown message for the log entry.")
+		return "", log_problem(
+			source,
+			path,
+			body.end,
+			"Supply a nonblank UTF-8 Markdown message for the log entry.",
+		)
 	}
 	if !task.valid_timestamp(timestamp) do return "", log_problem(source, path, body.end, "Use an RFC 3339 log timestamp with a time zone.")
 	if layout.open_fence do return "", log_problem(source, path, body.end, "Close the Markdown code fence before appending a log section.")
@@ -161,27 +211,44 @@ append_log :: proc(source: string, body: Byte_Range, timestamp, content: string,
 			opening, closing = "\n\n" + LOG_START + "\n\n## Log\n\n", LOG_END + "\n"
 		}
 		tail := source
-		for _ in 0..<2 {
+		for _ in 0 ..< 2 {
 			if !strings.has_suffix(tail, "\n") do break
-			tail = tail[:len(tail)-len(line_ending(tail, len(tail)-1))]
+			tail = tail[:len(tail) - len(line_ending(tail, len(tail) - 1))]
 			opening = opening[len(eol):]
 		}
 	}
 	// A message ending in a bare CR would fuse with an LF delimiter. Give the
 	// separator its own CRLF so the message's last byte remains in the entry.
 	content_eol := "\r\n" if strings.has_suffix(content, "\r") else eol
-	parts := [?]string{source[:at], opening, "### ", timestamp, eol, eol, content, content_eol, eol, closing, source[at:]}
+	parts := [?]string {
+		source[:at],
+		opening,
+		"### ",
+		timestamp,
+		eol,
+		eol,
+		content,
+		content_eol,
+		eol,
+		closing,
+		source[at:],
+	}
 	size := 0
 	for part in parts do size = intrinsics.saturating_add(size, len(part))
 	if size > limits.task_source_bytes do return "", yaml.limit_diagnostic(path, "task_source_bytes", size, limits.task_source_bytes) or_return
 	proposal := strings.concatenate(parts[:]) or_return
-	defer if err != nil { delete(proposal) }
+	defer if err != nil {delete(proposal)}
 	if len(proposal) != size do return "", runtime.Allocator_Error.Out_Of_Memory
 	// A message can contain structural lines or an unfinished fence. Only
 	// publish the proposal if the one new entry round-trips literally.
 	edited := scan_log(proposal, {body.start, len(proposal)}, path) or_return
 	if edited.count != layout.count + 1 || edited.last != (Log_Entry{timestamp, content}) {
-		return "", log_problem(source, path, at, "Fence literal log markers and timestamp headings inside the message.")
+		return "", log_problem(
+			source,
+			path,
+			at,
+			"Fence literal log markers and timestamp headings inside the message.",
+		)
 	}
 	return proposal, nil
 }

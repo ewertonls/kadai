@@ -13,7 +13,10 @@ take_diagnostic :: proc(doc: ^Task_Document, index: int) -> yaml.Diagnostic {
 
 @(private)
 same_yaml_value :: proc(a, b: ^yaml.Node) -> bool {
-	if a.kind != b.kind || a.text != b.text || len(a.items) != len(b.items) || len(a.entries) != len(b.entries) {
+	if a.kind != b.kind ||
+	   a.text != b.text ||
+	   len(a.items) != len(b.items) ||
+	   len(a.entries) != len(b.entries) {
 		return false
 	}
 	for &item, i in a.items {
@@ -23,7 +26,8 @@ same_yaml_value :: proc(a, b: ^yaml.Node) -> bool {
 	}
 	for &entry, i in a.entries {
 		other := &b.entries[i]
-		if !same_yaml_value(&entry.key, &other.key) || !same_yaml_value(&entry.value, &other.value) {
+		if !same_yaml_value(&entry.key, &other.key) ||
+		   !same_yaml_value(&entry.value, &other.value) {
 			return false
 		}
 	}
@@ -43,7 +47,9 @@ unrelated_fields_match :: proc(before, after: ^Task_Document, name: string) -> b
 			b = b[1:]
 			continue
 		}
-		if len(a) == 0 || len(b) == 0 || !same_yaml_value(&a[0].key, &b[0].key) ||
+		if len(a) == 0 ||
+		   len(b) == 0 ||
+		   !same_yaml_value(&a[0].key, &b[0].key) ||
 		   !same_yaml_value(&a[0].value, &b[0].value) {
 			return false
 		}
@@ -63,13 +69,25 @@ unrelated_fields_match :: proc(before, after: ^Task_Document, name: string) -> b
 }
 
 @(private)
-check_patch_target :: proc(before: ^Task_Document, name: string, loc: yaml.Location) -> Header_Edit_Error {
+check_patch_target :: proc(
+	before: ^Task_Document,
+	name: string,
+	loc: yaml.Location,
+) -> Header_Edit_Error {
 	path := before.path
 	if before.status == .Non_Task {
-		return yaml.diagnostic(path, "not_task", "", "Select a Markdown document with a task discriminator.") or_return
+		return(
+			yaml.diagnostic(
+				path,
+				"not_task",
+				"",
+				"Select a Markdown document with a task discriminator.",
+			) or_return \
+		)
 	}
 	if (before.status != .Decoded && before.status != .Invalid_Fields) ||
-	   before.fields.schema_version.digits != "1" || before.fields.id == "" {
+	   before.fields.schema_version.digits != "1" ||
+	   before.fields.id == "" {
 		return take_diagnostic(before, 0)
 	}
 	if before.status == .Invalid_Fields {
@@ -78,28 +96,50 @@ check_patch_target :: proc(before: ^Task_Document, name: string, loc: yaml.Locat
 				return nil
 			}
 		}
-		return yaml.diagnostic(path, "unrelated_invalid_field", name, "Repair an invalid field before changing unrelated metadata.", loc) or_return
+		return(
+			yaml.diagnostic(
+				path,
+				"unrelated_invalid_field",
+				name,
+				"Repair an invalid field before changing unrelated metadata.",
+				loc,
+			) or_return \
+		)
 	}
 	return nil
 }
 
 @(private)
 Expected_Field :: struct {
-	span: Byte_Range,
+	span : Byte_Range,
 	value: Field_Value,
 }
 
 // A nil expectation requires the key to be absent after reparsing.
 @(private)
-Field_Expectation :: union {Expected_Field, Expected_Sequence, []string}
+Field_Expectation :: union {
+	Expected_Field,
+	Expected_Sequence,
+	[]string,
+}
 
 @(private)
 verify_field_patch :: proc(
-	before: ^Task_Document, edited, name: string, expected: Field_Expectation,
-	loc: yaml.Location, vocabulary: task.Vocabulary, limits: yaml.Limits,
+	before: ^Task_Document,
+	edited, name: string,
+	expected: Field_Expectation,
+	loc: yaml.Location,
+	vocabulary: task.Vocabulary,
+	limits: yaml.Limits,
 ) -> Header_Edit_Error {
 	path := before.path
-	after := decode_task(edited, vocabulary, before.frontmatter_limits.task_source_bytes, limits, path) or_return
+	after := decode_task(
+		edited,
+		vocabulary,
+		before.frontmatter_limits.task_source_bytes,
+		limits,
+		path,
+	) or_return
 	defer destroy(&after)
 	if after.status != .Decoded && after.status != .Invalid_Fields {
 		if len(after.diagnostics) > 0 {
@@ -107,7 +147,15 @@ verify_field_patch :: proc(
 			d.location = loc
 			return d
 		}
-		return yaml.diagnostic(path, "invalid_proposed_document", name, "The proposed edit must preserve task identity and schema.", loc) or_return
+		return(
+			yaml.diagnostic(
+				path,
+				"invalid_proposed_document",
+				name,
+				"The proposed edit must preserve task identity and schema.",
+				loc,
+			) or_return \
+		)
 	}
 	for d, i in after.diagnostics {
 		if d.field == name {
@@ -127,7 +175,15 @@ verify_field_patch :: proc(
 		matches = node != nil && node.kind == .Sequence && slice.equal(after.fields.tags[:], want)
 	}
 	if !matches || !unrelated_fields_match(before, &after, name) {
-		return yaml.diagnostic(path, "unsafe_source_patch", name, "Use an isolated field edit that preserves unrelated metadata.", loc) or_return
+		return(
+			yaml.diagnostic(
+				path,
+				"unsafe_source_patch",
+				name,
+				"Use an isolated field edit that preserves unrelated metadata.",
+				loc,
+			) or_return \
+		)
 	}
 	return nil
 }

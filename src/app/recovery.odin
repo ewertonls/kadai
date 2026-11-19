@@ -25,13 +25,27 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 			delete_key(&remaining, effect.path)
 			continue
 		}
-		doc := document.decode_task(string(effect.source), view.config.vocabulary, view.limits.source_bytes, view.limits.yaml, effect.path)
+		doc := document.decode_task(
+			string(effect.source),
+			view.config.vocabulary,
+			view.limits.source_bytes,
+			view.limits.yaml,
+			effect.path,
+		)
 		if doc.status != .Decoded && doc.status != .Invalid_Fields || doc.fields.id == "" do return fmt.tprintf("%s: unknown recovery ID", effect.path)
 		if item == nil {
 			restored[strings.to_lower(doc.fields.id)] = true
-		} else if !strings.equal_fold(item.fields.id, doc.fields.id) { return "unexpected identity change in recovery" }
+		} else if !strings.equal_fold(
+			item.fields.id,
+			doc.fields.id,
+		) {return "unexpected identity change in recovery"}
 		replacement := new(project.Candidate)
-		replacement^ = {path = effect.path, status = doc.status, fields = doc.fields, diagnostics = doc.diagnostics[:]}
+		replacement^ = {
+			path        = effect.path,
+			status      = doc.status,
+			fields      = doc.fields,
+			diagnostics = doc.diagnostics[:],
+		}
 		if issue := collect_new_links(item, replacement, &new_links); issue != "" do return issue
 		remaining[effect.path] = replacement
 	}
@@ -51,7 +65,9 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 		}
 	}
 	if len(new_links) > 0 {
-		projected := project.Inventory{complete = true}
+		projected := project.Inventory {
+			complete = true,
+		}
 		for _, item in remaining {
 			if _, e := append(&projected.candidates, item^); e != nil do return "cannot verify recovered graph"
 		}
@@ -69,11 +85,18 @@ check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawp
 }
 
 @(private)
-Recovered_Link :: struct {source, target: string, kind: Relation}
+Recovered_Link :: struct {
+	source, target: string,
+	kind          : Relation,
+}
 
 @(private)
-collect_new_links :: proc(old, next: ^project.Candidate, edges: ^[dynamic]Recovered_Link) -> string {
-	if next.fields.parent != "" && (old == nil || !strings.equal_fold(old.fields.parent, next.fields.parent)) {
+collect_new_links :: proc(
+	old, next: ^project.Candidate,
+	edges: ^[dynamic]Recovered_Link,
+) -> string {
+	if next.fields.parent != "" &&
+	   (old == nil || !strings.equal_fold(old.fields.parent, next.fields.parent)) {
 		if _, e := append(edges, Recovered_Link{next.fields.id, next.fields.parent, .Parent}); e != nil do return "cannot verify recovered parent"
 	}
 	previous: map[string]bool

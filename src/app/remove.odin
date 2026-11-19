@@ -7,10 +7,14 @@ import "kadai:project"
 import "kadai:storage"
 import "kadai:yaml"
 
-Removal :: struct { id: string, detach: bool, expected_plan: string }
-Removal_Edit :: struct {
+Removal         :: struct {
+	id           : string,
+	detach       : bool,
+	expected_plan: string,
+}
+Removal_Edit    :: struct {
 	id, path, field: string,
-	span: document.Byte_Range, // Half-open byte range in the original Markdown.
+	span           : document.Byte_Range, // Half-open byte range in the original Markdown.
 }
 Removal_Preview :: struct {
 	edits: [dynamic]Removal_Edit,
@@ -18,7 +22,10 @@ Removal_Preview :: struct {
 }
 
 @(private)
-Remove_Request :: struct { using options: Removal, preview: Removal_Preview }
+Remove_Request :: struct {
+	using options: Removal,
+	preview      : Removal_Preview,
+}
 
 @(private)
 references_known :: proc(c: ^project.Candidate) -> bool {
@@ -46,11 +53,16 @@ plan_removal :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, stri
 		parent := strings.equal_fold(c.fields.parent, id)
 		dep := -1
 		for ref, i in c.fields.depends_on {
-			if strings.equal_fold(ref, id) { dep = i; break }
+			if strings.equal_fold(ref, id) {dep = i; break}
 		}
 		if !references_known(&c) {
 			blocked = true
-			fmt.sbprintf(&problems, "%s: cannot establish inbound references (%v)\n", c.path, c.status)
+			fmt.sbprintf(
+				&problems,
+				"%s: cannot establish inbound references (%v)\n",
+				c.path,
+				c.status,
+			)
 		}
 		if !parent && dep < 0 do continue
 		if !request.detach {
@@ -70,23 +82,48 @@ plan_removal :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, stri
 		e: document.Header_Edit_Error
 		if parent {
 			span := yaml.lookup(&doc.root, "parent").span
-			if _, err := append(&request.preview.edits, Removal_Edit{c.fields.id, c.path, "parent", {doc.parts.header.start+span.start, doc.parts.header.start+span.end}}); err != nil do return nil, "cannot allocate removal preview"
+			if _, err := append(&request.preview.edits, Removal_Edit{c.fields.id, c.path, "parent", {doc.parts.header.start + span.start, doc.parts.header.start + span.end}}); err != nil do return nil, "cannot allocate removal preview"
 			if &c != target {
 				// Clearing the token preserves inline comments and makes the child a root.
-				edited, e = document.plan_scalar_patch(edited, .Parent, nil, vocab, l.source_bytes, l.yaml, c.path)
+				edited, e = document.plan_scalar_patch(
+					edited,
+					.Parent,
+					nil,
+					vocab,
+					l.source_bytes,
+					l.yaml,
+					c.path,
+				)
 				if err := patch_issue(e); err != "" do return nil, err
 			}
 		}
 		if dep >= 0 {
 			span := yaml.lookup(&doc.root, "depends_on").items[dep].span
-			if _, err := append(&request.preview.edits, Removal_Edit{c.fields.id, c.path, "depends_on", {doc.parts.header.start+span.start, doc.parts.header.start+span.end}}); err != nil do return nil, "cannot allocate removal preview"
+			if _, err := append(&request.preview.edits, Removal_Edit{c.fields.id, c.path, "depends_on", {doc.parts.header.start + span.start, doc.parts.header.start + span.end}}); err != nil do return nil, "cannot allocate removal preview"
 			if &c != target {
-				edited, e = document.plan_sequence_patch(edited, .Depends_On, .Remove, id, vocab, l.source_bytes, l.yaml, c.path)
+				edited, e = document.plan_sequence_patch(
+					edited,
+					.Depends_On,
+					.Remove,
+					id,
+					vocab,
+					l.source_bytes,
+					l.yaml,
+					c.path,
+				)
 				if err := patch_issue(e); err != "" do return nil, err
 			}
 		}
 		if &c != target {
-			if _, err := append(&changes, storage.Change{kind = .Replace, path = c.path, expected = c.version, data = transmute([]byte)edited}); err != nil {
+			if _, err := append(
+				&changes,
+				storage.Change {
+					kind = .Replace,
+					path = c.path,
+					expected = c.version,
+					data = transmute([]byte)edited,
+				},
+			); err != nil {
 				return nil, "cannot allocate detach plan"
 			}
 		}
@@ -98,7 +135,10 @@ plan_removal :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, stri
 	source, read_err := read_versioned(view, target, mutation = true)
 	if read_err != "" do return nil, read_err
 	if _, err := append(&request.preview.edits, Removal_Edit{id, target.path, "delete", {0, len(source)}}); err != nil do return nil, "cannot allocate removal preview"
-	if _, err := append(&changes, storage.Change{kind = .Delete, path = target.path, expected = target.version}); err != nil {
+	if _, err := append(
+		&changes,
+		storage.Change{kind = .Delete, path = target.path, expected = target.version},
+	); err != nil {
 		return nil, "cannot allocate delete plan"
 	}
 	// Include physical source versions and the resulting patches. Recomputing
@@ -106,23 +146,49 @@ plan_removal :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, stri
 	key := strings.builder_make()
 	fmt.sbprintf(&key, "%q %q %t\n", view.config.tasks, id, request.detach)
 	for change in changes {
-		fmt.sbprintf(&key, "%d:%s %s %s\n", len(change.path), change.path, change.expected, storage.digest(change.data))
+		fmt.sbprintf(
+			&key,
+			"%d:%s %s %s\n",
+			len(change.path),
+			change.path,
+			change.expected,
+			storage.digest(change.data),
+		)
 	}
 	request.preview.token = storage.digest(transmute([]byte)strings.to_string(key))
 	if request.expected_plan != "" && request.expected_plan != request.preview.token do return nil, "stale removal plan"
 	return changes[:], ""
 }
 
-preview_removal :: proc(cwd: string, options: Project_Options, remove: Removal, limits := project.DEFAULT_SCAN_LIMITS) -> (Removal_Preview, string) {
+preview_removal :: proc(
+	cwd: string,
+	options: Project_Options,
+	remove: Removal,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	Removal_Preview,
+	string,
+) {
 	view, issue := read_collection(cwd, options, limits)
 	if issue != "" do return {}, issue
-	req := Remove_Request{options = remove}
+	req := Remove_Request {
+		options = remove,
+	}
 	_, issue = plan_removal(&view, &req)
 	if issue != "" do return {}, issue
 	return req.preview, ""
 }
 
-remove_task :: proc(cwd: string, options: Project_Options, remove: Removal, limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
-	req := Remove_Request{options = remove}
+remove_task :: proc(
+	cwd: string,
+	options: Project_Options,
+	remove: Removal,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
+	req := Remove_Request {
+		options = remove,
+	}
 	return mutate_collection(cwd, options, plan_removal, &req, limits)
 }

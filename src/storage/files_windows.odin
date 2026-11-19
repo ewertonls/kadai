@@ -5,23 +5,25 @@ import "core:strings"
 import w "core:sys/windows"
 
 @(private)
-native_error :: proc() -> os.Error { return windows_error(w.GetLastError()) }
+native_error :: proc() -> os.Error {return windows_error(w.GetLastError())}
 
 @(private)
 windows_error :: proc(e: u32) -> os.Error {
 	switch e {
-	case w.ERROR_FILE_NOT_FOUND, w.ERROR_PATH_NOT_FOUND: return .Not_Exist
-	case w.ERROR_ALREADY_EXISTS, w.ERROR_FILE_EXISTS: return .Exist
+	case w.ERROR_FILE_NOT_FOUND, w.ERROR_PATH_NOT_FOUND:
+		return .Not_Exist
+	case w.ERROR_ALREADY_EXISTS, w.ERROR_FILE_EXISTS:
+		return .Exist
 	}
 	return os.Platform_Error(e)
 }
 
 @(private)
-wide :: proc(s: string) -> w.wstring { return w.utf8_to_wstring(s) }
+wide :: proc(s: string) -> w.wstring {return w.utf8_to_wstring(s)}
 
 foreign import ntdll "system:ntdll.lib"
 foreign ntdll {
-	NtSetInformationFile :: proc "system"(h: w.HANDLE, io: ^w.IO_STATUS_BLOCK, info: rawptr, length: u32, kind: w.FILE_INFORMATION_CLASS) -> w.NTSTATUS ---
+	NtSetInformationFile :: proc "system" (h: w.HANDLE, io: ^w.IO_STATUS_BLOCK, info: rawptr, length: u32, kind: w.FILE_INFORMATION_CLASS) -> w.NTSTATUS ---
 }
 
 @(private)
@@ -35,23 +37,55 @@ check_directory :: proc(f: ^os.File) -> os.Error {
 // A pinned directory cannot be renamed, but can acquire a reparse point.
 // Resolve one component relative to its handle, never through its path again.
 @(private)
-relative_handle :: proc(parent: ^os.File, name: string, access, share, disposition, options: u32, sd: rawptr = nil) -> (h: w.HANDLE, err: os.Error) {
+relative_handle :: proc(
+	parent: ^os.File,
+	name: string,
+	access, share, disposition, options: u32,
+	sd: rawptr = nil,
+) -> (
+	h: w.HANDLE,
+	err: os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
 	check_directory(parent) or_return
 	text := w.utf8_to_utf16(name)
-	if len(text)*2 > 65534 do return nil, .Invalid_Path
-	unicode := w.UNICODE_STRING{u16(len(text)*2), u16(len(text)*2), raw_data(text)}
-	attrs := w.OBJECT_ATTRIBUTES{Length = size_of(w.OBJECT_ATTRIBUTES), RootDirectory = w.HANDLE(os.fd(parent)), ObjectName = &unicode,
-		Attributes = 0x40 | 0x1000, SecurityDescriptor = sd} // OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE
+	if len(text) * 2 > 65534 do return nil, .Invalid_Path
+	unicode := w.UNICODE_STRING{u16(len(text) * 2), u16(len(text) * 2), raw_data(text)}
+	attrs := w.OBJECT_ATTRIBUTES {
+		Length             = size_of(w.OBJECT_ATTRIBUTES),
+		RootDirectory      = w.HANDLE(os.fd(parent)),
+		ObjectName         = &unicode,
+		Attributes         = 0x40 | 0x1000,
+		SecurityDescriptor = sd,
+	} // OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE
 	io: w.IO_STATUS_BLOCK
-	status := w.NtCreateFile(&h, access | w.SYNCHRONIZE, &attrs, &io, nil, w.FILE_ATTRIBUTE_NORMAL,
-		share, disposition, options | 0x20 | w.FILE_FLAG_OPEN_REPARSE_POINT, nil, 0) // FILE_SYNCHRONOUS_IO_NONALERT
+	status := w.NtCreateFile(
+		&h,
+		access | w.SYNCHRONIZE,
+		&attrs,
+		&io,
+		nil,
+		w.FILE_ATTRIBUTE_NORMAL,
+		share,
+		disposition,
+		options | 0x20 | w.FILE_FLAG_OPEN_REPARSE_POINT,
+		nil,
+		0,
+	) // FILE_SYNCHRONOUS_IO_NONALERT
 	if status < 0 do return nil, windows_error(w.RtlNtStatusToDosError(status))
 	return
 }
 
 @(private)
-win_open :: proc(path: string, dir, create, mutation: bool, parent: ^os.File = nil, private_leaf := false) -> (f: ^os.File, err: os.Error) {
+win_open :: proc(
+	path: string,
+	dir, create, mutation: bool,
+	parent: ^os.File = nil,
+	private_leaf := false,
+) -> (
+	f: ^os.File,
+	err: os.Error,
+) {
 	access := w.GENERIC_READ
 	share := w.FILE_SHARE_READ
 	how := w.OPEN_EXISTING
@@ -62,10 +96,12 @@ win_open :: proc(path: string, dir, create, mutation: bool, parent: ^os.File = n
 	} else {
 		share |= w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE
 	}
-	if create && !dir { access |= w.GENERIC_WRITE | w.WRITE_DAC | w.WRITE_OWNER; how = w.CREATE_NEW }
-	sa := w.SECURITY_ATTRIBUTES{nLength = size_of(w.SECURITY_ATTRIBUTES)}
-	if create && (!dir || private_leaf) { sa.lpSecurityDescriptor = owner_acl(dir) or_return }
-	defer if sa.lpSecurityDescriptor != nil { w.LocalFree(sa.lpSecurityDescriptor) }
+	if create && !dir {access |= w.GENERIC_WRITE | w.WRITE_DAC | w.WRITE_OWNER; how = w.CREATE_NEW}
+	sa := w.SECURITY_ATTRIBUTES {
+		nLength = size_of(w.SECURITY_ATTRIBUTES),
+	}
+	if create && (!dir || private_leaf) {sa.lpSecurityDescriptor = owner_acl(dir) or_return}
+	defer if sa.lpSecurityDescriptor != nil {w.LocalFree(sa.lpSecurityDescriptor)}
 	h: w.HANDLE
 	if parent == nil {
 		h = w.CreateFileW(wide(path), access, share, &sa, how, flags, nil)
@@ -73,25 +109,42 @@ win_open :: proc(path: string, dir, create, mutation: bool, parent: ^os.File = n
 	} else {
 		disposition := u32(w.FILE_CREATE) if create else u32(w.FILE_OPEN)
 		options := u32(1) if dir else u32(w.FILE_NON_DIRECTORY_FILE) // FILE_DIRECTORY_FILE
-		h = relative_handle(parent, os.base(path), access, share, disposition, options, sa.lpSecurityDescriptor) or_return
+		h = relative_handle(
+			parent,
+			os.base(path),
+			access,
+			share,
+			disposition,
+			options,
+			sa.lpSecurityDescriptor,
+		) or_return
 	}
-	defer if err != nil { w.CloseHandle(h) }
+	defer if err != nil {w.CloseHandle(h)}
 	info: w.BY_HANDLE_FILE_INFORMATION
 	if !w.GetFileInformationByHandle(h, &info) do return nil, native_error()
 	attr := info.dwFileAttributes
-	if attr & w.FILE_ATTRIBUTE_REPARSE_POINT != 0 || (attr & w.FILE_ATTRIBUTE_DIRECTORY != 0) != dir ||
+	if attr & w.FILE_ATTRIBUTE_REPARSE_POINT != 0 ||
+	   (attr & w.FILE_ATTRIBUTE_DIRECTORY != 0) != dir ||
 	   !dir && (w.GetFileType(h) != w.FILE_TYPE_DISK || mutation && info.nNumberOfLinks != 1) {
 		return nil, .Invalid_File
 	}
 	return os.new_file(uintptr(h), path), nil
 }
 
-open_dir :: proc(path: string, create := false, private_leaf := false, created: ^bool = nil) -> (d: Directory, err: os.Error) {
+open_dir :: proc(
+	path: string,
+	create := false,
+	private_leaf := false,
+	created: ^bool = nil,
+) -> (
+	d: Directory,
+	err: os.Error,
+) {
 	if len(path) < 3 || path[1:3] != ":/" do return {}, .Invalid_Path
 
 	d.path = path[:3]
 	d.file = win_open(d.path, true, false, false) or_return
-	defer if err != nil { close_dir(&d) }
+	defer if err != nil {close_dir(&d)}
 	parts := path[3:]
 	for part in strings.split_iterator(&parts, "/") {
 		if !component(part) do return d, .Invalid_Path
@@ -100,14 +153,18 @@ open_dir :: proc(path: string, create := false, private_leaf := false, created: 
 		if e == os.General_Error.Not_Exist && create {
 			f, e = win_open(d.path, true, true, false, d.file, private_leaf && parts == "")
 			if e == nil && created != nil do created^ = true
-			if e == os.General_Error.Exist { f, e = win_open(d.path, true, false, false, d.file) }
+			if e == os.General_Error.Exist {f, e = win_open(d.path, true, false, false, d.file)}
 		}
 		if e != nil do return d, e
 		append(&d.parents, d.file)
 		d.file = f
 	}
 	if private_leaf {
-		acl := security_text(w.HANDLE(os.fd(d.file)), w.DACL_SECURITY_INFORMATION, require_private = true) or_return
+		acl := security_text(
+			w.HANDLE(os.fd(d.file)),
+			w.DACL_SECURITY_INFORMATION,
+			require_private = true,
+		) or_return
 		if acl != "D:P(A;OICI;FA;;;OW)" do return d, .Permission_Denied
 	}
 	return
@@ -125,19 +182,38 @@ create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
 }
 
 @(private)
-publish :: proc(from: ^Directory, src: string, to: ^Directory, dst: string, replace: bool) -> os.Error {
+publish :: proc(
+	from: ^Directory,
+	src: string,
+	to: ^Directory,
+	dst: string,
+	replace: bool,
+) -> os.Error {
 	if !component(src) || !component(dst) do return .Invalid_Path
 	check_directory(to.file) or_return
-	h := relative_handle(from.file, src, w.DELETE, w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE, w.FILE_OPEN, 0) or_return
+	h := relative_handle(
+		from.file,
+		src,
+		w.DELETE,
+		w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
+		w.FILE_OPEN,
+		0,
+	) or_return
 	defer w.CloseHandle(h)
-	Rename :: struct {replace: w.BOOLEAN, root: w.HANDLE, length: u32, name: [1]u16}
+	Rename :: struct {
+		replace: w.BOOLEAN,
+		root   : w.HANDLE,
+		length : u32,
+		name   : [1]u16,
+	}
 	text := w.utf8_to_utf16(dst)
-	buf := make([]u64, (size_of(Rename)+len(text)*2+7)/8, context.temp_allocator) or_return
+	buf := make([]u64, (size_of(Rename) + len(text) * 2 + 7) / 8, context.temp_allocator) or_return
 	info := (^Rename)(raw_data(buf))
-	info.replace, info.root, info.length = w.BOOLEAN(replace), w.HANDLE(os.fd(to.file)), u32(len(text)*2)
+	info.replace, info.root, info.length =
+		w.BOOLEAN(replace), w.HANDLE(os.fd(to.file)), u32(len(text) * 2)
 	copy(([^]u16)(&info.name[0])[:len(text)], text)
 	io: w.IO_STATUS_BLOCK
-	status := NtSetInformationFile(h, &io, info, u32(len(buf)*8), .FileRenameInformation)
+	status := NtSetInformationFile(h, &io, info, u32(len(buf) * 8), .FileRenameInformation)
 	if status < 0 do return windows_error(w.RtlNtStatusToDosError(status))
 	return nil
 }
@@ -145,7 +221,14 @@ publish :: proc(from: ^Directory, src: string, to: ^Directory, dst: string, repl
 @(private)
 remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 	if !component(name) do return .Invalid_Path
-	h := relative_handle(d.file, name, w.DELETE, w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE, w.FILE_OPEN, w.FILE_NON_DIRECTORY_FILE) or_return
+	h := relative_handle(
+		d.file,
+		name,
+		w.DELETE,
+		w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
+		w.FILE_OPEN,
+		w.FILE_NON_DIRECTORY_FILE,
+	) or_return
 	defer w.CloseHandle(h)
 	remove: w.BOOLEAN = true
 	if !w.SetFileInformationByHandle(h, .FileDispositionInfo, &remove, size_of(remove)) do return native_error()
@@ -153,7 +236,7 @@ remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 }
 
 // Windows has no unprivileged equivalent of fsync on a directory handle.
-sync_dir :: proc(d: ^Directory) -> os.Error { return nil }
+sync_dir :: proc(d: ^Directory) -> os.Error {return nil}
 
 @(private)
 windows_file_id :: proc(f: ^os.File, info: ^os.File_Info) -> os.Error {

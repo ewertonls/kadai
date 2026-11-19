@@ -27,7 +27,14 @@ valid_path_text :: proc(s: string) -> bool {
 
 // Resolve existing components before interpreting "..". A broken symlink is
 // an error even when a missing final directory would otherwise be permitted.
-directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, linked: bool, err: os.Error) {
+directory :: proc(
+	base, selection: string,
+	missing_ok: bool,
+) -> (
+	path: string,
+	linked: bool,
+	err: os.Error,
+) {
 	if !valid_path_text(selection) do return "", false, .Invalid_Path
 	input := slash(selection)
 	path = base
@@ -42,7 +49,7 @@ directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, l
 	for part in strings.split_iterator(&input, "/") {
 		if part == "" || part == "." do continue
 		if part == ".." {
-			if parent := slash(os.dir(path)); parent != "" { path = parent }
+			if parent := slash(os.dir(path)); parent != "" {path = parent}
 			continue
 		}
 		path = child(path, part)
@@ -59,12 +66,19 @@ directory :: proc(base, selection: string, missing_ok: bool) -> (path: string, l
 	return
 }
 
-read_bounded :: proc(f: ^os.File, limit: int, allocator := context.temp_allocator) -> (data: []byte, err: os.Error) {
+read_bounded :: proc(
+	f: ^os.File,
+	limit: int,
+	allocator := context.temp_allocator,
+) -> (
+	data: []byte,
+	err: os.Error,
+) {
 	info := file_info(f) or_return
 	if info.type != .Regular || info.size < 0 do return nil, .Invalid_File
 	if info.size > i64(limit) do return nil, .Short_Buffer
 	buf := make([]byte, int(info.size), allocator) or_return
-	defer if err != nil { delete(buf, allocator) }
+	defer if err != nil {delete(buf, allocator)}
 	data = buf
 	if len(data) > 0 {
 		n := os.read_full(f, data) or_return

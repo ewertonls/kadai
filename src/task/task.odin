@@ -8,7 +8,7 @@ import "core:unicode"
 Vocabulary :: struct {
 	additional_statuses: []string,
 	// A configured list replaces the built-ins. Nil selects the defaults.
-	priorities:          []string,
+	priorities         : []string,
 }
 
 @(private)

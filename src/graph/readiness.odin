@@ -2,8 +2,15 @@ package graph
 
 import "core:strings"
 
-Readiness :: enum {Ready, Blocked, Unresolved}
-Node :: struct {category: string, depends_on: []string}
+Readiness :: enum {
+	Ready,
+	Blocked,
+	Unresolved,
+}
+Node      :: struct {
+	category  : string,
+	depends_on: []string,
+}
 
 // An SCC affects only its own members. For a caller outside that SCC, a
 // resolved direct prerequisite satisfies the dependency when its category is done.
@@ -39,7 +46,7 @@ readiness :: proc(nodes: map[string]Node, id: string) -> Readiness {
 			ref_key, err := strings.to_lower(ref)
 			if err != nil || len(ref_key) != len(ref) do return .Unresolved
 			to, resolved := positions[ref_key]
-			if !resolved { g.unresolved[from] = true; continue }
+			if !resolved {g.unresolved[from] = true; continue}
 			if link(&g, from, to) != nil do return .Unresolved
 		}
 	}

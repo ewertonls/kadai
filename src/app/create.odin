@@ -11,16 +11,18 @@ import "kadai:task"
 
 Create_Task :: struct {
 	title, body, destination: string,
-	status: Maybe(string),
+	status                  : Maybe(string),
 }
 
 @(private)
 Creation :: struct {
 	using request: Create_Task,
-	result: Task_Summary,
+	result       : Task_Summary,
 }
 
-Task_Summary :: struct {id, path, title, status: string}
+Task_Summary :: struct {
+	id, path, title, status: string,
+}
 
 @(private)
 plan_create :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string) {
@@ -34,46 +36,94 @@ plan_create :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 	if !task.valid_status(status, view.config.vocabulary) do return nil, "invalid status"
 	if len(c.body) > view.limits.source_bytes do return nil, fmt.tprintf("task_source_bytes limit exceeded: observed %d, limit %d", len(c.body), view.limits.source_bytes)
 	if len(c.title) > view.limits.yaml.bytes do return nil, fmt.tprintf("title exceeds yaml_document_bytes: observed %d, limit %d", len(c.title), view.limits.yaml.bytes)
-	id, path, issue := identity.allocate(&view.history, view.config.id_prefix, view.config.tasks, storage.slash(c.destination))
+	id, path, issue := identity.allocate(
+		&view.history,
+		view.config.id_prefix,
+		view.config.tasks,
+		storage.slash(c.destination),
+	)
 	if issue != "" do return nil, issue
 	c.result = {id, path, c.title, status}
-	header := fmt.tprintf("---\nkadai: task\nid: %q\ntitle: %q\nstatus: %q\n---\n", id, c.title, status)
-	if len(header) > view.limits.source_bytes - len(c.body) do return nil, fmt.tprintf("task_source_bytes limit exceeded: observed %d, limit %d", len(header)+len(c.body), view.limits.source_bytes)
+	header := fmt.tprintf(
+		"---\nkadai: task\nid: %q\ntitle: %q\nstatus: %q\n---\n",
+		id,
+		c.title,
+		status,
+	)
+	if len(header) > view.limits.source_bytes - len(c.body) do return nil, fmt.tprintf("task_source_bytes limit exceeded: observed %d, limit %d", len(header) + len(c.body), view.limits.source_bytes)
 	source, alloc_err := strings.concatenate({header, c.body}, context.temp_allocator)
 	if alloc_err != nil do return nil, "cannot allocate task source"
-	doc := document.decode_task(source, view.config.vocabulary, view.limits.source_bytes, view.limits.yaml, path)
+	doc := document.decode_task(
+		source,
+		view.config.vocabulary,
+		view.limits.source_bytes,
+		view.limits.yaml,
+		path,
+	)
 	if len(doc.diagnostics) > 0 && doc.diagnostics[0].code == "limit_exceeded" do return nil, doc.diagnostics[0].message
-	if doc.status != .Decoded || doc.parts.body.start != len(header) || doc.fields.title != c.title || doc.fields.id != id || doc.fields.status != status {
+	if doc.status != .Decoded ||
+	   doc.parts.body.start != len(header) ||
+	   doc.fields.title != c.title ||
+	   doc.fields.id != id ||
+	   doc.fields.status != status {
 		return nil, "unable to encode task within source and YAML limits"
 	}
 	if issue = identity.observe(&view.history, id); issue != "" do return nil, issue
 	change := make([]storage.Change, 1)
-	change[0] = {kind = .Create, path = path, data = transmute([]byte)source}
+	change[0] = {
+		kind = .Create,
+		path = path,
+		data = transmute([]byte)source,
+	}
 	return change, ""
 }
 
-create_task_result :: proc(cwd: string, options: Project_Options, request: Create_Task, limits := project.DEFAULT_SCAN_LIMITS) -> (Task_Summary, string) {
-	c := Creation{request = request}
+create_task_result :: proc(
+	cwd: string,
+	options: Project_Options,
+	request: Create_Task,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	Task_Summary,
+	string,
+) {
+	c := Creation {
+		request = request,
+	}
 	operation, issue := mutate_collection(cwd, options, plan_create, &c, limits)
 	if issue != "" {
-		if operation != "" { issue = fmt.tprintf("operation %s for %s: %s", operation, c.result.id, issue) }
+		if operation !=
+		   "" {issue = fmt.tprintf("operation %s for %s: %s", operation, c.result.id, issue)}
 		return {}, issue
 	}
 	return c.result, ""
 }
 
-create_task :: proc(cwd: string, options: Project_Options, request: Create_Task, limits := project.DEFAULT_SCAN_LIMITS) -> (id, issue: string) {
+create_task :: proc(
+	cwd: string,
+	options: Project_Options,
+	request: Create_Task,
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	id, issue: string,
+) {
 	created, problem := create_task_result(cwd, options, request, limits)
 	return created.id, problem
 }
 
 // Read pipes and ordinary files incrementally before taking the writer lock.
-read_body :: proc(reader: io.Reader, limit := project.DEFAULT_SCAN_LIMITS.source_bytes) -> (string, string) {
+read_body :: proc(
+	reader: io.Reader,
+	limit := project.DEFAULT_SCAN_LIMITS.source_bytes,
+) -> (
+	string,
+	string,
+) {
 	body := make([dynamic]byte, context.temp_allocator)
-	buf: [32<<10]byte
+	buf: [32 << 10]byte
 	for {
-		n, e := io.read(reader, buf[:min(len(buf), limit-len(body)+1)])
-		if n < 0 || n > limit-len(body) do return "", "body exceeds task_source_bytes"
+		n, e := io.read(reader, buf[:min(len(buf), limit - len(body) + 1)])
+		if n < 0 || n > limit - len(body) do return "", "body exceeds task_source_bytes"
 		if _, err := append(&body, ..buf[:n]); err != nil do return "", "cannot allocate task body"
 		if e == .EOF do break
 		if e != .None || n == 0 do return "", fmt.tprintf("reading task body: %v", e)

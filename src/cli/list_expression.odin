@@ -19,30 +19,37 @@ parse_list_expression :: proc(expression: string) -> ([][]app.List_Predicate, st
 	start, group := 0, 0
 	for &p, i in predicates {
 		if i > 0 {
-			switch words[2*i - 1] {
+			switch words[2 * i - 1] {
 			case "AND":
 			case "OR":
 				groups[group] = predicates[start:i]
 				group += 1
 				start = i
-			case: return nil, fmt.tprintf("--where expected AND or OR, got %q", words[2*i - 1])
+			case:
+				return nil, fmt.tprintf("--where expected AND or OR, got %q", words[2 * i - 1])
 			}
 		}
-		word := words[2*i]
+		word := words[2 * i]
 		name, _, value := strings.partition(word, "=")
 		if name == "" || value == "" || strings.contains(value, "=") {
 			return nil, fmt.tprintf("--where expected FIELD=VALUE or FIELD!=VALUE, got %q", word)
 		}
 		p.value, p.negated = value, strings.has_suffix(name, "!")
 		switch strings.trim_suffix(name, "!") {
-		case "id":       p.field = .ID
-		case "status":   p.field = .Status
-		case "priority": p.field = .Priority
-		case "tag":      p.field = .Tag
-		case "due":      p.field = .Due
-		case: return nil, fmt.tprintf("unknown --where field in %q", word)
+		case "id":
+			p.field = .ID
+		case "status":
+			p.field = .Status
+		case "priority":
+			p.field = .Priority
+		case "tag":
+			p.field = .Tag
+		case "due":
+			p.field = .Due
+		case:
+			return nil, fmt.tprintf("unknown --where field in %q", word)
 		}
 	}
 	groups[group] = predicates[start:]
-	return groups[:group+1], ""
+	return groups[:group + 1], ""
 }

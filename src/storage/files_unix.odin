@@ -8,31 +8,42 @@ import p "core:sys/posix"
 
 when ODIN_OS == .Darwin {
 	foreign import libc "system:System"
-	foreign libc { renameatx_np :: proc(a: p.FD, src: cstring, b: p.FD, dst: cstring, flags: u32) -> c.int --- }
+	foreign libc {renameatx_np :: proc(a: p.FD, src: cstring, b: p.FD, dst: cstring, flags: u32) -> c.int ---}
 } else {
 	foreign import libc "system:c"
-	foreign libc { renameat2 :: proc(a: p.FD, src: cstring, b: p.FD, dst: cstring, flags: u32) -> c.int --- }
+	foreign libc {renameat2 :: proc(a: p.FD, src: cstring, b: p.FD, dst: cstring, flags: u32) -> c.int ---}
 }
 
 @(private)
 native_error :: proc() -> os.Error {
 	e := p.errno()
 	#partial switch e {
-	case .ENOENT: return .Not_Exist
-	case .EEXIST: return .Exist
-	case .EACCES, .EPERM: return .Permission_Denied
+	case .ENOENT:
+		return .Not_Exist
+	case .EEXIST:
+		return .Exist
+	case .EACCES, .EPERM:
+		return .Permission_Denied
 	}
 	return os.Platform_Error(e)
 }
 
 @(private)
-cs :: proc(s: string) -> cstring { return strings.clone_to_cstring(s, context.temp_allocator) }
+cs :: proc(s: string) -> cstring {return strings.clone_to_cstring(s, context.temp_allocator)}
 
-open_dir :: proc(path: string, create := false, private_leaf := false, created: ^bool = nil) -> (d: Directory, err: os.Error) {
+open_dir :: proc(
+	path: string,
+	create := false,
+	private_leaf := false,
+	created: ^bool = nil,
+) -> (
+	d: Directory,
+	err: os.Error,
+) {
 	if !strings.has_prefix(path, "/") do return {}, .Invalid_Path
 	fd := p.open("/", {.DIRECTORY, .CLOEXEC})
 	if fd < 0 do return {}, native_error()
-	defer if err != nil { p.close(fd) }
+	defer if err != nil {p.close(fd)}
 	parts := path[1:]
 	for name in strings.split_iterator(&parts, "/") {
 		if !component(name) do return {}, .Invalid_Path
@@ -43,7 +54,7 @@ open_dir :: proc(path: string, create := false, private_leaf := false, created: 
 			mode := transmute(p.mode_t)p._mode_t(0o700 if private_leaf && parts == "" else 0o755)
 			if p.mkdirat(fd, part, mode) == .OK {
 				if created != nil do created^ = true
-			} else if p.errno() != .EEXIST { return {}, native_error() }
+			} else if p.errno() != .EEXIST {return {}, native_error()}
 			if p.fsync(fd) != .OK do return {}, native_error()
 			next = p.openat(fd, part, flags)
 		}
@@ -61,13 +72,13 @@ open_dir :: proc(path: string, create := false, private_leaf := false, created: 
 }
 
 @(private)
-dir_fd :: proc(d: ^Directory) -> p.FD { return p.FD(os.fd(d.file)) }
+dir_fd :: proc(d: ^Directory) -> p.FD {return p.FD(os.fd(d.file))}
 
 regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File, err: os.Error) {
 	if !component(name) do return nil, .Invalid_Path
 	fd := p.openat(dir_fd(d), cs(name), {.NOFOLLOW, .CLOEXEC, .NONBLOCK})
 	if fd < 0 do return nil, native_error()
-	defer if err != nil { p.close(fd) }
+	defer if err != nil {p.close(fd)}
 	st: p.stat_t
 	if p.fstat(fd, &st) != .OK do return nil, native_error()
 	if !p.S_ISREG(st.st_mode) || mutation && st.st_nlink != 1 do return nil, .Invalid_File
@@ -77,13 +88,24 @@ regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File,
 @(private)
 create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
 	if !component(name) do return nil, .Invalid_Path
-	fd := p.openat(dir_fd(d), cs(name), {.RDWR, .CREAT, .EXCL, .NOFOLLOW, .CLOEXEC}, transmute(p.mode_t)p._mode_t(0o600))
+	fd := p.openat(
+		dir_fd(d),
+		cs(name),
+		{.RDWR, .CREAT, .EXCL, .NOFOLLOW, .CLOEXEC},
+		transmute(p.mode_t)p._mode_t(0o600),
+	)
 	if fd < 0 do return nil, native_error()
 	return os.new_file(uintptr(fd), child(d.path, name)), nil
 }
 
 @(private)
-publish :: proc(from: ^Directory, src: string, to: ^Directory, dst: string, replace: bool) -> os.Error {
+publish :: proc(
+	from: ^Directory,
+	src: string,
+	to: ^Directory,
+	dst: string,
+	replace: bool,
+) -> os.Error {
 	if !component(src) || !component(dst) do return .Invalid_Path
 	a, b := dir_fd(from), dir_fd(to)
 	if replace {
@@ -105,4 +127,4 @@ remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 	return nil
 }
 
-sync_dir :: proc(d: ^Directory) -> os.Error { return os.sync(d.file) }
+sync_dir :: proc(d: ^Directory) -> os.Error {return os.sync(d.file)}

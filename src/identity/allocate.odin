@@ -8,11 +8,11 @@ import "kadai:storage"
 // Compare and increment decimal strings without a machine-sized ID limit.
 @(private)
 increment :: proc(digits: string) -> string {
-	buf := make([]byte, max(4, len(digits)+1), context.temp_allocator)
+	buf := make([]byte, max(4, len(digits) + 1), context.temp_allocator)
 	for &b in buf do b = '0'
-	copy(buf[len(buf)-len(digits):], digits)
-	for i := len(buf)-1; i >= 0; i -= 1 {
-		if buf[i] < '9' { buf[i] += 1; break }
+	copy(buf[len(buf) - len(digits):], digits)
+	for i := len(buf) - 1; i >= 0; i -= 1 {
+		if buf[i] < '9' {buf[i] += 1; break}
 		buf[i] = '0'
 	}
 	return string(buf[1:]) if len(buf) > 4 && buf[0] == '0' else string(buf)

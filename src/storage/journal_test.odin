@@ -26,14 +26,20 @@ overlapping_writers_and_interrupted_transaction :: proc(t: ^testing.T) {
 		if open_err != nil do os.exit(2)
 		steps: [2]Step
 		for path, i in ([2]string{"nested/A.md", "B.md"}) {
-			steps[i], err = prepare_step(root, &dir, i, {kind = .Create, path = path, data = {42}}, 64)
+			steps[i], err = prepare_step(
+				root,
+				&dir,
+				i,
+				{kind = .Create, path = path, data = {42}},
+				64,
+			)
 			if err != nil do os.exit(3)
 		}
 		plan, _ := manifest(steps[:], 4096)
 		state, _ := open_dir(child(root, ".kadai"))
 		if create_file(&dir, "plan", transmute([]byte)plan) != nil ||
 		   arm(&state, pointer(id, plan)) != nil ||
-		   apply_step(root, &dir, 0, steps[0], false, 64) != nil { os.exit(4) }
+		   apply_step(root, &dir, 0, steps[0], false, 64) != nil {os.exit(4)}
 		os.exit(73)
 	}
 
@@ -48,8 +54,14 @@ overlapping_writers_and_interrupted_transaction :: proc(t: ^testing.T) {
 		vars := make([dynamic]string, context.temp_allocator)
 		append(&vars, ..env)
 		append(&vars, fmt.tprintf("KADAI_TEST_WRITER_CHILD=%s", mode))
-		result, _, _, err := os.process_exec({working_dir = root, env = vars[:],
-			command = {exe, "-tests:storage.overlapping_writers_and_interrupted_transaction"}}, context.temp_allocator)
+		result, _, _, err := os.process_exec(
+			{
+				working_dir = root,
+				env = vars[:],
+				command = {exe, "-tests:storage.overlapping_writers_and_interrupted_transaction"},
+			},
+			context.temp_allocator,
+		)
 		return int(result.exit_code) if err == nil else -1
 	}
 	{

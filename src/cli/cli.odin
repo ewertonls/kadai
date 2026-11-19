@@ -48,14 +48,14 @@ dispatch :: proc(args: []string) -> (message: string, ok: bool) {
 // These values are part of the shell contract in docs/development/cli.md.
 @(private)
 Exit_Code :: enum int {
-	Success = 0,
-	Failure = 1,
-	Usage = 2,
-	Task_Not_Found = 3,
-	Ambiguous_Task = 4,
-	Write_Incomplete = 5,
+	Success                   = 0,
+	Failure                   = 1,
+	Usage                     = 2,
+	Task_Not_Found            = 3,
+	Ambiguous_Task            = 4,
+	Write_Incomplete          = 5,
 	Completed_Response_Failed = 6,
-	Output_Failed = 7,
+	Output_Failed             = 7,
 }
 
 @(private)
@@ -70,7 +70,11 @@ write_stdout :: proc(message: string, stdout, stderr: io.Writer, completed := ""
 	n, err := io.write_string(stdout, message)
 	if err == .None && n == len(message) do return .Success
 	if completed != "" {
-		return diagnose(stderr, .Completed_Response_Failed, fmt.tprintf("%s, but could not write the response to stdout", completed))
+		return diagnose(
+			stderr,
+			.Completed_Response_Failed,
+			fmt.tprintf("%s, but could not write the response to stdout", completed),
+		)
 	}
 	return diagnose(stderr, .Output_Failed, "could not write to stdout")
 }

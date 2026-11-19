@@ -5,8 +5,8 @@ package storage
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "core:testing"
 import w "core:sys/windows"
+import "core:testing"
 
 @(test)
 windows_pinned_directory_blocks_redirection :: proc(t: ^testing.T) {
@@ -19,20 +19,33 @@ windows_pinned_directory_blocks_redirection :: proc(t: ^testing.T) {
 	defer close_dir(&d)
 	testing.expect(t, !w.MoveFileExW(wide(d.path), wide(child(root, "moved")), 0))
 	testing.expect_value(t, w.GetLastError(), w.ERROR_SHARING_VIOLATION)
-	h := w.CreateFileW(wide(d.path), w.GENERIC_WRITE, w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
-		nil, w.OPEN_EXISTING, w.FILE_FLAG_BACKUP_SEMANTICS | w.FILE_FLAG_OPEN_REPARSE_POINT, nil)
+	h := w.CreateFileW(
+		wide(d.path),
+		w.GENERIC_WRITE,
+		w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
+		nil,
+		w.OPEN_EXISTING,
+		w.FILE_FLAG_BACKUP_SEMANTICS | w.FILE_FLAG_OPEN_REPARSE_POINT,
+		nil,
+	)
 	if !testing.expect(t, h != w.INVALID_HANDLE_VALUE) do return
 	defer w.CloseHandle(h)
-	data: struct {tag: u32, length, reserved, sub_offset, sub_length, print_offset, print_length: u16, path: [1024]u16}
+	data: struct {
+		tag                                                                 : u32,
+		length, reserved, sub_offset, sub_length, print_offset, print_length: u16,
+		path                                                                : [1024]u16,
+	}
 	data.tag = w.IO_REPARSE_TAG_MOUNT_POINT
-	target := wide(fmt.tprintf("\\??\\%s", strings.replace_all(root, "/", "\\", context.temp_allocator)))
+	target := wide(
+		fmt.tprintf("\\??\\%s", strings.replace_all(root, "/", "\\", context.temp_allocator)),
+	)
 	units := len(target)
 	copy(data.path[:], ([^]u16)(target)[:units])
-	data.sub_length = u16(units*2)
-	data.print_offset = u16((units+1)*2)
-	data.length = u16(8+(units+2)*2)
+	data.sub_length = u16(units * 2)
+	data.print_offset = u16((units + 1) * 2)
+	data.length = u16(8 + (units + 2) * 2)
 	n: u32
-	if !testing.expect(t, bool(w.DeviceIoControl(h, 0x900a4, &data, u32(data.length)+8, nil, 0, &n, nil))) do return
+	if !testing.expect(t, bool(w.DeviceIoControl(h, 0x900a4, &data, u32(data.length) + 8, nil, 0, &n, nil))) do return
 	// Windows permits this conversion despite the live directory handle.
 	// Kadai must refuse further use rather than write through the new junction.
 	testing.expect(t, create_file(&d, "escaped.md", {1}) != nil)

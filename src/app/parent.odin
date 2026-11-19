@@ -8,7 +8,10 @@ import "kadai:storage"
 import "kadai:yaml"
 
 @(private)
-Parent_Edit :: struct { child: string, parent: Maybe(string) }
+Parent_Edit :: struct {
+	child : string,
+	parent: Maybe(string),
+}
 
 @(private)
 plan_parent :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, string) {
@@ -35,21 +38,58 @@ plan_parent :: proc(view: ^Collection, data: rawptr) -> ([]storage.Change, strin
 	edited: string
 	e: document.Header_Edit_Error
 	if id, set := value.?; set && node == nil {
-		edited, e = document.plan_key_patch(source, .Parent, document.Insert_Field{value = id}, vocab, l.source_bytes, l.yaml, child.path)
+		edited, e = document.plan_key_patch(
+			source,
+			.Parent,
+			document.Insert_Field{value = id},
+			vocab,
+			l.source_bytes,
+			l.yaml,
+			child.path,
+		)
 	} else if !set && (node == nil || node.kind == .Null) {
 		return nil, ""
 	} else if !set && (node.kind == .Mapping || node.kind == .Sequence) {
-		edited, e = document.plan_key_patch(source, .Parent, document.Unset_Field{}, vocab, l.source_bytes, l.yaml, child.path)
+		edited, e = document.plan_key_patch(
+			source,
+			.Parent,
+			document.Unset_Field{},
+			vocab,
+			l.source_bytes,
+			l.yaml,
+			child.path,
+		)
 	} else {
-		edited, e = document.plan_scalar_patch(source, .Parent, value, vocab, l.source_bytes, l.yaml, child.path)
+		edited, e = document.plan_scalar_patch(
+			source,
+			.Parent,
+			value,
+			vocab,
+			l.source_bytes,
+			l.yaml,
+			child.path,
+		)
 	}
 	if problem := patch_issue(e); problem != "" do return nil, problem
 	change := make([]storage.Change, 1)
-	change[0] = {kind = .Replace, path = child.path, expected = child.version, data = transmute([]byte)edited}
+	change[0] = {
+		kind     = .Replace,
+		path     = child.path,
+		expected = child.version,
+		data     = transmute([]byte)edited,
+	}
 	return change, ""
 }
 
-set_parent :: proc(cwd: string, options: Project_Options, child: string, parent: Maybe(string), limits := project.DEFAULT_SCAN_LIMITS) -> (operation, issue: string) {
+set_parent :: proc(
+	cwd: string,
+	options: Project_Options,
+	child: string,
+	parent: Maybe(string),
+	limits := project.DEFAULT_SCAN_LIMITS,
+) -> (
+	operation, issue: string,
+) {
 	edit := Parent_Edit{child, parent}
 	return mutate_collection(cwd, options, plan_parent, &edit, limits)
 }

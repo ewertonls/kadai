@@ -9,9 +9,9 @@ import "kadai:yaml"
 
 Task_Fields :: struct {
 	id, title, status, priority, parent, due: string,
-	schema_version:                           yaml.Integer,
-	tags, depends_on:                         [dynamic]string,
-	custom:                                   ^yaml.Node,
+	schema_version                          : yaml.Integer,
+	tags, depends_on                        : [dynamic]string,
+	custom                                  : ^yaml.Node,
 }
 
 Field_Error_Reason :: enum {
@@ -23,8 +23,8 @@ Field_Error_Reason :: enum {
 	Duplicate_Item,
 	Unknown_Field,
 }
-Field_Error :: struct {
-	field:  string,
+Field_Error        :: struct {
+	field : string,
 	reason: Field_Error_Reason,
 }
 
@@ -39,17 +39,17 @@ Decode_Status :: enum {
 }
 
 Task_Document :: struct {
-	source, path:       string,
-	parts:              Frontmatter,
+	source, path      : string,
+	parts             : Frontmatter,
 	frontmatter_limits: Frontmatter_Limits,
-	root:               yaml.Node,
-	fields:             Task_Fields,
-	status:             Decode_Status,
-	boundary_status:    Frontmatter_Status,
-	yaml_error:         yaml.Error,
-	probe:              yaml.Mapping_Probe,
-	field_errors:       [dynamic]Field_Error,
-	diagnostics:        [dynamic]yaml.Diagnostic,
+	root              : yaml.Node,
+	fields            : Task_Fields,
+	status            : Decode_Status,
+	boundary_status   : Frontmatter_Status,
+	yaml_error        : yaml.Error,
+	probe             : yaml.Mapping_Probe,
+	field_errors      : [dynamic]Field_Error,
+	diagnostics       : [dynamic]yaml.Diagnostic,
 }
 
 destroy :: proc(doc: ^Task_Document) {
@@ -79,19 +79,32 @@ decode_task :: proc(
 	alloc_err = decode_fields(&doc, vocabulary, yaml_limits)
 	if alloc_err != nil {
 		destroy(&doc)
-		doc = Task_Document{source = source, path = path, status = .Allocation_Error}
+		doc = Task_Document {
+			source = source,
+			path   = path,
+			status = .Allocation_Error,
+		}
 	}
 	return
 }
 
 // Discovery and import must agree even when a broken header has only a
 // parser-proven marker. Report the bytes inspected for aggregate scan budgets.
-recognize_candidate :: proc(doc: ^Task_Document, limits: yaml.Limits) -> (candidate: bool, header_bytes: int, issue: string) {
+recognize_candidate :: proc(
+	doc: ^Task_Document,
+	limits: yaml.Limits,
+) -> (
+	candidate: bool,
+	header_bytes: int,
+	issue: string,
+) {
 	header_bytes = doc.parts.header.end - doc.parts.header.start
 	if doc.status == .Allocation_Error do return false, header_bytes, "recognition allocation failed"
 	if doc.boundary_status == .YAML_Document_Too_Large ||
-	   doc.boundary_status == .Task_Source_Too_Large || doc.boundary_status == .Invalid_Limits ||
-	   doc.yaml_error == .Too_Deep || doc.yaml_error == .Too_Many_Nodes {
+	   doc.boundary_status == .Task_Source_Too_Large ||
+	   doc.boundary_status == .Invalid_Limits ||
+	   doc.yaml_error == .Too_Deep ||
+	   doc.yaml_error == .Too_Many_Nodes {
 		return false, header_bytes, fmt.tprintf("scan incomplete: %s", doc.diagnostics[0].message)
 	}
 	if doc.status == .Boundary_Error {
@@ -100,8 +113,9 @@ recognize_candidate :: proc(doc: ^Task_Document, limits: yaml.Limits) -> (candid
 		switch e in failure {
 		case yaml.Error:
 			if e == .Too_Many_Nodes do return false, header_bytes, fmt.tprintf("yaml_nodes_document limit exceeded: observed %d, limit %d", doc.probe.nodes, limits.nodes)
-			if e == .Too_Deep do return false, header_bytes, fmt.tprintf("yaml_depth limit exceeded: observed %d, limit %d", limits.depth+1, limits.depth)
-		case runtime.Allocator_Error: return false, header_bytes, "recognition allocation failed"
+			if e == .Too_Deep do return false, header_bytes, fmt.tprintf("yaml_depth limit exceeded: observed %d, limit %d", limits.depth + 1, limits.depth)
+		case runtime.Allocator_Error:
+			return false, header_bytes, "recognition allocation failed"
 		}
 	}
 	if doc.status == .Boundary_Error || doc.status == .YAML_Error do return doc.probe.matched, header_bytes, ""
@@ -109,7 +123,13 @@ recognize_candidate :: proc(doc: ^Task_Document, limits: yaml.Limits) -> (candid
 }
 
 @(private)
-decode_fields :: proc(doc: ^Task_Document, vocabulary: task.Vocabulary, yaml_limits: yaml.Limits) -> (err: runtime.Allocator_Error) {
+decode_fields :: proc(
+	doc: ^Task_Document,
+	vocabulary: task.Vocabulary,
+	yaml_limits: yaml.Limits,
+) -> (
+	err: runtime.Allocator_Error,
+) {
 	source, path := doc.source, doc.path
 	failure: yaml.Diagnostic
 	if !yaml.valid_limits(yaml_limits) {
@@ -131,7 +151,10 @@ decode_fields :: proc(doc: ^Task_Document, vocabulary: task.Vocabulary, yaml_lim
 	}
 	header := doc.parts.header
 	parse_err: yaml.Parse_Failure
-	doc.probe = {key = "kadai", value = "task"}
+	doc.probe = {
+		key   = "kadai",
+		value = "task",
+	}
 	doc.root, parse_err = yaml.parse_mapping_checked(
 		source[header.start:header.end],
 		yaml_limits,
@@ -225,7 +248,14 @@ decode_fields :: proc(doc: ^Task_Document, vocabulary: task.Vocabulary, yaml_lim
 }
 
 @(private)
-read_text :: proc(doc: ^Task_Document, name: string, dst: ^string, vocab: task.Vocabulary) -> (err: runtime.Allocator_Error) {
+read_text :: proc(
+	doc: ^Task_Document,
+	name: string,
+	dst: ^string,
+	vocab: task.Vocabulary,
+) -> (
+	err: runtime.Allocator_Error,
+) {
 	node := yaml.lookup(&doc.root, name)
 	required := name == "id" || name == "title" || name == "status"
 	if node == nil || node.kind == .Null {
@@ -262,7 +292,13 @@ read_text :: proc(doc: ^Task_Document, name: string, dst: ^string, vocab: task.V
 }
 
 @(private)
-read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (err: runtime.Allocator_Error) {
+read_list :: proc(
+	doc: ^Task_Document,
+	name: string,
+	dst: ^[dynamic]string,
+) -> (
+	err: runtime.Allocator_Error,
+) {
 	node := yaml.lookup(&doc.root, name)
 	if node == nil || node.kind == .Null do return
 	if node.kind != .Sequence {
@@ -302,7 +338,7 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (
 			continue
 		}
 		if _, insert_err := map_insert(&seen, key, true); insert_err != nil {
-			if dependencies { delete(key) }
+			if dependencies {delete(key)}
 			return insert_err
 		}
 	}
@@ -314,15 +350,20 @@ read_list :: proc(doc: ^Task_Document, name: string, dst: ^[dynamic]string) -> (
 }
 
 @(private)
-check_custom_keys :: proc(doc: ^Task_Document, node: ^yaml.Node) -> (err: runtime.Allocator_Error) {
+check_custom_keys :: proc(
+	doc: ^Task_Document,
+	node: ^yaml.Node,
+) -> (
+	err: runtime.Allocator_Error,
+) {
 	for &entry in node.entries {
 		valid := entry.key.kind == .String && entry.key.text != ""
 		for c in entry.key.text {
-			if unicode.is_control(c) { valid = false; break }
+			if unicode.is_control(c) {valid = false; break}
 		}
-		if !valid { field_error(doc, "custom", .Invalid_Key, &entry.key) or_return }
+		if !valid {field_error(doc, "custom", .Invalid_Key, &entry.key) or_return}
 		check_custom_keys(doc, &entry.value) or_return
 	}
-	for &item in node.items { check_custom_keys(doc, &item) or_return }
+	for &item in node.items {check_custom_keys(doc, &item) or_return}
 	return
 }

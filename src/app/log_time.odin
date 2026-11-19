@@ -14,7 +14,7 @@ log_offset :: proc(instant: time.Time, name: string) -> (seconds: i64, ok: bool)
 	if region == nil do return 0, true // UTC
 
 	epoch := time.to_unix_seconds(instant)
-	if len(region.records) > 0 && epoch <= region.records[len(region.records)-1].time {
+	if len(region.records) > 0 && epoch <= region.records[len(region.records) - 1].time {
 		// The new offset takes effect at the transition second itself.
 		#reverse for record in region.records {
 			if epoch >= record.time do return record.utc_offset, true
@@ -39,16 +39,31 @@ log_timestamp :: proc(instant: time.Time, name: string) -> (string, string) {
 	if !ok || offset % 60 != 0 || abs(offset) >= 24 * 60 * 60 {
 		reason :: "cannot determine a minute-precision UTC offset"
 		zone := name if name != "" else "local"
-		message, err := strings.concatenate({reason, " for time zone ", zone}, context.temp_allocator)
+		message, err := strings.concatenate(
+			{reason, " for time zone ", zone},
+			context.temp_allocator,
+		)
 		if err != nil || message == "" do return "", reason
 		return "", message
 	}
-	local, valid := time.time_to_datetime(time.time_add(instant, time.Duration(offset) * time.Second))
+	local, valid := time.time_to_datetime(
+		time.time_add(instant, time.Duration(offset) * time.Second),
+	)
 	if !valid do return "", "cannot represent the current time"
 	minutes := abs(offset) / 60
 	sign := '-' if offset < 0 else '+'
-	stamp := fmt.tprintf("%04d-%02d-%02dT%02d:%02d:%02d%c%02d:%02d", local.year, local.month, local.day,
-	                     local.hour, local.minute, local.second, sign, minutes / 60, minutes % 60)
+	stamp := fmt.tprintf(
+		"%04d-%02d-%02dT%02d:%02d:%02d%c%02d:%02d",
+		local.year,
+		local.month,
+		local.day,
+		local.hour,
+		local.minute,
+		local.second,
+		sign,
+		minutes / 60,
+		minutes % 60,
+	)
 	if len(stamp) != len("2000-01-01T00:00:00+00:00") do return "", "cannot format task log timestamp"
 	return stamp, ""
 }

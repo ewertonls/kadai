@@ -6,10 +6,22 @@ import "core:unicode/utf8"
 
 invalid_limits_diagnostic :: proc(path: string, limits: Limits) -> Diagnostic {
 	if limits.bytes <= 0 || limits.bytes > MAX_LIMITS.bytes {
-		return limit_diagnostic(path, "yaml_document_bytes", limits.bytes, MAX_LIMITS.bytes, invalid = true)
+		return limit_diagnostic(
+			path,
+			"yaml_document_bytes",
+			limits.bytes,
+			MAX_LIMITS.bytes,
+			invalid = true,
+		)
 	}
 	if limits.nodes <= 0 || limits.nodes > MAX_LIMITS.nodes {
-		return limit_diagnostic(path, "yaml_nodes_document", limits.nodes, MAX_LIMITS.nodes, invalid = true)
+		return limit_diagnostic(
+			path,
+			"yaml_nodes_document",
+			limits.nodes,
+			MAX_LIMITS.nodes,
+			invalid = true,
+		)
 	}
 	return limit_diagnostic(path, "yaml_depth", limits.depth, MAX_LIMITS.depth, invalid = true)
 }
@@ -19,7 +31,8 @@ field_path :: proc(r: ^Reader, count: int) -> strings.Builder {
 	b: strings.Builder
 	for segment in r.field[:count] {
 		switch v in segment {
-		case int: fmt.sbprintf(&b, "[%d]", v)
+		case int:
+			fmt.sbprintf(&b, "[%d]", v)
 		case ^Entry:
 			key := v.key.text
 			if key == "" || strings.contains_any(key, ".[]\"\\\r\n\t") {
@@ -58,7 +71,7 @@ syntax_field_count :: proc(r: ^Reader) -> int {
 @(private)
 mark_location :: proc(source: string, index: uint, end_index: Maybe(uint) = nil) -> Location {
 	pos := 0
-	for _ in 0..<index {
+	for _ in 0 ..< index {
 		if pos >= len(source) do return {}
 		_, n := utf8.decode_rune_in_string(source[pos:])
 		pos += n
@@ -67,7 +80,7 @@ mark_location :: proc(source: string, index: uint, end_index: Maybe(uint) = nil)
 	if end, ok := end_index.?; ok {
 		if end < index do return {}
 		span.end = pos
-		for _ in index..<end {
+		for _ in index ..< end {
 			if span.end >= len(source) do return {}
 			_, n := utf8.decode_rune_in_string(source[span.end:])
 			span.end += n
@@ -106,32 +119,117 @@ parser_diagnostic :: proc(r: ^Reader, err: Error, path: string) -> Diagnostic {
 		loc = mark_location(s, r.event.start_mark.index, r.event.end_mark.index)
 	}
 	switch err {
-	case .Invalid_Limits: return invalid_limits_diagnostic(path, r.limits)
-	case .Too_Large: return limit_diagnostic(path, "yaml_document_bytes", len(s), r.limits.bytes)
-	case .Too_Many_Nodes: return limit_diagnostic(path, "yaml_nodes_document", r.node_count, r.limits.nodes, loc)
-	case .Too_Deep: return limit_diagnostic(path, "yaml_depth", r.failed_depth, r.limits.depth, loc)
-	case .Syntax: return syntax_diagnostic(r, path, field)
-	case .Invalid_Indentation: return indentation_diagnostic(path, loc)
-	case .Invalid_UTF8: return diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
-	case .Unsupported_Line_Break: return diagnostic(path, "unsupported_line_break", "", "Use LF or CRLF line endings in YAML.", loc)
-	case .Unexpected_BOM: return diagnostic(path, "unexpected_bom", "", "Remove the unexpected BOM from this YAML input.", loc)
-	case .Not_Mapping: return diagnostic(path, "invalid_yaml_root", "", "Use a mapping of field names to values at the YAML root.", loc)
-	case .Invalid_Key: return diagnostic(path, "non_string_mapping_key", field, "Use a scalar string as the mapping key.", loc)
-	case .Duplicate_Key: return diagnostic(path, "duplicate_mapping_key", field, "Keep a single entry for this key in the mapping.", loc)
-	case .Anchor: return diagnostic(path, "unsupported_anchor", field, "Remove the anchor and write the value directly.", loc)
-	case .Alias: return diagnostic(path, "unsupported_alias", field, "Replace the alias with its explicit value.", loc)
-	case .Tag: return diagnostic(path, "unsupported_tag", field, "Remove the explicit YAML tag and use a supported value.", loc)
-	case .Directive: return diagnostic(path, "unsupported_directive", "", "Remove the YAML directive.", loc)
-	case .Multiple_Documents: return diagnostic(path, "multiple_yaml_documents", "", "Keep a single YAML document in this input.", loc)
-	case .Invalid_Mark: return diagnostic(path, "invalid_yaml_mark", field, "Check the source encoding and line endings before editing.", {})
-	case .None, .Allocation_Failed: return {}
+	case .Invalid_Limits:
+		return invalid_limits_diagnostic(path, r.limits)
+	case .Too_Large:
+		return limit_diagnostic(path, "yaml_document_bytes", len(s), r.limits.bytes)
+	case .Too_Many_Nodes:
+		return limit_diagnostic(path, "yaml_nodes_document", r.node_count, r.limits.nodes, loc)
+	case .Too_Deep:
+		return limit_diagnostic(path, "yaml_depth", r.failed_depth, r.limits.depth, loc)
+	case .Syntax:
+		return syntax_diagnostic(r, path, field)
+	case .Invalid_Indentation:
+		return indentation_diagnostic(path, loc)
+	case .Invalid_UTF8:
+		return diagnostic(path, "invalid_utf8", "", "Save the file as valid UTF-8.", loc)
+	case .Unsupported_Line_Break:
+		return diagnostic(
+			path,
+			"unsupported_line_break",
+			"",
+			"Use LF or CRLF line endings in YAML.",
+			loc,
+		)
+	case .Unexpected_BOM:
+		return diagnostic(
+			path,
+			"unexpected_bom",
+			"",
+			"Remove the unexpected BOM from this YAML input.",
+			loc,
+		)
+	case .Not_Mapping:
+		return diagnostic(
+			path,
+			"invalid_yaml_root",
+			"",
+			"Use a mapping of field names to values at the YAML root.",
+			loc,
+		)
+	case .Invalid_Key:
+		return diagnostic(
+			path,
+			"non_string_mapping_key",
+			field,
+			"Use a scalar string as the mapping key.",
+			loc,
+		)
+	case .Duplicate_Key:
+		return diagnostic(
+			path,
+			"duplicate_mapping_key",
+			field,
+			"Keep a single entry for this key in the mapping.",
+			loc,
+		)
+	case .Anchor:
+		return diagnostic(
+			path,
+			"unsupported_anchor",
+			field,
+			"Remove the anchor and write the value directly.",
+			loc,
+		)
+	case .Alias:
+		return diagnostic(
+			path,
+			"unsupported_alias",
+			field,
+			"Replace the alias with its explicit value.",
+			loc,
+		)
+	case .Tag:
+		return diagnostic(
+			path,
+			"unsupported_tag",
+			field,
+			"Remove the explicit YAML tag and use a supported value.",
+			loc,
+		)
+	case .Directive:
+		return diagnostic(path, "unsupported_directive", "", "Remove the YAML directive.", loc)
+	case .Multiple_Documents:
+		return diagnostic(
+			path,
+			"multiple_yaml_documents",
+			"",
+			"Keep a single YAML document in this input.",
+			loc,
+		)
+	case .Invalid_Mark:
+		return diagnostic(
+			path,
+			"invalid_yaml_mark",
+			field,
+			"Check the source encoding and line endings before editing.",
+			{},
+		)
+	case .None, .Allocation_Failed:
+		return {}
 	}
 	return {}
 }
 
 @(private)
 indentation_diagnostic :: proc(path: string, loc: Location) -> Diagnostic {
-	return diagnostic(path, "invalid_indentation", "", "Replace the indentation tab with spaces.", loc)
+	return diagnostic(
+		path,
+		"invalid_indentation",
+		"",
+		"Replace the indentation tab with spaces.",
+		loc,
+	)
 }
 
 @(private)
@@ -142,7 +240,13 @@ syntax_diagnostic :: proc(r: ^Reader, path, active_field: string) -> Diagnostic 
 	switch r.parser.error {
 	case .SCANNER_ERROR, .PARSER_ERROR:
 		if offset, ok := leading_directive(s); ok {
-			return diagnostic(path, "unsupported_directive", "", "Remove the YAML directive.", locate(s, rune_span(s, offset)))
+			return diagnostic(
+				path,
+				"unsupported_directive",
+				"",
+				"Remove the YAML directive.",
+				locate(s, rune_span(s, offset)),
+			)
 		}
 		loc = mark_location(s, r.parser.problem_mark.index)
 	case .READER_ERROR:
@@ -151,7 +255,12 @@ syntax_diagnostic :: proc(r: ^Reader, path, active_field: string) -> Diagnostic 
 		}
 		field = "" // The reader can fail before emitting any related event.
 	case .MEMORY_ERROR, .NO_ERROR, .COMPOSER_ERROR, .WRITER_ERROR, .EMITTER_ERROR:
-		return diagnostic(path, "yaml_parser_error", "", "The YAML parser could not read the input. Check available memory and retry.")
+		return diagnostic(
+			path,
+			"yaml_parser_error",
+			"",
+			"The YAML parser could not read the input. Check available memory and retry.",
+		)
 	}
 	if loc.line != 0 && loc.span.start < len(s) && s[loc.span.start] == '\t' {
 		start := strings.last_index_byte(s[:loc.span.start], '\n') + 1
@@ -159,10 +268,20 @@ syntax_diagnostic :: proc(r: ^Reader, path, active_field: string) -> Diagnostic 
 			return indentation_diagnostic(path, loc)
 		}
 	}
-	d := Diagnostic{path = path, field = strings.clone(field), code = "yaml_syntax", location = loc}
+	d := Diagnostic {
+		path     = path,
+		field    = strings.clone(field),
+		code     = "yaml_syntax",
+		location = loc,
+	}
 	hint :: "Check the YAML syntax at the reported position."
 	if r.parser.context_m != nil && r.parser.problem != nil {
-		d.message = fmt.aprintf("%s: %s. %s", string(r.parser.context_m), string(r.parser.problem), hint)
+		d.message = fmt.aprintf(
+			"%s: %s. %s",
+			string(r.parser.context_m),
+			string(r.parser.problem),
+			hint,
+		)
 	} else if r.parser.problem != nil {
 		d.message = fmt.aprintf("%s. %s", string(r.parser.problem), hint)
 	} else {

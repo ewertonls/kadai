@@ -2,14 +2,14 @@
 #+build windows
 package storage
 
-import "core:os"
 import "core:fmt"
-import "core:testing"
+import "core:os"
 import w "core:sys/windows"
+import "core:testing"
 
 foreign import test_advapi "system:advapi32.lib"
 foreign test_advapi {
-	SetFileSecurityW :: proc "system"(path: w.LPCWSTR, flags: u32, sd: rawptr) -> w.BOOL ---
+	SetFileSecurityW :: proc "system" (path: w.LPCWSTR, flags: u32, sd: rawptr) -> w.BOOL ---
 }
 
 @(private)
@@ -17,7 +17,17 @@ test_file_dacl :: proc(t: ^testing.T, path, sddl: string) -> bool {
 	sd: rawptr
 	if !testing.expect(t, bool(ConvertStringSecurityDescriptorToSecurityDescriptorW(wide(sddl), 1, &sd, nil))) do return false
 	defer w.LocalFree(sd)
-	return testing.expect(t, bool(SetFileSecurityW(wide(path), w.DACL_SECURITY_INFORMATION | 0x80000000 /* PROTECTED_DACL_SECURITY_INFORMATION */, sd)))
+	return testing.expect(
+		t,
+		bool(
+			SetFileSecurityW(
+				wide(path),
+				w.DACL_SECURITY_INFORMATION | 0x80000000,
+				/* PROTECTED_DACL_SECURITY_INFORMATION */
+				sd,
+			),
+		),
+	)
 }
 
 @(test)
@@ -50,10 +60,19 @@ windows_unsupported_metadata_is_not_discarded :: proc(t: ^testing.T) {
 		before_acl, acl_err := security_text(w.HANDLE(os.fd(f)), w.DACL_SECURITY_INFORMATION)
 		os.close(f)
 		if !testing.expect(t, info_err == nil && acl_err == nil) do return
-		_, prep := prepare_step(root, &images, i, {kind = .Replace, path = name, expected = file_version(info, {1, 2}), data = {3}}, 100)
+		_, prep := prepare_step(
+			root,
+			&images,
+			i,
+			{kind = .Replace, path = name, expected = file_version(info, {1, 2}), data = {3}},
+			100,
+		)
 		testing.expect(t, prep == .Unsupported, os.error_string(prep))
 		for suffix in ([]string{"original", "restore", "next"}) {
-			_, image_err := os.lstat(child(images.path, fmt.tprintf("%d-%s", i, suffix)), context.temp_allocator)
+			_, image_err := os.lstat(
+				child(images.path, fmt.tprintf("%d-%s", i, suffix)),
+				context.temp_allocator,
+			)
 			testing.expect(t, image_err == os.General_Error.Not_Exist)
 		}
 		bytes, read_err := os.read_entire_file(path, context.temp_allocator)
@@ -90,18 +109,18 @@ windows_captured_security_is_checked_before_write :: proc(t: ^testing.T) {
 	if !testing.expect(t, before_err == nil) do return
 	// Inject the bytes captured after an earlier safe read, without racing a
 	// thread. A post-BackupWrite check would expose the image in the meantime.
-	for sddl in ([]string{
-		"O:SYD:P(A;;FR;;;WD)(A;;FA;;;SY)",
-		"O:SYD:NO_ACCESS_CONTROL",
-		"O:SY",
-		"O:WDD:P(A;;FA;;;OW)", // OWNER RIGHTS cannot make an untrusted owner safe.
-		"O:SYD:P(OA;;FR;00000000-0000-0000-0000-000000000001;;SY)",
-	}) {
+	for sddl in ([]string {
+			"O:SYD:P(A;;FR;;;WD)(A;;FA;;;SY)",
+			"O:SYD:NO_ACCESS_CONTROL",
+			"O:SY",
+			"O:WDD:P(A;;FA;;;OW)", // OWNER RIGHTS cannot make an untrusted owner safe.
+			"O:SYD:P(OA;;FR;00000000-0000-0000-0000-000000000001;;SY)",
+		}) {
 		sd: rawptr
 		n: u32
 		if !testing.expect(t, bool(ConvertStringSecurityDescriptorToSecurityDescriptorW(wide(sddl), 1, &sd, &n)), sddl) do return
 		defer w.LocalFree(sd)
-		stream, alloc_err := security_buffer(20+int(n))
+		stream, alloc_err := security_buffer(20 + int(n))
 		if !testing.expect(t, alloc_err == nil) do return
 		(^u32le)(&stream[0])^ = 3
 		(^u64le)(&stream[8])^ = u64le(n)
@@ -117,7 +136,7 @@ windows_captured_security_is_checked_before_write :: proc(t: ^testing.T) {
 	if !testing.expect(t, bool(ConvertStringSecurityDescriptorToSecurityDescriptorW(wide("O:SYD:P(D;;FW;;;WD)(A;ID;FR;;;SY)(A;;FA;;;BA)(A;;FA;;;OW)"), 1, &safe, &n))) do return
 	defer w.LocalFree(safe)
 	testing.expect(t, private_security(([^]byte)(safe)[:n]) == nil)
-	testing.expect(t, private_security(([^]byte)(safe)[:n-1]) == .Unsupported)
+	testing.expect(t, private_security(([^]byte)(safe)[:n - 1]) == .Unsupported)
 }
 
 @(test)

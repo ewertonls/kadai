@@ -4,13 +4,19 @@ import "base:runtime"
 import "core:strings"
 import "kadai:task"
 
-Lookup_Status :: enum {Missing, Valid, Diagnostic_Only, Ambiguous, Incomplete}
+Lookup_Status :: enum {
+	Missing,
+	Valid,
+	Diagnostic_Only,
+	Ambiguous,
+	Incomplete,
+}
 
 Index :: struct {
 	using inventory: Inventory,
-	by_id: map[string][dynamic]^Candidate,
-	valid: [dynamic]^Candidate,
-	collisions: [dynamic][]^Candidate, // Groups and their members are in path order.
+	by_id          : map[string][dynamic]^Candidate,
+	valid          : [dynamic]^Candidate,
+	collisions     : [dynamic][]^Candidate, // Groups and their members are in path order.
 }
 
 // Build only from complete enumeration. Keep every recognized document in the
@@ -20,7 +26,9 @@ build_index :: proc(inv: Inventory) -> (idx: Index) {
 	idx.inventory = inv
 	if !inv.complete do return
 	if fill_index(&idx) != nil {
-		idx = Index{inventory = inv}
+		idx = Index {
+			inventory = inv,
+		}
 		idx.complete, idx.problem = false, "index allocation failed"
 	}
 	return
@@ -42,7 +50,7 @@ fill_index :: proc(idx: ^Index) -> (err: runtime.Allocator_Error) {
 		group := idx.by_id[key]
 		if len(group) == 0 do return .Out_Of_Memory
 		if len(group) > 1 {
-			if group[0] == &item { _ = append(&idx.collisions, group[:]) or_return }
+			if group[0] == &item {_ = append(&idx.collisions, group[:]) or_return}
 		} else if item.status == .Decoded {
 			_ = append(&idx.valid, &item) or_return
 		}
@@ -57,8 +65,10 @@ lookup :: proc(idx: ^Index, id: string) -> ([]^Candidate, Lookup_Status) {
 	if err != nil || len(key) != len(id) do return nil, .Incomplete
 	group := idx.by_id[key]
 	switch len(group) {
-	case 0: return nil, .Missing
-	case 1: return group[:], .Valid if group[0].status == .Decoded else .Diagnostic_Only
+	case 0:
+		return nil, .Missing
+	case 1:
+		return group[:], .Valid if group[0].status == .Decoded else .Diagnostic_Only
 	}
 	return group[:], .Ambiguous
 }

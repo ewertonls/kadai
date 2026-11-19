@@ -25,7 +25,8 @@ validation_text :: proc(r: app.Validation) -> string {
 		if f.field != "" do fmt.sbprintf(&b, "  field=%s", terminal_field(f.field))
 		if f.target_id != "" do fmt.sbprintf(&b, "  target=%s", terminal_field(f.target_id))
 		strings.write_byte(&b, '\n')
-		if len(f.related) > 1 && (f.target_id != "" || f.code == "completed_with_unmet_prerequisites") {
+		if len(f.related) > 1 &&
+		   (f.target_id != "" || f.code == "completed_with_unmet_prerequisites") {
 			// The duplicate_id finding already lists each conflicting path.
 			fmt.sbprintf(&b, "  %d matching files (see duplicate_id)\n", len(f.related))
 		} else {
@@ -36,7 +37,13 @@ validation_text :: proc(r: app.Validation) -> string {
 	if !r.scan_complete do strings.write_string(&b, "Task scan incomplete.\n")
 	if !r.history_complete do strings.write_string(&b, "Used-ID history check incomplete.\n")
 	if !r.recovery_complete do strings.write_string(&b, "Recovery check incomplete.\n")
-	fmt.sbprintf(&b, "%d error%s, %d warning%s\n", r.errors, "" if r.errors == 1 else "s",
-	             r.warnings, "" if r.warnings == 1 else "s")
+	fmt.sbprintf(
+		&b,
+		"%d error%s, %d warning%s\n",
+		r.errors,
+		"" if r.errors == 1 else "s",
+		r.warnings,
+		"" if r.warnings == 1 else "s",
+	)
 	return strings.to_string(b)
 }

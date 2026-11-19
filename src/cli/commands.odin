@@ -9,7 +9,11 @@ import "core:unicode/utf8"
 import "kadai:app"
 
 @(private, rodata)
-READINESS_LABELS := [app.Readiness]string{.Ready = "ready", .Blocked = "blocked", .Unresolved = "unresolved"}
+READINESS_LABELS := [app.Readiness]string {
+	.Ready      = "ready",
+	.Blocked    = "blocked",
+	.Unresolved = "unresolved",
+}
 
 @(private)
 read_body_input :: proc(a: Arguments, stdin: io.Reader) -> (string, string) {
@@ -25,7 +29,15 @@ read_body_input :: proc(a: Arguments, stdin: io.Reader) -> (string, string) {
 }
 
 @(private)
-execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed: ^string) -> (output, issue: string, code: Exit_Code) {
+execute :: proc(
+	command, cwd: string,
+	a: Arguments,
+	stdin: io.Reader,
+	completed: ^string,
+) -> (
+	output, issue: string,
+	code: Exit_Code,
+) {
 	operation: string
 	switch command {
 	case "init":
@@ -62,7 +74,11 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		return text, "", .Success
 	case "remove":
 		if len(a.words) != 1 do return "", "remove requires an ID", .Usage
-		remove := app.Removal{id = a.words[0], detach = a.detach, expected_plan = a.plan}
+		remove := app.Removal {
+			id            = a.words[0],
+			detach        = a.detach,
+			expected_plan = a.plan,
+		}
 		if a.dry_run {
 			preview, problem := app.preview_removal(cwd, a.project, remove, a.limits)
 			if problem != "" do return "", problem, .Failure
@@ -73,7 +89,9 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			return strings.to_string(b), "", .Success
 		}
 		if !a.yes && a.plan == "" {
-			return "", "remove requires --yes or --plan TOKEN to delete a task. Use --dry-run to preview", .Usage
+			return "",
+				"remove requires --yes or --plan TOKEN to delete a task. Use --dry-run to preview",
+				.Usage
 		}
 		operation, issue = app.remove_task(cwd, a.project, remove, a.limits)
 		output = fmt.tprintf("%s\n", operation)
@@ -86,9 +104,12 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		}
 		mode: app.Recovery_Mode
 		switch a.words[0] {
-		case "resume": mode = .Resume
-		case "rollback": mode = .Rollback
-		case: return "", "unknown recovery mode", .Usage
+		case "resume":
+			mode = .Resume
+		case "rollback":
+			mode = .Rollback
+		case:
+			return "", "unknown recovery mode", .Usage
 		}
 		if !a.yes do return "", "recover requires --yes to apply the operation", .Usage
 		operation, issue = app.recover_collection(cwd, a.project, mode, id, a.limits)
@@ -110,10 +131,13 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			} else if !external_body && len(a.words) == 3 {
 				content = a.words[2]
 			} else {
-				return "", "log add requires exactly one entry source: MESSAGE, --stdin or --body-file FILE", .Usage
+				return "",
+					"log add requires exactly one entry source: MESSAGE, --stdin or --body-file FILE",
+					.Usage
 			}
 			operation, issue = app.add_log(cwd, a.project, a.words[1], content, a.limits)
-		case: return "", "expected log add or log list", .Usage
+		case:
+			return "", "expected log add or log list", .Usage
 		}
 	case "dep":
 		if len(a.words) > 0 && a.words[0] == "graph" {
@@ -122,8 +146,10 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			if len(a.words) == 3 {
 				switch a.words[2] {
 				case "prerequisites":
-				case "dependents": direction = .Dependents
-				case: return "", "dep graph direction must be prerequisites or dependents", .Usage
+				case "dependents":
+					direction = .Dependents
+				case:
+					return "", "dep graph direction must be prerequisites or dependents", .Usage
 				}
 			}
 			view, problem := app.dependency_graph(cwd, a.project, a.words[1], direction, a.limits)
@@ -137,16 +163,28 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			return task_text_result(view)
 		}
 		if len(a.words) != 3 || (a.words[0] != "add" && a.words[0] != "remove") do return "", "expected dep show ID, dep graph ID [prerequisites|dependents] or dep add|remove TASK PREREQUISITE", .Usage
-		operation, issue = app.change_dependency(cwd, a.project, a.words[1], a.words[2], a.words[0] == "remove", a.limits)
+		operation, issue = app.change_dependency(
+			cwd,
+			a.project,
+			a.words[1],
+			a.words[2],
+			a.words[0] == "remove",
+			a.limits,
+		)
 	case "parent":
 		if len(a.words) == 3 && a.words[0] == "add" {
 			operation, issue = app.set_parent(cwd, a.project, a.words[1], a.words[2], a.limits)
 		} else if len(a.words) == 2 && a.words[0] == "remove" {
 			operation, issue = app.set_parent(cwd, a.project, a.words[1], nil, a.limits)
-		} else { return "", "expected parent add CHILD PARENT or parent remove CHILD", .Usage }
+		} else {return "", "expected parent add CHILD PARENT or parent remove CHILD", .Usage}
 	case "move":
 		if len(a.words) != 2 do return "", "move requires a source and destination", .Usage
-		operation, issue = app.move_task(cwd, a.project, {a.words[0], a.words[1], a.directory}, a.limits)
+		operation, issue = app.move_task(
+			cwd,
+			a.project,
+			{a.words[0], a.words[1], a.directory},
+			a.limits,
+		)
 	case "edit":
 		if len(a.words) != 1 do return "", "edit requires an ID", .Usage
 		editor := a.editor
@@ -158,7 +196,14 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		issue = app.edit_task(cwd, a.project, a.words[0], args, a.limits, editor_out)
 	case "status":
 		if len(a.words) != 2 do return "", "status requires an ID and status", .Usage
-		operation, issue = app.set_status(cwd, a.project, a.words[0], a.words[1], a.force, a.limits)
+		operation, issue = app.set_status(
+			cwd,
+			a.project,
+			a.words[0],
+			a.words[1],
+			a.force,
+			a.limits,
+		)
 	case "set", "unset":
 		if len(a.words) < 2 || command == "unset" && len(a.words) != 2 do return "", "expected an ID and field", .Usage
 		field := a.words[1]
@@ -166,11 +211,23 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 		case "title", "status":
 			if command == "unset" do return "", "unset supports only priority, due and tags", .Usage
 		case "priority", "due", "tags":
-		case: return "", fmt.tprintf("not an editable core field: %s", field), .Usage
+		case:
+			return "", fmt.tprintf("not an editable core field: %s", field), .Usage
 		}
 		if command == "set" && field != "tags" && len(a.words) != 3 do return "", "set requires one scalar value", .Usage
 		if a.force && field != "status" do return "", "force applies only to a status transition", .Usage
-		operation, issue = app.update_task(cwd, a.project, {id = a.words[0], field = field, values = a.words[2:], unset = command == "unset", force = a.force}, a.limits)
+		operation, issue = app.update_task(
+			cwd,
+			a.project,
+			{
+				id = a.words[0],
+				field = field,
+				values = a.words[2:],
+				unset = command == "unset",
+				force = a.force,
+			},
+			a.limits,
+		)
 	case "show":
 		if len(a.words) != 1 do return "", "show requires an ID", .Usage
 		result, problem := app.get_task(cwd, a.project, a.words[0], a.limits)
@@ -189,9 +246,18 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 			if !a.yes do return "", "import requires --yes to copy the source into a new task", .Usage
 		} else if len(a.words) != 1 do return "", "add requires a title", .Usage
 		if a.json && !utf8.valid_string(a.destination) do return "", "unsupported_output: JSON requires a UTF-8 task path", .Output_Failed
-		request := app.Create_Task{title = a.words[0], destination = a.destination, status = a.status}
+		request := app.Create_Task {
+			title       = a.words[0],
+			destination = a.destination,
+			status      = a.status,
+		}
 		if command == "import" {
-			request.title, request.body, issue = app.read_import(cwd, a.words[0], a.title, a.limits)
+			request.title, request.body, issue = app.read_import(
+				cwd,
+				a.words[0],
+				a.title,
+				a.limits,
+			)
 		} else {
 			request.body, issue = read_body_input(a, stdin)
 		}
@@ -213,20 +279,35 @@ execute :: proc(command, cwd: string, a: Arguments, stdin: io.Reader, completed:
 }
 
 @(private)
-run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer, stdin: io.Reader) -> Exit_Code {
+run_command :: proc(
+	command: Command,
+	args: []string,
+	stdout, stderr: io.Writer,
+	stdin: io.Reader,
+) -> Exit_Code {
 	a: Arguments
 	parse_err: flags.Error
 	switch command.flag_type {
-	case Project_Flags: a, parse_err = parse_options(Project_Flags, args)
-	case List_Flags:    a, parse_err = parse_options(List_Flags, args)
-	case Add_Flags:     a, parse_err = parse_options(Add_Flags, args)
-	case Log_Flags:     a, parse_err = parse_options(Log_Flags, args)
-	case Import_Flags:  a, parse_err = parse_options(Import_Flags, args)
-	case Edit_Flags:    a, parse_err = parse_options(Edit_Flags, args)
-	case Status_Flags:  a, parse_err = parse_options(Status_Flags, args)
-	case Move_Flags:    a, parse_err = parse_options(Move_Flags, args)
-	case Remove_Flags:  a, parse_err = parse_options(Remove_Flags, args)
-	case Recover_Flags: a, parse_err = parse_options(Recover_Flags, args)
+	case Project_Flags:
+		a, parse_err = parse_options(Project_Flags, args)
+	case List_Flags:
+		a, parse_err = parse_options(List_Flags, args)
+	case Add_Flags:
+		a, parse_err = parse_options(Add_Flags, args)
+	case Log_Flags:
+		a, parse_err = parse_options(Log_Flags, args)
+	case Import_Flags:
+		a, parse_err = parse_options(Import_Flags, args)
+	case Edit_Flags:
+		a, parse_err = parse_options(Edit_Flags, args)
+	case Status_Flags:
+		a, parse_err = parse_options(Status_Flags, args)
+	case Move_Flags:
+		a, parse_err = parse_options(Move_Flags, args)
+	case Remove_Flags:
+		a, parse_err = parse_options(Remove_Flags, args)
+	case Recover_Flags:
+		a, parse_err = parse_options(Recover_Flags, args)
 	case Help_Flags:
 		topic: Help_Flags
 		parse_err = flags.parse(&topic, args, .Unix, allocator = context.temp_allocator)
@@ -235,9 +316,17 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 			if target, ok := find_command(topic.command); ok {
 				return write_stdout(command_help(target), stdout, stderr)
 			}
-			return diagnose(stderr, .Usage, fmt.tprintf("help: unknown command %q. Run 'kadai help' to list commands.", topic.command))
+			return diagnose(
+				stderr,
+				.Usage,
+				fmt.tprintf(
+					"help: unknown command %q. Run 'kadai help' to list commands.",
+					topic.command,
+				),
+			)
 		}
-	case: unreachable()
+	case:
+		unreachable()
 	}
 
 	switch err in parse_err {
@@ -248,7 +337,11 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	case flags.Validation_Error:
 		return diagnose(stderr, .Usage, fmt.tprintf("%s: %s", command.name, err.message))
 	case flags.Open_File_Error:
-		return diagnose(stderr, .Usage, fmt.tprintf("%s: could not open %q", command.name, err.filename))
+		return diagnose(
+			stderr,
+			.Usage,
+			fmt.tprintf("%s: could not open %q", command.name, err.filename),
+		)
 	}
 	cwd, e := os.getwd(context.temp_allocator)
 	if e != nil do return diagnose(stderr, .Failure, os.error_string(e))
@@ -261,10 +354,18 @@ run_command :: proc(command: Command, args: []string, stdout, stderr: io.Writer,
 	for w in warnings do fmt.wprintf(stderr, "kadai: warning: %s\n", terminal_field(w))
 	if issue != "" {
 		if completed != "" {
-			return diagnose(stderr, .Completed_Response_Failed, fmt.tprintf("%s, but response failed: %s", completed, issue))
+			return diagnose(
+				stderr,
+				.Completed_Response_Failed,
+				fmt.tprintf("%s, but response failed: %s", completed, issue),
+			)
 		}
 		if report.write_started {
-			return diagnose(stderr, .Write_Incomplete, fmt.tprintf("%s did not complete. Changes may remain. %s", command.name, issue))
+			return diagnose(
+				stderr,
+				.Write_Incomplete,
+				fmt.tprintf("%s did not complete. Changes may remain. %s", command.name, issue),
+			)
 		}
 		if lookup, failed := report.lookup_failure.?; failed {
 			if lookup == .Missing do code = .Task_Not_Found

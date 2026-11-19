@@ -1,23 +1,45 @@
 // Source-aware YAML nodes shared by document and project readers.
 package yaml
 
-Node_Kind :: enum {Absent, String, Null, Boolean, Integer, Float, Sequence, Mapping}
-Node_Style :: enum {Unknown, Plain, Single_Quoted, Double_Quoted, Literal, Folded, Block, Flow}
+Node_Kind  :: enum {
+	Absent,
+	String,
+	Null,
+	Boolean,
+	Integer,
+	Float,
+	Sequence,
+	Mapping,
+}
+Node_Style :: enum {
+	Unknown,
+	Plain,
+	Single_Quoted,
+	Double_Quoted,
+	Literal,
+	Folded,
+	Block,
+	Flow,
+}
 
-Byte_Range :: struct {start, end: int}
+Byte_Range :: struct {
+	start, end: int,
+}
 
 Node :: struct {
-	kind:    Node_Kind,
-	style:   Node_Style,
+	kind          : Node_Kind,
+	style         : Node_Style,
 	// Half-open byte offsets into the original YAML input.
 	using location: Location,
 	// Decoded scalar text. For numbers kind + text is lossless at any precision.
-	text:    string,
-	items:   [dynamic]Node,
-	entries: [dynamic]Entry,
+	text          : string,
+	items         : [dynamic]Node,
+	entries       : [dynamic]Entry,
 }
 
-Entry :: struct {key, value: Node}
+Entry :: struct {
+	key, value: Node,
+}
 
 lookup :: proc(mapping: ^Node, key: string) -> ^Node {
 	if mapping == nil do return nil

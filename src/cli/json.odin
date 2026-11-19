@@ -35,17 +35,28 @@ write_json_value :: proc(w: io.Writer, value: json.Value) -> (err: io.Error) {
 	case string:
 		if !utf8.valid_string(v) do return .Unsupported
 		json.write_quoted_json_string(w, v) or_return
-	case i64:  io.write_i64(w, v) or_return
-	case bool: io.write_string(w, "true" if v else "false") or_return
-	case nil, json.Null: io.write_string(w, "null") or_return
-	case f64: unreachable() // YAML numbers always carry their exact lexeme.
+	case i64:
+		io.write_i64(w, v) or_return
+	case bool:
+		io.write_string(w, "true" if v else "false") or_return
+	case nil, json.Null:
+		io.write_string(w, "null") or_return
+	case f64:
+		unreachable() // YAML numbers always carry their exact lexeme.
 	}
 	return
 }
 
-json_projection :: proc{
-	json_tasks, json_detail, json_tree, json_ready, json_dependencies,
-	json_validation, json_preview, json_summary, json_receipt,
+json_projection :: proc {
+	json_tasks,
+	json_detail,
+	json_tree,
+	json_ready,
+	json_dependencies,
+	json_validation,
+	json_preview,
+	json_summary,
+	json_receipt,
 }
 
 json_result :: proc(value: $T, code := Exit_Code.Success) -> (string, string, Exit_Code) {
@@ -57,7 +68,10 @@ json_result :: proc(value: $T, code := Exit_Code.Success) -> (string, string, Ex
 	when T == []app.Log_Entry {
 		err = write_log_json(w, value)
 	} else {
-		err = write_json_value(w, json.Object{"version" = i64(1), "result" = json_projection(value)})
+		err = write_json_value(
+			w,
+			json.Object{"version" = i64(1), "result" = json_projection(value)},
+		)
 	}
 	if err == .Unsupported do return "", "unsupported_output: JSON requires valid UTF-8", .Output_Failed
 	if err != .None || io.write_byte(w, '\n') != .None do return "", "cannot encode JSON response", .Output_Failed
@@ -70,7 +84,14 @@ optional_string :: proc(s: string) -> json.Value {
 }
 
 json_task :: proc(item: ^app.Task_Candidate) -> json.Object {
-	return json_summary({id = item.fields.id, path = item.path, status = item.fields.status, title = item.fields.title})
+	return json_summary(
+		{
+			id = item.fields.id,
+			path = item.path,
+			status = item.fields.status,
+			title = item.fields.title,
+		},
+	)
 }
 
 json_summary :: proc(task: app.Task_Summary) -> json.Object {
@@ -85,7 +106,10 @@ write_log_json :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {
 	for entry in entries {
 		if !utf8.valid_string(entry.timestamp) || !utf8.valid_string(entry.content) do return .Unsupported
 	}
-	response := struct {version: int, result: []app.Log_Entry}{1, entries}
+	response := struct {
+		version: int,
+		result : []app.Log_Entry,
+	}{1, entries}
 	if json.marshal_to_writer(w, response, {spec = .JSON}) != nil do return .Buffer_Full
 	return nil
 }
@@ -105,11 +129,16 @@ json_strings :: proc(values: []string) -> json.Array {
 json_custom :: proc(node: ^app.Custom_Node) -> json.Value {
 	if node == nil do return nil
 	switch node.kind {
-	case .Absent, .Null: return nil
-	case .String: return node.text
-	case .Boolean: return strings.equal_fold(node.text, "true")
-	case .Integer: return json.Object{"$integer" = node.text}
-	case .Float:   return json.Object{"$float" = node.text}
+	case .Absent, .Null:
+		return nil
+	case .String:
+		return node.text
+	case .Boolean:
+		return strings.equal_fold(node.text, "true")
+	case .Integer:
+		return json.Object{"$integer" = node.text}
+	case .Float:
+		return json.Object{"$float" = node.text}
 	case .Sequence:
 		items := make(json.Array, len(node.items))
 		for &item, i in node.items do items[i] = json_custom(&item)
@@ -142,8 +171,11 @@ json_detail :: proc(task: app.Task_Read) -> json.Object {
 
 json_tree :: proc(rows: []app.Tree_Row) -> json.Array {
 	result := make(json.Array, len(rows))
-	positions := [app.Tree_Position]string{
-		.Root = "root", .Child = "child", .Unresolved_Parent = "unresolved_parent", .Parent_Cycle = "parent_cycle",
+	positions := [app.Tree_Position]string {
+		.Root              = "root",
+		.Child             = "child",
+		.Unresolved_Parent = "unresolved_parent",
+		.Parent_Cycle      = "parent_cycle",
 	}
 	for row, i in rows {
 		obj := json_task(row.item)
@@ -167,20 +199,32 @@ json_ready :: proc(rows: []app.Ready_Task) -> json.Array {
 
 json_refs :: proc(items: []^app.Task_Candidate) -> json.Array {
 	refs := make(json.Array, len(items))
-	for item, i in items do refs[i] = json.Object{"id" = item.fields.id, "path" = item.path}
+	for item, i in items do refs[i] = json.Object {
+		"id"   = item.fields.id,
+		"path" = item.path,
+	}
 	return refs
 }
 
 @(rodata)
-TARGET_RESOLUTIONS := [app.Target_Status]string{
-	.Resolved = "resolved", .Missing = "missing", .Ambiguous = "ambiguous",
-	.Invalid = "invalid", .Unsupported = "unsupported",
+TARGET_RESOLUTIONS := [app.Target_Status]string {
+	.Resolved    = "resolved",
+	.Missing     = "missing",
+	.Ambiguous   = "ambiguous",
+	.Invalid     = "invalid",
+	.Unsupported = "unsupported",
 }
 
 write_dependency_graph_json :: proc(w: io.Writer, view: app.Dependency_Graph) -> io.Error {
 	if !utf8.valid_string(view.task.path) do return .Unsupported
-	Edge :: struct {prerequisite, dependent, resolution: string}
-	Result :: struct {task: app.Task_Summary, direction: string, edges: []Edge}
+	Edge   :: struct {
+		prerequisite, dependent, resolution: string,
+	}
+	Result :: struct {
+		task     : app.Task_Summary,
+		direction: string,
+		edges    : []Edge,
+	}
 	edges, err := make([]Edge, len(view.edges), context.temp_allocator)
 	if err != nil do return .Buffer_Full
 	for edge, i in view.edges {
@@ -188,8 +232,16 @@ write_dependency_graph_json :: proc(w: io.Writer, view: app.Dependency_Graph) ->
 	}
 	direction := "prerequisites" if view.direction == .Prerequisites else "dependents"
 	fields := &view.task.fields
-	summary := app.Task_Summary{id = fields.id, path = view.task.path, status = fields.status, title = fields.title}
-	response := struct {version: int, result: Result}{1, {summary, direction, edges}}
+	summary := app.Task_Summary {
+		id     = fields.id,
+		path   = view.task.path,
+		status = fields.status,
+		title  = fields.title,
+	}
+	response := struct {
+		version: int,
+		result : Result,
+	}{1, {summary, direction, edges}}
 	if json.marshal_to_writer(w, response, {spec = .JSON}) != nil do return .Buffer_Full
 	return io.write_byte(w, '\n')
 }
@@ -197,9 +249,17 @@ write_dependency_graph_json :: proc(w: io.Writer, view: app.Dependency_Graph) ->
 json_dependencies :: proc(view: app.Dependency_View) -> json.Object {
 	refs := make(json.Array, len(view.prerequisites))
 	for ref, i in view.prerequisites {
-		refs[i] = json.Object{"id" = ref.written_id, "resolution" = TARGET_RESOLUTIONS[ref.status], "candidates" = json_refs(ref.candidates)}
+		refs[i] = json.Object {
+			"id"         = ref.written_id,
+			"resolution" = TARGET_RESOLUTIONS[ref.status],
+			"candidates" = json_refs(ref.candidates),
+		}
 	}
-	return {"task" = json_task(view.task), "prerequisites" = refs, "dependents" = json_tasks(view.dependents)}
+	return {
+		"task" = json_task(view.task),
+		"prerequisites" = refs,
+		"dependents" = json_tasks(view.dependents),
+	}
 }
 
 json_span :: proc(span: app.Source_Span) -> json.Object {
@@ -209,23 +269,37 @@ json_span :: proc(span: app.Source_Span) -> json.Object {
 json_preview :: proc(p: app.Removal_Preview) -> json.Object {
 	edits := make(json.Array, len(p.edits))
 	for edit, i in p.edits {
-		edits[i] = json.Object{"id" = edit.id, "path" = edit.path, "field" = edit.field, "span" = json_span(edit.span)}
+		edits[i] = json.Object {
+			"id"    = edit.id,
+			"path"  = edit.path,
+			"field" = edit.field,
+			"span"  = json_span(edit.span),
+		}
 	}
 	return {"plan" = p.token, "edits" = edits}
 }
 
 json_finding :: proc(f: app.Finding) -> json.Object {
-	obj := json.Object{
-		"severity" = "warning" if f.severity == .Warning else "error", "code" = f.code, "message" = f.message,
-		"path" = optional_string(f.path), "id" = optional_string(f.id), "field" = optional_string(f.field),
-		"target_id" = optional_string(f.target_id), "location" = nil,
+	obj := json.Object {
+		"severity"  = "warning" if f.severity == .Warning else "error",
+		"code"      = f.code,
+		"message"   = f.message,
+		"path"      = optional_string(f.path),
+		"id"        = optional_string(f.id),
+		"field"     = optional_string(f.field),
+		"target_id" = optional_string(f.target_id),
+		"location"  = nil,
 	}
 	if f.limit != 0 {
 		obj["observed"] = i64(f.observed)
 		obj["limit"] = i64(f.limit)
 	}
 	if f.location.line > 0 {
-		obj["location"] = json.Object{"line" = i64(f.location.line), "column" = i64(f.location.column), "span" = json_span(f.location.span)}
+		obj["location"] = json.Object {
+			"line"   = i64(f.location.line),
+			"column" = i64(f.location.column),
+			"span"   = json_span(f.location.span),
+		}
 	}
 	// A duplicate_id finding owns the full group. Repeated ambiguous references
 	// carry its size, keeping the report proportional to the graph and findings.
@@ -236,7 +310,10 @@ json_finding :: proc(f: app.Finding) -> json.Object {
 		obj["related"] = json_refs(f.related)
 	}
 	edges := make(json.Array, len(f.edges))
-	for edge, i in f.edges do edges[i] = json.Object{"from" = edge.from, "to" = edge.to}
+	for edge, i in f.edges do edges[i] = json.Object {
+		"from" = edge.from,
+		"to"   = edge.to,
+	}
 	obj["edges"] = edges
 	return obj
 }
@@ -245,7 +322,11 @@ json_validation :: proc(r: app.Validation) -> json.Object {
 	findings := make(json.Array, len(r.findings))
 	for f, i in r.findings do findings[i] = json_finding(f)
 	return {
-		"findings" = findings, "errors" = i64(r.errors), "warnings" = i64(r.warnings),
-		"scan_complete" = r.scan_complete, "history_complete" = r.history_complete, "recovery_complete" = r.recovery_complete,
+		"findings" = findings,
+		"errors" = i64(r.errors),
+		"warnings" = i64(r.warnings),
+		"scan_complete" = r.scan_complete,
+		"history_complete" = r.history_complete,
+		"recovery_complete" = r.recovery_complete,
 	}
 }

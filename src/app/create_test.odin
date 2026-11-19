@@ -14,8 +14,17 @@ creation_observes_manual_ids_and_retains_reservations :: proc(t: ^testing.T) {
 	root := storage.child(tmp, "tasks")
 	testing.expect(t, os.mkdir(root) == nil)
 	path := storage.child(root, "manual.md")
-	testing.expect(t, os.write_entire_file(path, "---\nkadai: task\nid: kad-99999999999999999999\nstatus: todo\n---\n") == nil)
-	opts := Project_Options{id_prefix = "KAD"}
+	testing.expect(
+		t,
+		os.write_entire_file(
+			path,
+			"---\nkadai: task\nid: kad-99999999999999999999\nstatus: todo\n---\n",
+		) ==
+		nil,
+	)
+	opts := Project_Options {
+		id_prefix = "KAD",
+	}
 	occupied := storage.child(root, "KAD-100000000000000000000.md")
 	testing.expect(t, os.write_entire_file(occupied, "ordinary Markdown") == nil)
 	id, issue := create_task(tmp, opts, {title = "# title: \"quoted\"", body = "---\r\nbody"})
@@ -45,7 +54,14 @@ reject_unknown_identity_before_reservation :: proc(t: ^testing.T) {
 	defer os.remove_all(tmp)
 	root := storage.child(tmp, "tasks")
 	testing.expect(t, os.mkdir(root) == nil)
-	testing.expect(t, os.write_entire_file(storage.child(root, "bad.md"), "---\nkadai: task\nid: bad/id\n---\n") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(
+			storage.child(root, "bad.md"),
+			"---\nkadai: task\nid: bad/id\n---\n",
+		) ==
+		nil,
+	)
 	_, issue := create_task(tmp, {}, {title = "Denied"})
 	testing.expect(t, issue != "")
 	testing.expect(t, !os.exists(storage.child(root, ".kadai/used-ids")))

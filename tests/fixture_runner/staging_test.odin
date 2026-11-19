@@ -18,8 +18,13 @@ scan_document_path :: proc(value: json.Value, id: string) -> (path: string, ok: 
 	tier := manifest["tier"].(string) or_return
 	description := manifest["description"].(string) or_return
 	contracts := manifest["contracts"].(json.Array) or_return
-	if len(manifest) != 8 || version != 1 || manifest_id != id || cwd != "project" ||
-	   tier != "normal" || description == "" || len(contracts) == 0 {
+	if len(manifest) != 8 ||
+	   version != 1 ||
+	   manifest_id != id ||
+	   cwd != "project" ||
+	   tier != "normal" ||
+	   description == "" ||
+	   len(contracts) == 0 {
 		return "", false
 	}
 	seen := make(map[string]bool, context.temp_allocator)
@@ -29,7 +34,7 @@ scan_document_path :: proc(value: json.Value, id: string) -> (path: string, ok: 
 			return "", false
 		}
 		for digit in name[4:] {
-			if digit < '0' || digit > '9' { return "", false }
+			if digit < '0' || digit > '9' {return "", false}
 		}
 		seen[name] = true
 	}
@@ -41,8 +46,13 @@ scan_document_path :: proc(value: json.Value, id: string) -> (path: string, ok: 
 	no_writes := expect["no_writes"].(bool) or_return
 	complete := expect["scan_complete"].(bool) or_return
 	documents := expect["documents"].(json.Array) or_return
-	if len(action) != 1 || op != "scan" || len(expect) != 4 || result != "ok" ||
-	   !no_writes || !complete || len(documents) != 1 {
+	if len(action) != 1 ||
+	   op != "scan" ||
+	   len(expect) != 4 ||
+	   result != "ok" ||
+	   !no_writes ||
+	   !complete ||
+	   len(documents) != 1 {
 		return "", false
 	}
 	doc := documents[0].(json.Object) or_return
@@ -56,41 +66,59 @@ scan_document_path :: proc(value: json.Value, id: string) -> (path: string, ok: 
 prepare_crlf_fixture :: proc(t: ^testing.T) {
 	id :: "recognition/crlf-bom"
 	directory, problem := case_directory(id)
-	if !testing.expect(t, problem == "", problem) { return }
+	if !testing.expect(t, problem == "", problem) {return}
 	manifest, read_err := read_bytes(fmt.tprintf("%s/manifest.json", directory))
-	if !testing.expect(t, read_err == nil, os.error_string(read_err)) { return }
-	parser := json.make_parser(manifest, .JSON, parse_integers=true, allocator=context.temp_allocator)
+	if !testing.expect(t, read_err == nil, os.error_string(read_err)) {return}
+	parser := json.make_parser(
+		manifest,
+		.JSON,
+		parse_integers = true,
+		allocator = context.temp_allocator,
+	)
 	value, json_err := json.parse_value(&parser)
-	if !testing.expect_value(t, json_err, json.Error.None) { return }
-	if !testing.expect(t, parser.curr_token.kind == .EOF && parser.curr_token_err == .EOF, "trailing data in manifest") { return }
+	if !testing.expect_value(t, json_err, json.Error.None) {return}
+	if !testing.expect(
+		t,
+		parser.curr_token.kind == .EOF && parser.curr_token_err == .EOF,
+		"trailing data in manifest",
+	) {return}
 	task_file, supported := scan_document_path(value, id)
-	if !testing.expect(t, supported, "invalid or unsupported crlf-bom manifest") { return }
+	if !testing.expect(t, supported, "invalid or unsupported crlf-bom manifest") {return}
 
 	input := fmt.tprintf("%s/input", directory)
 	sandbox, copy_err := stage_inputs(input)
 	defer if sandbox != "" {
 		testing.expect(t, os.remove_all(sandbox) == nil, "failed to remove fixture sandbox")
 	}
-	if !testing.expect(t, copy_err == nil, os.error_string(copy_err)) { return }
+	if !testing.expect(t, copy_err == nil, os.error_string(copy_err)) {return}
 
 	source := fmt.tprintf("%s/project/%s", input, task_file)
 	copy := fmt.tprintf("%s/project/%s", sandbox, task_file)
 	original, source_err := read_bytes(source)
-	if !testing.expect(t, source_err == nil, os.error_string(source_err)) { return }
+	if !testing.expect(t, source_err == nil, os.error_string(source_err)) {return}
 	staged, staged_err := os.read_entire_file(copy, context.temp_allocator)
-	if !testing.expect(t, staged_err == nil, os.error_string(staged_err)) { return }
-	testing.expect(t, strings.has_prefix(string(original), "\uFEFF---\r\n"), "fixture must exercise BOM and CRLF")
+	if !testing.expect(t, staged_err == nil, os.error_string(staged_err)) {return}
+	testing.expect(
+		t,
+		strings.has_prefix(string(original), "\uFEFF---\r\n"),
+		"fixture must exercise BOM and CRLF",
+	)
 	testing.expect(t, string(staged) == string(original), "copy changed fixture bytes")
 
 	source_file, err := os.open(source)
-	if !testing.expect(t, err == nil, os.error_string(err)) { return }
+	if !testing.expect(t, err == nil, os.error_string(err)) {return}
 	defer os.close(source_file)
 	source_info, source_stat_err := storage.file_info(source_file)
-	if !testing.expect(t, source_stat_err == nil, os.error_string(source_stat_err)) { return }
+	if !testing.expect(t, source_stat_err == nil, os.error_string(source_stat_err)) {return}
 	copy_file, copy_open_err := os.open(copy)
-	if !testing.expect(t, copy_open_err == nil, os.error_string(copy_open_err)) { return }
+	if !testing.expect(t, copy_open_err == nil, os.error_string(copy_open_err)) {return}
 	defer os.close(copy_file)
 	copy_info, stat_err := storage.file_info(copy_file)
-	if !testing.expect(t, stat_err == nil, os.error_string(stat_err)) { return }
-	testing.expect(t, copy_info.type == .Regular && !(source_info.device == copy_info.device && source_info.inode == copy_info.inode), "copy must be an independent regular file")
+	if !testing.expect(t, stat_err == nil, os.error_string(stat_err)) {return}
+	testing.expect(
+		t,
+		copy_info.type == .Regular &&
+		!(source_info.device == copy_info.device && source_info.inode == copy_info.inode),
+		"copy must be an independent regular file",
+	)
 }

@@ -7,8 +7,8 @@ import "core:os"
 import "core:strings"
 
 Directory :: struct {
-	path: string,
-	file: ^os.File,
+	path   : string,
+	file   : ^os.File,
 	// Windows retains ancestor handles without sharing delete access.
 	parents: [dynamic]^os.File,
 }
@@ -23,8 +23,11 @@ close_dir :: proc(d: ^Directory) {
 component :: proc(name: string) -> bool {
 	if !valid_path_text(name) || name == "." || name == ".." || strings.contains(name, "/") do return false
 	when ODIN_OS == .Windows {
-		if strings.contains_any(name, "\\:*?\"<>|") || os.is_reserved_name(name) || os.is_reserved_name(strings.split_n(name, ".", 2, context.temp_allocator)[0]) ||
-		   strings.has_suffix(name, ".") || strings.has_suffix(name, " ") { return false }
+		if strings.contains_any(name, "\\:*?\"<>|") ||
+		   os.is_reserved_name(name) ||
+		   os.is_reserved_name(strings.split_n(name, ".", 2, context.temp_allocator)[0]) ||
+		   strings.has_suffix(name, ".") ||
+		   strings.has_suffix(name, " ") {return false}
 	}
 	return true
 }
@@ -49,7 +52,14 @@ write_sync :: proc(f: ^os.File, data: []byte) -> (err: os.Error) {
 }
 
 // Publish a complete file without replacing any destination entry.
-create_file :: proc(d: ^Directory, name: string, data: []byte, published: ^bool = nil) -> (err: os.Error) {
+create_file :: proc(
+	d: ^Directory,
+	name: string,
+	data: []byte,
+	published: ^bool = nil,
+) -> (
+	err: os.Error,
+) {
 	if !component(name) do return .Invalid_Path
 	tmp := random_name(".kadai-stage-")
 	f := create_regular(d, tmp) or_return

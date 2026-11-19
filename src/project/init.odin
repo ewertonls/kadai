@@ -28,7 +28,14 @@ initial_config :: proc(cfg: Config) -> string {
 	return strings.to_string(b)
 }
 
-initialize :: proc(cwd: string, options := Options{}, limits := DEFAULT_SCAN_LIMITS) -> (cfg: Config, problem: string) {
+initialize :: proc(
+	cwd: string,
+	options := Options{},
+	limits := DEFAULT_SCAN_LIMITS,
+) -> (
+	cfg: Config,
+	problem: string,
+) {
 	context.allocator = context.temp_allocator
 	if !valid_scan_limits(limits) do return {}, "invalid scan limits"
 	writer, lock_err := storage.begin_writer()
@@ -41,9 +48,14 @@ initialize :: proc(cwd: string, options := Options{}, limits := DEFAULT_SCAN_LIM
 	if cfg.existing {
 		persisted, issue := resolve(cwd, Options{project = options.project}, limits.yaml)
 		if issue != "" do return cfg, issue
-		if cfg.tasks != persisted.tasks || cfg.boards != persisted.boards ||
-		   cfg.id_prefix != persisted.id_prefix || cfg.timezone != persisted.timezone ||
-		   !slice.equal(cfg.exclude, persisted.exclude) { return cfg, "init options conflict with existing .kadai.yaml" }
+		if cfg.tasks != persisted.tasks ||
+		   cfg.boards != persisted.boards ||
+		   cfg.id_prefix != persisted.id_prefix ||
+		   cfg.timezone != persisted.timezone ||
+		   !slice.equal(
+				   cfg.exclude,
+				   persisted.exclude,
+			   ) {return cfg, "init options conflict with existing .kadai.yaml"}
 	} else {
 		source := initial_config(cfg)
 		// Refuse a config that this invocation cannot read back, before creating it.

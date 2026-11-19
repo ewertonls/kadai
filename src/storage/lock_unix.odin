@@ -4,15 +4,16 @@ package storage
 import "core:os"
 import p "core:sys/posix"
 
-when ODIN_OS == .Darwin { foreign import libc "system:System" }
-else { foreign import libc "system:c" }
+when ODIN_OS == .Darwin {foreign import libc "system:System"} else {foreign import libc "system:c"}
 foreign libc {
 	@(link_name = "flock")
 	file_lock :: proc(fd: p.FD, flags: i32) -> i32 ---
 }
 
-Domain_Lock :: struct { file: ^os.File }
-domain_held :: proc(d: Domain_Lock) -> bool { return d.file != nil }
+Domain_Lock :: struct {
+	file: ^os.File,
+}
+domain_held :: proc(d: Domain_Lock) -> bool {return d.file != nil}
 
 @(private)
 lock_file :: proc(f: ^os.File) -> os.Error {
@@ -24,7 +25,7 @@ lock_file :: proc(f: ^os.File) -> os.Error {
 @(private)
 try_domain :: proc() -> (d: Domain_Lock, err: os.Error) {
 	f := os.open("/") or_return
-	defer if err != nil { os.close(f) }
+	defer if err != nil {os.close(f)}
 	lock_file(f) or_return
 	return {f}, nil
 }

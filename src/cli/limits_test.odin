@@ -15,28 +15,33 @@ resource_limit_grammar :: proc(t: ^testing.T) {
 	ceilings := limit_values(app.MAX_SCAN_LIMITS)
 	for key in Limit {
 		for n in ([2]i64{1, ceilings[key]}) {
-			a, err := parse_options(Project_Flags, {"--limit", fmt.tprintf("%s=%d", LIMIT_NAMES[key], n)})
+			a, err := parse_options(
+				Project_Flags,
+				{"--limit", fmt.tprintf("%s=%d", LIMIT_NAMES[key], n)},
+			)
 			if !testing.expect(t, err == nil) do continue
 			want := defaults
 			want[key] = n
 			testing.expect_value(t, limit_values(a.limits), want)
 		}
-		for n in ([2]i64{0, ceilings[key]+1}) {
-			_, err := parse_options(Project_Flags, {"--limit", fmt.tprintf("%s=%d", LIMIT_NAMES[key], n)})
+		for n in ([2]i64{0, ceilings[key] + 1}) {
+			_, err := parse_options(
+				Project_Flags,
+				{"--limit", fmt.tprintf("%s=%d", LIMIT_NAMES[key], n)},
+			)
 			testing.expect(t, err != nil)
 		}
 	}
-	for option in ([]string{
-		"yaml_depth", "=1", "yaml_depth=", "yaml_depth=-1", "yaml_depth=+1",
-		"yaml_depth=1.0", "yaml_depth=0x10", "yaml_depth=1_0", "yaml_depth= 1",
-		"yaml_depth=1=2", "yaml_depth=9223372036854775808", "task_source_bytes=1MiB", "unknown=1",
-	}) {
+	for option in ([]string{"yaml_depth", "=1", "yaml_depth=", "yaml_depth=-1", "yaml_depth=+1", "yaml_depth=1.0", "yaml_depth=0x10", "yaml_depth=1_0", "yaml_depth= 1", "yaml_depth=1=2", "yaml_depth=9223372036854775808", "task_source_bytes=1MiB", "unknown=1"}) {
 		_, err := parse_options(Project_Flags, {"--limit", option})
 		testing.expect(t, err != nil, option)
 	}
 	_, duplicate := parse_options(Project_Flags, {"--limit=yaml_depth=2", "--limit=yaml_depth=3"})
 	testing.expect(t, duplicate != nil)
-	a, err := parse_options(Project_Flags, {"--limit=yaml_depth=4", "--limit", "scan_yaml_nodes=100"})
+	a, err := parse_options(
+		Project_Flags,
+		{"--limit=yaml_depth=4", "--limit", "scan_yaml_nodes=100"},
+	)
 	testing.expect(t, err == nil && a.limits.yaml.depth == 4 && a.limits.total_nodes == 100)
 }
 
@@ -52,19 +57,40 @@ commands_forward_config_limits :: proc(t: ^testing.T) {
 	testing.expect(t, os.write_entire_file(path, config) == nil)
 	// Config loading has separate entry points for init, queries, validation,
 	// mutation planning and recovery. Test one command per path.
-	commands := [][]string{{"init"}, {"list"}, {"validate"}, {"add", "Title"}, {"recover", "resume", "--yes"}}
+	commands := [][]string {
+		{"init"},
+		{"list"},
+		{"validate"},
+		{"add", "Title"},
+		{"recover", "resume", "--yes"},
+	}
 	for command in commands {
 		args := make([dynamic]string, context.temp_allocator)
 		append(&args, ..command)
-		append(&args, "--project", tmp, fmt.tprintf("--limit=yaml_document_bytes=%d", len(config)-1))
+		append(
+			&args,
+			"--project",
+			tmp,
+			fmt.tprintf("--limit=yaml_document_bytes=%d", len(config) - 1),
+		)
 		out := invoke_cli(t, args[:], 1)
-		testing.expect(t, strings.contains(out.stdout if command[0] == "validate" else out.stderr, ".kadai.yaml"), out.stderr)
+		testing.expect(
+			t,
+			strings.contains(
+				out.stdout if command[0] == "validate" else out.stderr,
+				".kadai.yaml",
+			),
+			out.stderr,
+		)
 		if command[0] == "validate" do testing.expect(t, strings.contains(out.stdout, "Task scan incomplete."), out.stdout)
 	}
 	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks", tmp)))
 	// Exactly N config bytes passes, N-1 above failed. init re-reads persisted
 	// config with the same limits and never stores the invocation budgets.
-	_ = invoke_cli(t, {"init", "--project", tmp, fmt.tprintf("--limit=yaml_document_bytes=%d", len(config))})
+	_ = invoke_cli(
+		t,
+		{"init", "--project", tmp, fmt.tprintf("--limit=yaml_document_bytes=%d", len(config))},
+	)
 	after, read_err := os.read_entire_file(path, context.temp_allocator)
 	testing.expect(t, read_err == nil && string(after) == config)
 }
@@ -80,13 +106,22 @@ limits_bound_bodies_and_mutations :: proc(t: ^testing.T) {
 	body_file := fmt.tprintf("%s/body.md", tmp)
 	testing.expect(t, os.write_entire_file(body_file, body) == nil)
 	reader: strings.Reader
-	limit := fmt.tprintf("--limit=task_source_bytes=%d", len(body)-1)
-	out := invoke_cli(t, {"add", "Title", "--project", tmp, "--stdin", limit}, 1, strings.to_reader(&reader, body))
+	limit := fmt.tprintf("--limit=task_source_bytes=%d", len(body) - 1)
+	out := invoke_cli(
+		t,
+		{"add", "Title", "--project", tmp, "--stdin", limit},
+		1,
+		strings.to_reader(&reader, body),
+	)
 	testing.expect(t, strings.contains(out.stderr, "body exceeds task_source_bytes"), out.stderr)
 	out = invoke_cli(t, {"add", "Title", "--project", tmp, "--body-file", body_file, limit}, 1)
 	testing.expect(t, strings.contains(out.stderr, "body exceeds task_source_bytes"), out.stderr)
 	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks", tmp)))
-	testing.expect_value(t, invoke_cli(t, {"add", "Title", "--project", tmp, "--body-file", body_file}).stdout, "0001\n")
+	testing.expect_value(
+		t,
+		invoke_cli(t, {"add", "Title", "--project", tmp, "--body-file", body_file}).stdout,
+		"0001\n",
+	)
 	path := fmt.tprintf("%s/tasks/0001.md", tmp)
 	source, read_err := os.read_entire_file(path, context.temp_allocator)
 	if !testing.expect(t, read_err == nil) do return
@@ -94,7 +129,7 @@ limits_bound_bodies_and_mutations :: proc(t: ^testing.T) {
 	limit = fmt.tprintf("--limit=task_source_bytes=%d", len(source))
 	out = invoke_cli(t, {"show", "0001", "--project", tmp, limit})
 	testing.expect(t, strings.contains(out.stdout, string(source)))
-	limit = fmt.tprintf("--limit=task_source_bytes=%d", len(source)-1)
+	limit = fmt.tprintf("--limit=task_source_bytes=%d", len(source) - 1)
 	out = invoke_cli(t, {"set", "0001", "title", "Changed", "--project", tmp, limit}, 1)
 	testing.expect(t, strings.contains(out.stderr, "task_source_bytes limit exceeded"), out.stderr)
 	after, after_err := os.read_entire_file(path, context.temp_allocator)
@@ -110,11 +145,22 @@ exclude_budget_refusal_releases_writer :: proc(t: ^testing.T) {
 	if !testing.expect(t, err == nil) do return
 	defer os.remove_all(tmp)
 	testing.expect(t, os.mkdir(fmt.tprintf("%s/tasks", tmp)) == nil)
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", tmp), "tasks:\n  exclude: [x]\n") == nil)
-	testing.expect(t, os.write_entire_file(fmt.tprintf("%s/tasks/a.md", tmp), "ordinary Markdown") == nil)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/.kadai.yaml", tmp), "tasks:\n  exclude: [x]\n") ==
+		nil,
+	)
+	testing.expect(
+		t,
+		os.write_entire_file(fmt.tprintf("%s/tasks/a.md", tmp), "ordinary Markdown") == nil,
+	)
 	denied := invoke_cli(t, {"add", "Title", "--project", tmp, "--limit=exclude_match_steps=9"}, 1)
 	testing.expect_value(t, denied.stdout, "")
-	testing.expect(t, strings.contains(denied.stderr, "exclude_match_steps limit exceeded"), denied.stderr)
+	testing.expect(
+		t,
+		strings.contains(denied.stderr, "exclude_match_steps limit exceeded"),
+		denied.stderr,
+	)
 	testing.expect(t, !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
 	// Scan consumes ten units; validating 0001.md needs thirteen more.
 	denied = invoke_cli(t, {"add", "Title", "--project", tmp, "--limit=exclude_match_steps=22"}, 1)

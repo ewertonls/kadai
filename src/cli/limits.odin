@@ -7,20 +7,27 @@ import "core:strings"
 import "kadai:app"
 
 Limit :: enum {
-	Task_Source_Bytes, YAML_Document_Bytes, YAML_Nodes_Document, YAML_Depth,
-	Filesystem_Entries, Markdown_Candidates, Scan_YAML_Bytes, Scan_YAML_Nodes, Exclude_Match_Steps,
+	Task_Source_Bytes,
+	YAML_Document_Bytes,
+	YAML_Nodes_Document,
+	YAML_Depth,
+	Filesystem_Entries,
+	Markdown_Candidates,
+	Scan_YAML_Bytes,
+	Scan_YAML_Nodes,
+	Exclude_Match_Steps,
 }
 
 @(rodata)
-LIMIT_NAMES := [Limit]string{
-	.Task_Source_Bytes = "task_source_bytes",
+LIMIT_NAMES := [Limit]string {
+	.Task_Source_Bytes   = "task_source_bytes",
 	.YAML_Document_Bytes = "yaml_document_bytes",
 	.YAML_Nodes_Document = "yaml_nodes_document",
-	.YAML_Depth = "yaml_depth",
-	.Filesystem_Entries = "filesystem_entries",
+	.YAML_Depth          = "yaml_depth",
+	.Filesystem_Entries  = "filesystem_entries",
 	.Markdown_Candidates = "markdown_candidates",
-	.Scan_YAML_Bytes = "scan_yaml_bytes",
-	.Scan_YAML_Nodes = "scan_yaml_nodes",
+	.Scan_YAML_Bytes     = "scan_yaml_bytes",
+	.Scan_YAML_Nodes     = "scan_yaml_nodes",
 	.Exclude_Match_Steps = "exclude_match_steps",
 }
 
@@ -65,12 +72,17 @@ parse_limits :: proc(options: []string) -> (app.Scan_Limits, string) {
 		if !matched do return {}, fmt.tprintf("unknown --limit budget %q", name)
 	}
 	return {
-		yaml = {int(values[.YAML_Document_Bytes]), int(values[.YAML_Nodes_Document]), int(values[.YAML_Depth])},
-		source_bytes = int(values[.Task_Source_Bytes]),
-		entries = int(values[.Filesystem_Entries]),
-		candidates = int(values[.Markdown_Candidates]),
-		total_bytes = values[.Scan_YAML_Bytes],
-		total_nodes = values[.Scan_YAML_Nodes],
+			yaml = {
+				int(values[.YAML_Document_Bytes]),
+				int(values[.YAML_Nodes_Document]),
+				int(values[.YAML_Depth]),
+			},
+			source_bytes = int(values[.Task_Source_Bytes]),
+			entries = int(values[.Filesystem_Entries]),
+			candidates = int(values[.Markdown_Candidates]),
+			total_bytes = values[.Scan_YAML_Bytes],
+			total_nodes = values[.Scan_YAML_Nodes],
 			exclude_match_steps = values[.Exclude_Match_Steps],
-	}, ""
+		},
+		""
 }
