@@ -82,6 +82,7 @@ win_open :: proc(
 	dir, create, mutation: bool,
 	parent: ^os.File = nil,
 	private_leaf := false,
+	created: ^bool = nil,
 ) -> (
 	f: ^os.File,
 	err: os.Error,
@@ -119,6 +120,7 @@ win_open :: proc(
 			sa.lpSecurityDescriptor,
 		) or_return
 	}
+	if create && created != nil do created^ = true
 	defer if err != nil {w.CloseHandle(h)}
 	info: w.BY_HANDLE_FILE_INFORMATION
 	if !w.GetFileInformationByHandle(h, &info) do return nil, native_error()
@@ -151,23 +153,51 @@ open_dir :: proc(
 		d.path = child(d.path, part)
 		f, e := win_open(d.path, true, false, false, d.file)
 		if e == os.General_Error.Not_Exist && create {
-			f, e = win_open(d.path, true, true, false, d.file, private_leaf && parts == "")
-			if e == nil && created != nil do created^ = true
+			f, e = win_open(
+				d.path,
+				true,
+				true,
+				false,
+				d.file,
+				private_leaf && parts == "",
+				created,
+			)
 			if e == os.General_Error.Exist {f, e = win_open(d.path, true, false, false, d.file)}
 		}
 		if e != nil do return d, e
 		append(&d.parents, d.file)
 		d.file = f
 	}
-	if private_leaf {
-		acl := security_text(
-			w.HANDLE(os.fd(d.file)),
-			w.DACL_SECURITY_INFORMATION,
-			require_private = true,
-		) or_return
-		if acl != "D:P(A;OICI;FA;;;OW)" do return d, .Permission_Denied
-	}
+	if private_leaf do check_private_dir(d.file) or_return
 	return
+}
+
+@(private)
+check_private_dir :: proc(f: ^os.File) -> os.Error {
+	acl := security_text(
+		w.HANDLE(os.fd(f)),
+		w.DACL_SECURITY_INFORMATION,
+		require_private = true,
+	) or_return
+	if acl != "D:P(A;OICI;FA;;;OW)" do return .Permission_Denied
+	return nil
+}
+
+@(private)
+create_private_dir :: proc(
+	parent: ^Directory,
+	name: string,
+	created: ^bool,
+) -> (
+	dir: Directory,
+	err: os.Error,
+) {
+	if !component(name) do return {}, .Invalid_Path
+	path := child(parent.path, name)
+	f := win_open(path, true, true, false, parent.file, true, created) or_return
+	defer if err != nil {os.close(f)}
+	check_private_dir(f) or_return
+	return Directory{path = path, file = f}, nil
 }
 
 regular :: proc(d: ^Directory, name: string, mutation := false) -> (^os.File, os.Error) {
@@ -176,9 +206,9 @@ regular :: proc(d: ^Directory, name: string, mutation := false) -> (^os.File, os
 }
 
 @(private)
-create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
+create_regular :: proc(d: ^Directory, name: string, created: ^bool = nil) -> (^os.File, os.Error) {
 	if !component(name) do return nil, .Invalid_Path
-	return win_open(child(d.path, name), false, true, false, d.file)
+	return win_open(child(d.path, name), false, true, false, d.file, created = created)
 }
 
 @(private)
@@ -219,21 +249,40 @@ publish :: proc(
 }
 
 @(private)
-remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
+remove_relative :: proc(d: ^Directory, name: string, directory: bool) -> os.Error {
 	if !component(name) do return .Invalid_Path
 	h := relative_handle(
 		d.file,
 		name,
-		w.DELETE,
+		w.DELETE | w.FILE_READ_ATTRIBUTES if directory else w.DELETE,
 		w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
 		w.FILE_OPEN,
-		w.FILE_NON_DIRECTORY_FILE,
+		1 if directory else w.FILE_NON_DIRECTORY_FILE, // FILE_DIRECTORY_FILE
 	) or_return
 	defer w.CloseHandle(h)
+	if directory {
+		info: w.BY_HANDLE_FILE_INFORMATION
+		if !w.GetFileInformationByHandle(h, &info) do return native_error()
+		if info.dwFileAttributes & w.FILE_ATTRIBUTE_REPARSE_POINT != 0 do return .Invalid_File
+	}
 	remove: w.BOOLEAN = true
 	if !w.SetFileInformationByHandle(h, .FileDispositionInfo, &remove, size_of(remove)) do return native_error()
 	return nil
 }
+
+@(private)
+remove_entry :: proc(d: ^Directory, name: string) -> os.Error {return remove_relative(
+		d,
+		name,
+		false,
+	)}
+
+@(private)
+remove_empty_dir :: proc(d: ^Directory, name: string) -> os.Error {return remove_relative(
+		d,
+		name,
+		true,
+	)}
 
 // Windows has no unprivileged equivalent of fsync on a directory handle.
 sync_dir :: proc(d: ^Directory) -> os.Error {return nil}

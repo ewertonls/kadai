@@ -62,17 +62,20 @@ open_dir :: proc(
 		p.close(fd)
 		fd = next
 	}
-	if private_leaf {
-		st: p.stat_t
-		if p.fstat(fd, &st) != .OK do return {}, native_error()
-		if st.st_uid != p.geteuid() || u32(transmute(p._mode_t)st.st_mode) & 0o077 != 0 do return {}, .Permission_Denied
-		private_directory_acl(fd) or_return
-	}
+	if private_leaf do check_private_dir(fd) or_return
 	return Directory{path = path, file = os.new_file(uintptr(fd), path)}, nil
 }
 
 @(private)
 dir_fd :: proc(d: ^Directory) -> p.FD {return p.FD(os.fd(d.file))}
+
+@(private)
+check_private_dir :: proc(fd: p.FD) -> os.Error {
+	st: p.stat_t
+	if p.fstat(fd, &st) != .OK do return native_error()
+	if st.st_uid != p.geteuid() || u32(transmute(p._mode_t)st.st_mode) & 0o077 != 0 do return .Permission_Denied
+	return private_directory_acl(fd)
+}
 
 regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File, err: os.Error) {
 	if !component(name) do return nil, .Invalid_Path
@@ -86,7 +89,7 @@ regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File,
 }
 
 @(private)
-create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
+create_regular :: proc(d: ^Directory, name: string, created: ^bool = nil) -> (^os.File, os.Error) {
 	if !component(name) do return nil, .Invalid_Path
 	fd := p.openat(
 		dir_fd(d),
@@ -95,6 +98,7 @@ create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
 		transmute(p.mode_t)p._mode_t(0o600),
 	)
 	if fd < 0 do return nil, native_error()
+	if created != nil do created^ = true
 	return os.new_file(uintptr(fd), child(d.path, name)), nil
 }
 
@@ -124,6 +128,34 @@ publish :: proc(
 remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 	if !component(name) do return .Invalid_Path
 	if p.unlinkat(dir_fd(d), cs(name), {}) != .OK do return native_error()
+	return nil
+}
+
+@(private)
+create_private_dir :: proc(
+	parent: ^Directory,
+	name: string,
+	created: ^bool,
+) -> (
+	dir: Directory,
+	err: os.Error,
+) {
+	if !component(name) do return {}, .Invalid_Path
+	part := cs(name)
+	if p.mkdirat(dir_fd(parent), part, transmute(p.mode_t)p._mode_t(0o700)) != .OK do return {}, native_error()
+	created^ = true
+	fd := p.openat(dir_fd(parent), part, {.DIRECTORY, .NOFOLLOW, .CLOEXEC})
+	if fd < 0 do return {}, native_error()
+	defer if err != nil {p.close(fd)}
+	check_private_dir(fd) or_return
+	path := child(parent.path, name)
+	return Directory{path = path, file = os.new_file(uintptr(fd), path)}, nil
+}
+
+@(private)
+remove_empty_dir :: proc(parent: ^Directory, name: string) -> os.Error {
+	if !component(name) do return .Invalid_Path
+	if p.unlinkat(dir_fd(parent), cs(name), {.REMOVEDIR}) != .OK do return native_error()
 	return nil
 }
 

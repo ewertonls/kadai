@@ -20,8 +20,9 @@ Options :: struct {
 // Supply a fresh report for each invocation. Its steps accumulate these facts
 // independently of diagnostic wording or the presence of an operation ID.
 Invocation_Report :: struct {
-	lookup_failure: Maybe(Lookup_Status),
-	write_started : bool,
+	lookup_failure    : Maybe(Lookup_Status),
+	write_started     : bool,
+	preparation_failed: bool,
 }
 
 write_progress :: proc(options: Options) -> ^bool {

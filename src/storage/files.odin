@@ -7,10 +7,12 @@ import "core:os"
 import "core:strings"
 
 Directory :: struct {
-	path   : string,
-	file   : ^os.File,
+	path           : string,
+	file           : ^os.File,
 	// Windows retains ancestor handles without sharing delete access.
-	parents: [dynamic]^os.File,
+	parents        : [dynamic]^os.File,
+	// Only a new journal records image names, for cleanup before intent publication.
+	prepared_images: ^[dynamic]string,
 }
 
 close_dir :: proc(d: ^Directory) {
@@ -62,13 +64,16 @@ create_file :: proc(
 ) {
 	if !component(name) do return .Invalid_Path
 	tmp := random_name(".kadai-stage-")
-	f := create_regular(d, tmp) or_return
-	defer remove_entry(d, tmp)
+	created := false
+	f, open_err := create_regular(d, tmp, &created)
+	defer if created {remove_entry(d, tmp)}
+	if open_err != nil do return open_err
 	err = write_sync(f, data)
 	close_err := os.close(f)
 	if err != nil do return err
 	if close_err != nil do return close_err
 	publish(d, tmp, d, name, false) or_return
+	created = false // The stage name is vacant after the rename.
 	if published != nil do published^ = true
 	return sync_dir(d)
 }

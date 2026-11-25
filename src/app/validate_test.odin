@@ -10,8 +10,8 @@ import "kadai:project"
 import "kadai:storage"
 
 @(private)
-count_finding :: proc(r: Validation, code: string) -> (n: int) {
-	for f in r.findings {if f.code == code do n += 1}
+count_finding :: proc(r: Validation, code: string, message_contains := "") -> (n: int) {
+	for f in r.findings {if f.code == code && strings.contains(f.message, message_contains) do n += 1}
 	return
 }
 
@@ -122,6 +122,9 @@ validate_checks_history_journals_and_snapshots_read_only :: proc(t: ^testing.T) 
 	if !testing.expect(t, issue == "" && report.errors == 0 && report.warnings == 0) do return
 	state := storage.child(tmp, "tasks/.kadai")
 	journal := storage.child(storage.child(state, "recovery"), op)
+	plan, plan_err := os.read_entire_file(storage.child(journal, "plan"), context.temp_allocator)
+	header := "kadai-transaction-v2\n" if ODIN_OS == .Darwin else "kadai-transaction-v1\n"
+	if !testing.expect(t, plan_err == nil && strings.has_prefix(string(plan), header)) do return
 	receipt, read_err := os.read_entire_file(
 		storage.child(journal, "committed"),
 		context.temp_allocator,
@@ -154,14 +157,34 @@ validate_checks_history_journals_and_snapshots_read_only :: proc(t: ^testing.T) 
 	}
 	image := storage.child(journal, "0-original")
 	testing.expect(t, os.write_entire_file(image, "corrupt") == nil)
+	restore := storage.child(journal, "0-restore")
+	when ODIN_OS != .Windows {
+		testing.expect(t, os.chmod(restore, {.Read_User}) == nil)
+	}
 	testing.expect(t, os.write_entire_file(intent, "broken") == nil)
 	report, issue = validate_project(tmp)
 	testing.expect_value(t, issue, "")
 	testing.expect_value(t, count_finding(report, "invalid_used_id_directory"), 2)
 	testing.expect_value(t, count_finding(report, "corrupt_intent"), 1)
-	testing.expect_value(t, count_finding(report, "corrupt_snapshot"), 1)
+	testing.expect_value(
+		t,
+		count_finding(report, "corrupt_snapshot"),
+		1 if ODIN_OS == .Windows else 2,
+	)
+	testing.expect_value(t, count_finding(report, "corrupt_snapshot", "content"), 1)
+	when ODIN_OS != .Windows {
+		testing.expect_value(t, count_finding(report, "corrupt_snapshot", "metadata"), 1)
+	}
+	testing.expect_value(t, count_finding(report, "corrupt_snapshot", "identity"), 0)
 	bytes, _ := os.read_entire_file(image, context.temp_allocator)
 	testing.expect_value(t, string(bytes), "corrupt")
+	// The other image contains the original task bytes on a separate inode.
+	if !testing.expect(t, os.remove(image) == nil && os.rename(restore, image) == nil) do return
+	report, issue = validate_project(tmp)
+	testing.expect_value(t, issue, "")
+	testing.expect_value(t, count_finding(report, "corrupt_snapshot", "identity"), 1)
+	testing.expect_value(t, count_finding(report, "corrupt_snapshot", "missing"), 1)
+	testing.expect_value(t, count_finding(report, "corrupt_snapshot", "content"), 0)
 	l := project.DEFAULT_SCAN_LIMITS
 	l.yaml.bytes = 128
 	report, issue = validate_project(tmp, {}, l)

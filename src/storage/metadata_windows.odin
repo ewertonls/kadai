@@ -126,6 +126,7 @@ security_text :: proc(
 metadata :: proc(
 	f: ^os.File,
 	security_image: ^[]byte = nil,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	signature: string,
 	err: os.Error,
@@ -189,7 +190,7 @@ metadata :: proc(
 }
 
 @(private)
-copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
+copy_metadata :: proc(src, dst: ^os.File, version := CURRENT_JOURNAL_VERSION) -> (err: os.Error) {
 	security: []byte
 	a := metadata(src, &security) or_return
 	write_private_security(dst, security) or_return
@@ -216,7 +217,13 @@ write_private_security :: proc(dst: ^os.File, security: []byte) -> (err: os.Erro
 }
 
 @(private)
-directory_metadata :: proc(f: ^os.File) -> (signature: string, err: os.Error) {
+directory_metadata :: proc(
+	f: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+) -> (
+	signature: string,
+	err: os.Error,
+) {
 	sd := security_text(
 		w.HANDLE(os.fd(f)),
 		w.OWNER_SECURITY_INFORMATION |

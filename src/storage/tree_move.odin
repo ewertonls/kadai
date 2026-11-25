@@ -41,6 +41,7 @@ Tree_Read :: struct {
 	capture: bool,
 	budget : ^i64,
 	device : u64,
+	version: Journal_Version,
 }
 
 @(private)
@@ -51,7 +52,7 @@ sample_tree :: proc(r: ^Tree_Read, tree: ^Tree, relative: string) -> (err: os.Er
 	info := file_info(dir.file) or_return
 	if relative == "" do r.device = info.device
 	if info.device != r.device || info.inode == 0 do return .Unsupported
-	sig := directory_metadata(dir.file) or_return
+	sig := directory_metadata(dir.file, r.version) or_return
 	if len(tree.entries) >= r.limits.entries do return .Short_Buffer
 	_ = append(
 		&tree.entries,
@@ -78,16 +79,29 @@ sample_tree :: proc(r: ^Tree_Read, tree: ^Tree, relative: string) -> (err: os.Er
 			if actual.device != r.device || actual.inode != fi.inode || actual.size < 0 do return .Invalid_File
 			if actual.size > r.budget^ do return .Short_Buffer
 			r.budget^ -= actual.size
-			version := state(f, r.limits.source) or_return
+			version := state(f, r.limits.source, r.version) or_return
 			backup := "-"
 			if r.images != nil {
 				key := tree_image_name(sub)
 				if r.capture {
 					data := read_bounded(f, r.limits.source, context.allocator) or_return
 					defer delete(data)
-					backup = save_image(r.images, key, data, f, r.limits.source) or_return
+					backup = save_image(
+						r.images,
+						key,
+						data,
+						f,
+						r.limits.source,
+						r.version,
+					) or_return
 				} else {
-					backup = entry_state(r.images, key, r.limits.source, r.budget) or_return
+					backup = entry_state(
+						r.images,
+						key,
+						r.limits.source,
+						r.budget,
+						r.version,
+					) or_return
 				}
 				if payload_signature(version) != payload_signature(backup) do return .Invalid_File
 			}
@@ -104,13 +118,22 @@ inspect_tree :: proc(
 	images: ^Directory = nil,
 	capture := false,
 	budget: ^i64 = nil,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	tree: Tree,
 	err: os.Error,
 ) {
 	tree.entries = make([dynamic]Tree_Entry, context.temp_allocator)
 	remaining := limits.total_bytes
-	read := Tree_Read{root, limits, images, capture, budget if budget != nil else &remaining, 0}
+	read := Tree_Read {
+		root,
+		limits,
+		images,
+		capture,
+		budget if budget != nil else &remaining,
+		0,
+		version,
+	}
 	sample_tree(&read, &tree, "") or_return
 	slice.sort_by(tree.entries[:], proc(a, b: Tree_Entry) -> bool {return a.path < b.path})
 	content, backups :=
@@ -137,6 +160,7 @@ apply_tree_move :: proc(
 	l: Journal_Limits,
 	budget: ^i64,
 	entries: ^int = nil,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	err: os.Error,
 ) {
@@ -156,7 +180,7 @@ apply_tree_move :: proc(
 	live := dst if already else src
 	limits := l
 	if entries != nil do limits.entries = entries^
-	tree, tree_err := inspect_tree(live, limits, images, budget = budget)
+	tree, tree_err := inspect_tree(live, limits, images, budget = budget, version = version)
 	if entries != nil do entries^ -= len(tree.entries)
 	if tree_err != nil do return tree_err
 	expected := tree.backup

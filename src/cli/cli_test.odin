@@ -249,7 +249,7 @@ lookup_exit_status_and_warning_stream :: proc(t: ^testing.T) {
 	}
 }
 
-// A journal can survive a failure while preparing the task write.
+// Starting persistence is an incomplete write even when preparation cleanup succeeds.
 // Conversely, a caller can supply an operation ID to a recovery that never wrote.
 @(test)
 incomplete_write_exit_tracks_filesystem_effects :: proc(t: ^testing.T) {
@@ -273,8 +273,12 @@ incomplete_write_exit_tracks_filesystem_effects :: proc(t: ^testing.T) {
 	testing.expect(
 		t,
 		strings.contains(out.stderr, "operation ") &&
+		strings.contains(out.stderr, "before changing task files") &&
+		strings.contains(out.stderr, "Discarded the unpublished preparation") &&
 		strings.contains(out.stderr, "journal exceeds byte limit"),
 		out.stderr,
 	)
 	testing.expect(t, os.exists(recovery) && !os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
+	entries, read_err := os.read_directory_by_path(recovery, 1, context.temp_allocator)
+	testing.expect(t, read_err == nil && len(entries) == 0)
 }

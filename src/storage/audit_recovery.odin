@@ -25,6 +25,24 @@ hex_digest :: proc(value: string) -> bool {
 	return len(value) == 64 && strings.trim_left(value, "0123456789abcdef") == ""
 }
 
+@(private)
+snapshot_difference :: proc(expected, actual: string) -> string {
+	if actual == "-" do return "Recovery image is missing."
+	if expected == "-" do return "Found an unexpected recovery image."
+	// Both stamps contain device.inode.content:metadata.
+	expected_payload, actual_payload := payload_signature(expected), payload_signature(actual)
+	expected_id := expected[:len(expected) - len(expected_payload)]
+	actual_id := actual[:len(actual) - len(actual_payload)]
+	changed := make([dynamic]string, 0, 3, context.temp_allocator)
+	if expected_id != actual_id do append(&changed, "identity")
+	if expected_payload[:64] != actual_payload[:64] do append(&changed, "content")
+	if expected_payload[65:] != actual_payload[65:] do append(&changed, "metadata")
+	return fmt.tprintf(
+		"Recovery image differs from the recorded %s.",
+		strings.join(changed[:], ", ", context.temp_allocator),
+	)
+}
+
 // Compare live files only for an active intent. Completed tasks can
 // legitimately have changed since commit.
 @(private)
@@ -118,7 +136,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 		)
 		return
 	}
-	steps, ok := parse_manifest(plan, a.limits)
+	steps, version, ok := parse_manifest(plan, a.limits)
 	if !ok {state_problem(&a.result, path, "corrupt_journal", "Invalid transaction manifest."); return}
 	a.nodes -= cost
 	if check_live {
@@ -136,6 +154,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 					a.limits,
 					&a.image_bytes,
 					&a.entries,
+					version,
 				)
 			} else {
 				check = apply_step(
@@ -148,6 +167,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 					verify_only = true,
 					budget = &a.image_bytes,
 					live_budget = &a.image_bytes,
+					version = version,
 				)
 			}
 			if check == .Invalid_File || check == .Not_Exist {
@@ -163,7 +183,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 		}
 	}
 	if len(steps) == 1 && steps[0].kind == .Move_Directory {
-		audit_tree_images(a, &op, entries[:], steps[0])
+		audit_tree_images(a, &op, entries[:], steps[0], version)
 		return
 	}
 	for s, slot in steps {
@@ -178,7 +198,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 					"rollback" not_in files &&
 					(s.kind == .Delete || s.kind == .Replace)
 			if !required && name not_in files do continue
-			stamp, image_err := entry_state(&op, name, a.limits.source, &a.image_bytes)
+			stamp, image_err := entry_state(&op, name, a.limits.source, &a.image_bytes, version)
 			if image_err !=
 			   nil {audit_io(a, child(path, name), image_err, "snapshot or aggregate byte"); continue}
 			if stamp != image.stamp || required && stamp == "-" {
@@ -186,7 +206,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 					&a.result,
 					child(path, name),
 					"corrupt_snapshot",
-					"Recovery image is missing or differs from its recorded identity, hash or metadata.",
+					snapshot_difference(image.stamp, stamp),
 				)
 			}
 		}
@@ -267,6 +287,7 @@ audit_tree_images :: proc(
 	op: ^Directory,
 	entries: []os.File_Info,
 	step: Step,
+	version: Journal_Version,
 ) {
 	stamps := make([dynamic]Image_Stamp, context.temp_allocator)
 	for fi in entries {
@@ -280,7 +301,7 @@ audit_tree_images :: proc(
 			)
 			continue
 		}
-		stamp, e := entry_state(op, fi.name, a.limits.source, &a.image_bytes)
+		stamp, e := entry_state(op, fi.name, a.limits.source, &a.image_bytes, version)
 		if e != nil {audit_io(a, child(op.path, fi.name), e, "snapshot or aggregate byte"); return}
 		if _, alloc_err := append(&stamps, Image_Stamp{fi.name, stamp});
 		   alloc_err != nil {audit_io(a, op.path, alloc_err, "snapshot"); return}
@@ -304,7 +325,7 @@ audit_tree_images :: proc(
 	for rel in ([2]string{step.path, step.destination}) {
 		l := a.limits
 		l.entries = a.entries
-		tree, e := inspect_tree(child(a.root, rel), l, budget = &a.image_bytes)
+		tree, e := inspect_tree(child(a.root, rel), l, budget = &a.image_bytes, version = version)
 		a.entries -= len(tree.entries)
 		if e == os.General_Error.Not_Exist do continue
 		if e != nil {audit_io(a, rel, e, "legacy tree verification"); return}

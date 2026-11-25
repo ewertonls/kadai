@@ -93,7 +93,13 @@ private_directory_acl :: proc(fd: p.FD) -> (err: os.Error) {
 }
 
 @(private)
-metadata :: proc(f: ^os.File) -> (signature: string, err: os.Error) {
+metadata :: proc(
+	f: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+) -> (
+	signature: string,
+	err: os.Error,
+) {
 	fd := p.FD(os.fd(f))
 	st: p.stat_t
 	if p.fstat(fd, &st) != .OK do return "", native_error()
@@ -103,16 +109,33 @@ metadata :: proc(f: ^os.File) -> (signature: string, err: os.Error) {
 	acl := acl_text(fd) or_return
 	fmt.sbprintf(&b, "%d:%s", len(acl), acl)
 	names := xattr_names(fd) or_return
-	for key in names {
-		value := attribute(fd, key) or_return
-		fmt.sbprintf(&b, "%d:%s%s", len(key), key, digest(value))
-		delete(value)
-	}
+	append_metadata_attributes(&b, fd, names[:], version) or_return
 	return digest(transmute([]byte)strings.to_string(b)), nil
 }
 
 @(private)
-copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
+append_metadata_attributes :: proc(
+	b: ^strings.Builder,
+	fd: p.FD,
+	names: []string,
+	version: Journal_Version,
+) -> (
+	err: os.Error,
+) {
+	for key in names {
+		when ODIN_OS == .Darwin {
+			// The OS may retain the creating application's mark on a new inode.
+			if version == .V2 && key == "com.apple.provenance" do continue
+		}
+		value := attribute(fd, key) or_return
+		fmt.sbprintf(b, "%d:%s%s", len(key), key, digest(value))
+		delete(value)
+	}
+	return
+}
+
+@(private)
+copy_metadata :: proc(src, dst: ^os.File, version := CURRENT_JOURNAL_VERSION) -> (err: os.Error) {
 	a, b := p.FD(os.fd(src)), p.FD(os.fd(dst))
 	when ODIN_OS == .Darwin {
 		if fcopyfile(a, b, nil, 7) != 0 do return native_error()
@@ -131,8 +154,8 @@ copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
 			if res != 0 do return native_error()
 		}
 	}
-	original := metadata(src) or_return
-	copied := metadata(dst) or_return
+	original := metadata(src, version) or_return
+	copied := metadata(dst, version) or_return
 	if original != copied do return .Unsupported
 	return
 }

@@ -83,7 +83,17 @@ mutate_collection :: proc(
 		if issue = validate_paths(&view, cfg, changes); issue != "" do return
 	}
 	record_ids :: proc(data: rawptr) -> string {return identity.persist((^identity.History)(data))}
-	return storage.commit(&w, changes, journal_limits(limits), record_ids, &view.history, started)
+	preparation_failed: ^bool
+	if options.report != nil do preparation_failed = &options.report.preparation_failed
+	return storage.commit(
+		&w,
+		changes,
+		journal_limits(limits),
+		record_ids,
+		&view.history,
+		started,
+		preparation_failed,
+	)
 }
 
 Recovery_Mode :: storage.Recovery_Mode

@@ -6,6 +6,73 @@ import "core:os"
 import "core:strings"
 import "core:testing"
 
+@(test)
+preparation_cleanup_stops_at_first_published_intent :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-preparation-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	root, _ := physical(tmp, .Directory)
+	w, lock_err := begin_writer()
+	if !testing.expect(t, lock_err == nil) do return
+	defer end_writer(&w)
+	if !testing.expect(t, lock_collection(&w, root) == nil) do return
+	state, open_err := open_dir(child(root, ".kadai"))
+	if !testing.expect(t, open_err == nil) do return
+	defer close_dir(&state)
+	changes := []Change{{kind = .Create, path = "A.md", data = {42}}}
+
+	// The pre-intent callback can already have persisted an ID reservation.
+	fail_after_recording :: proc(data: rawptr) -> string {
+		if e := create_file((^Directory)(data), "reservation", {1}); e != nil do return os.error_string(e)
+		return "recording stopped"
+	}
+	id, issue := commit(&w, changes, before_intent = fail_after_recording, data = &state)
+	archive := child(state.path, "recovery")
+	testing.expect(t, strings.contains(issue, "recording stopped"), issue)
+	testing.expect(
+		t,
+		os.exists(child(state.path, "reservation")) && !os.exists(child(archive, id)),
+	)
+	testing.expect(t, !os.exists(child(root, "A.md")))
+
+	// An unexpected entry must survive cleanup, and both failures must reach the caller.
+	leave_unknown_file :: proc(data: rawptr) -> string {
+		vault := (^string)(data)^
+		dirs, e := os.read_directory_by_path(vault, 1, context.temp_allocator)
+		if e != nil || len(dirs) != 1 do return "missing preparation"
+		if err := os.write_entire_file(child(child(vault, dirs[0].name), "keep"), "user data"); err != nil do return os.error_string(err)
+		return "recording stopped"
+	}
+	id, issue = commit(&w, changes, before_intent = leave_unknown_file, data = &archive)
+	testing.expect(
+		t,
+		strings.contains(issue, "recording stopped") &&
+		strings.contains(issue, "Preparation cleanup failed"),
+		issue,
+	)
+	retained, read_err := os.read_entire_file(
+		child(child(archive, id), "keep"),
+		context.temp_allocator,
+	)
+	testing.expect(t, read_err == nil && string(retained) == "user data")
+
+	// Make only the second no-replace publication fail. The first pointer
+	// must still lead to a complete journal after commit returns.
+	block_second_pointer :: proc(data: rawptr) -> string {
+		return os.error_string(create_file((^Directory)(data), "pending", {1}))
+	}
+	id, issue = commit(&w, changes, before_intent = block_second_pointer, data = &state)
+	if !testing.expect(t, strings.contains(issue, "recording operation intent"), issue) do return
+	testing.expect(t, os.exists(child(state.path, "intent")) && !os.exists(child(root, "A.md")))
+	if !testing.expect(t, remove_entry(&state, "pending") == nil) do return
+	recovered, recovery_issue := recover(&w, .Resume)
+	testing.expect(
+		t,
+		recovery_issue == "" && recovered == id && os.exists(child(root, "A.md")),
+		recovery_issue,
+	)
+}
+
 // Run the same test executable so the contender has independent native locks.
 // The interrupted writer exits without running cleanup after the first rename.
 @(test)
