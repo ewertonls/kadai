@@ -55,9 +55,10 @@ security_descriptor :: proc(h: w.HANDLE, flags: u32) -> (bytes: []byte, err: os.
 // cannot hide a readable child from users with traverse-check bypass. Check
 // owners as well as every grant, even OWNER RIGHTS and inherit-only ACEs.
 @(private)
-private_security :: proc(bytes: []byte) -> (err: os.Error) {
+check_security :: proc(bytes: []byte, require_private: bool) -> (err: os.Error) {
 	if len(bytes) < 20 || len(bytes) > 1 << 20 || uintptr(raw_data(bytes)) % 4 != 0 do return .Unsupported
 	if !RtlValidRelativeSecurityDescriptor(raw_data(bytes), u32(len(bytes)), w.OWNER_SECURITY_INFORMATION | w.DACL_SECURITY_INFORMATION) do return .Unsupported
+	if !require_private do return
 	owner: rawptr
 	present, defaulted: w.BOOL
 	acl: w.PACL
@@ -112,7 +113,7 @@ security_text :: proc(
 	read_flags := flags
 	if require_private do read_flags |= w.OWNER_SECURITY_INFORMATION | w.DACL_SECURITY_INFORMATION
 	bytes := security_descriptor(h, read_flags) or_return
-	if require_private do private_security(bytes) or_return
+	if require_private do check_security(bytes, true) or_return
 	out: w.wstring
 	if !ConvertSecurityDescriptorToStringSecurityDescriptorW(raw_data(bytes), 1, flags, &out, nil) do return "", native_error()
 	defer w.LocalFree(rawptr(out))
@@ -127,6 +128,7 @@ metadata :: proc(
 	f: ^os.File,
 	security_image: ^[]byte = nil,
 	version := CURRENT_JOURNAL_VERSION,
+	require_private := true,
 ) -> (
 	signature: string,
 	err: os.Error,
@@ -141,7 +143,7 @@ metadata :: proc(
 		w.GROUP_SECURITY_INFORMATION |
 		w.DACL_SECURITY_INFORMATION |
 		w.LABEL_SECURITY_INFORMATION,
-		require_private = true,
+		require_private = require_private,
 	) or_return
 	// BackupRead advances the file pointer. Restore it before returning.
 	pos := os.seek(f, 0, .Current) or_return
@@ -173,7 +175,7 @@ metadata :: proc(
 			if !BackupRead(h, raw_data(bytes), u32(size), &n, false, true, &ctx) || n != u32(size) do return "", .Invalid_File
 			// Validate the captured bytes too: the ACL may change after the
 			// GetKernelObjectSecurity call and before BackupRead captures it.
-			private_security(bytes) or_return
+			check_security(bytes, require_private) or_return
 			security = digest(bytes)
 			if security_image != nil {
 				security_image^ = security_buffer(20 + len(bytes)) or_return
@@ -185,28 +187,36 @@ metadata :: proc(
 		}
 	}
 	if security == "" do return "", .Unsupported
-	return digest(transmute([]byte)fmt.tprintf("%s/%s/%d", sd, security, info.dwFileAttributes)),
-		nil
+	attributes := info.dwFileAttributes
+	// NTFS marks a newly written project file for backup even if the old
+	// file's archive bit was cleared. Journal image signatures stay exact.
+	if !require_private do attributes &~= w.FILE_ATTRIBUTE_NORMAL | w.FILE_ATTRIBUTE_ARCHIVE
+	return digest(transmute([]byte)fmt.tprintf("%s/%s/%d", sd, security, attributes)), nil
 }
 
 @(private)
-copy_metadata :: proc(src, dst: ^os.File, version := CURRENT_JOURNAL_VERSION) -> (err: os.Error) {
+copy_metadata :: proc(
+	src, dst: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+	require_private := true,
+) -> (
+	err: os.Error,
+) {
 	security: []byte
-	a := metadata(src, &security) or_return
-	write_private_security(dst, security) or_return
-	b := metadata(dst) or_return
+	a := metadata(src, &security, version = version, require_private = require_private) or_return
+	write_security(dst, security, require_private) or_return
+	b := metadata(dst, version = version, require_private = require_private) or_return
 	if a != b do return .Unsupported
 	return
 }
 
 @(private)
-write_private_security :: proc(dst: ^os.File, security: []byte) -> (err: os.Error) {
+write_security :: proc(dst: ^os.File, security: []byte, require_private: bool) -> (err: os.Error) {
 	if len(security) < 40 ||
 	   (^u32le)(&security[0])^ != 3 ||
 	   u64((^u64le)(&security[8])^) != u64(len(security) - 20) ||
 	   (^u32le)(&security[16])^ != 0 {return .Unsupported}
-	// Never apply a captured descriptor until it has passed the privacy gate.
-	private_security(security[20:]) or_return
+	check_security(security[20:], require_private) or_return
 	h := w.HANDLE(os.fd(dst))
 	ctx: rawptr
 	n: u32
@@ -214,6 +224,16 @@ write_private_security :: proc(dst: ^os.File, security: []byte) -> (err: os.Erro
 	if !BackupWrite(h, raw_data(security), u32(len(security)), &n, false, true, &ctx) do return native_error()
 	if n != u32(len(security)) do return .Short_Write
 	return
+}
+
+@(private)
+project_metadata :: proc(f: ^os.File) -> (string, os.Error) {
+	return metadata(f, require_private = false)
+}
+
+@(private)
+copy_project_metadata :: proc(src, dst: ^os.File) -> os.Error {
+	return copy_metadata(src, dst, require_private = false)
 }
 
 @(private)

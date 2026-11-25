@@ -53,4 +53,4 @@ KAD-007 Section 4 defines the small deterministic builders and optional legacy r
 
 KAD-011 owns the minimal setup/runner. Parser and storage tasks own the necessary implementation tests, including actual locks, atomic replacement and safe recovery. Graph/domain tasks own table-driven semantics. CLI tasks add only behavior specific to command parsing/output and one representative end-to-end workflow. Do not implement each catalog entry again in every layer.
 
-Kadai never manages user Git tracking. The development repository's raw-byte fixture attributes do not change that rule. Preserve the underlying contracts; remove redundant testing work rather than weakening safety.
+The development repository's attributes preserve raw fixture bytes. KAD-003 defines how `init --git` updates a user's task-root `.gitignore`. Preserve the underlying contracts; remove redundant testing work rather than weakening safety.

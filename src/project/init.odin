@@ -8,6 +8,41 @@ import "kadai:storage"
 import "kadai:yaml"
 
 @(private)
+GITIGNORE_RULE :: "/.kadai/"
+
+@(private)
+plan_gitignore :: proc(path: string, limit: int) -> (contents, expected: string, err: os.Error) {
+	f, open_err := storage.read_file(path)
+	if open_err == os.General_Error.Not_Exist {
+		contents = GITIGNORE_RULE + "\n"
+		if len(contents) > limit do return "", "", .Short_Buffer
+		return
+	}
+	if open_err != nil do return "", "", open_err
+	defer os.close(f)
+	data := storage.read_bounded(f, limit) or_return
+	source := strings.trim_prefix(string(data), "\xef\xbb\xbf")
+	lines := source
+	for line in strings.split_iterator(&lines, "\n") {
+		if strings.trim_right(strings.trim_suffix(line, "\r"), " ") == GITIGNORE_RULE do return
+	}
+	// Follow the last line ending, including when the final rule has no newline.
+	eol := "\n"
+	if lf := strings.last_index_byte(source, '\n'); lf > 0 && source[lf - 1] == '\r' do eol = "\r\n"
+	separator := eol if source != "" && !strings.has_suffix(source, "\n") else ""
+	if len(separator) + len(GITIGNORE_RULE) + len(eol) > limit - len(data) do return "", "", .Short_Buffer
+	// Check single-link eligibility before init publishes any project files.
+	target := storage.read_file(path, mutation = true) or_return
+	os.close(target) or_return
+	info := storage.file_info(f) or_return
+	contents = strings.concatenate(
+		{string(data), separator, GITIGNORE_RULE, eol},
+		context.temp_allocator,
+	) or_return
+	return contents, storage.file_version(info, data), nil
+}
+
+@(private)
 initial_config :: proc(cfg: Config) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	root := "." if cfg.tasks == cfg.project else cfg.tasks[len(storage.child(cfg.project, "")):]
@@ -32,6 +67,7 @@ initialize :: proc(
 	cwd: string,
 	options := Options{},
 	limits := DEFAULT_SCAN_LIMITS,
+	git := false,
 ) -> (
 	cfg: Config,
 	problem: string,
@@ -45,6 +81,14 @@ initialize :: proc(
 	if problem != "" do return
 	if problem = storage.check_pending(&writer, cfg.project, limits.entries); problem != "" do return
 	started := write_progress(options)
+	gitignore, expected: string
+	if git {
+		path := storage.child(cfg.tasks, ".gitignore")
+		e: os.Error
+		gitignore, expected, e = plan_gitignore(path, limits.source_bytes)
+		if e == .Short_Buffer do return cfg, fmt.tprintf("%s: task_source_bytes limit exceeded (%d)", path, limits.source_bytes)
+		if e != nil do return cfg, fmt.tprintf("%s: %s", path, os.error_string(e))
+	}
 	if cfg.existing {
 		persisted, issue := resolve(cwd, Options{project = options.project}, limits.yaml)
 		if issue != "" do return cfg, issue
@@ -69,6 +113,17 @@ initialize :: proc(
 	}
 	dir, err := storage.open_dir(cfg.tasks, create = true, created = started)
 	if err != nil do return cfg, os.error_string(err)
-	storage.close_dir(&dir)
+	defer storage.close_dir(&dir)
+	if gitignore != "" {
+		err = storage.write_project_file(
+			&dir,
+			".gitignore",
+			expected,
+			transmute([]byte)gitignore,
+			limits.source_bytes,
+			started,
+		)
+		if err != nil do return cfg, fmt.tprintf("%s: %s", storage.child(cfg.tasks, ".gitignore"), os.error_string(err))
+	}
 	return
 }

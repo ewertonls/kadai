@@ -14,6 +14,18 @@ Recovery_Audit :: struct {
 }
 
 @(private)
+recovery_audit :: proc(root: string, l: Journal_Limits) -> Recovery_Audit {
+	return {
+		root = root,
+		limits = l,
+		entries = l.entries,
+		control_bytes = l.total_bytes,
+		image_bytes = l.total_bytes,
+		nodes = l.total_nodes,
+	}
+}
+
+@(private)
 audit_io :: proc(a: ^Recovery_Audit, path: string, e: os.Error, dimension: string) {
 	msg := os.error_string(e)
 	if e == .Short_Buffer do msg = fmt.tprintf("%s limit exceeded", dimension)
@@ -43,15 +55,39 @@ snapshot_difference :: proc(expected, actual: string) -> string {
 	)
 }
 
+// Both intact and partially discarded journals count toward the same node budget.
+@(private)
+parse_audited_plan :: proc(
+	plan: string,
+	limits: Journal_Limits,
+	nodes_left: ^i64,
+) -> (
+	steps: []Step,
+	version: Journal_Version,
+	err: os.Error,
+) {
+	count := strings.count(plan, "\n") - 1
+	cost := i64(count) * 8 + 1
+	if count > 0 && (!fits_plan(count, limits) || cost > nodes_left^) do return nil, {}, .Short_Buffer
+	valid: bool
+	steps, version, valid = parse_manifest(plan, limits)
+	if !valid do return nil, {}, .Invalid_File
+	nodes_left^ -= cost
+	return
+}
+
 // Compare live files only for an active intent. Completed tasks can
 // legitimately have changed since commit.
 @(private)
-audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, pointers: []string) {
-	path := child(vault.path, id)
-	op, e := open_dir(path, private_leaf = true)
-	if e != nil {audit_io(a, path, e, "directory"); return}
-	defer close_dir(&op)
-	entries, dir_err := state_entries(&op, &a.entries)
+audit_operation :: proc(
+	a: ^Recovery_Audit,
+	op: ^Directory,
+	id: string,
+	pointers: []string,
+	pruning := false,
+) {
+	path := op.path
+	entries, dir_err := state_entries(op, &a.entries)
 	if dir_err != nil {audit_io(a, path, dir_err, "filesystem_entries"); return}
 	files := make(map[string]bool, len(entries), context.temp_allocator)
 	for fi in entries {
@@ -75,7 +111,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 		)
 		return
 	}
-	plan, err := control(&op, "plan", a.limits.record, &a.control_bytes)
+	plan, err := control(op, "plan", a.limits.record, &a.control_bytes)
 	if err !=
 	   nil {audit_io(a, child(path, "plan"), err, "control record or aggregate byte"); return}
 	want := pointer(id, plan)
@@ -93,7 +129,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 	}
 	for receipt in ([]string{"committed", "rolled-back", "rollback"}) {
 		if receipt not_in files do continue
-		record, read_err := control(&op, receipt, a.limits.record, &a.control_bytes)
+		record, read_err := control(op, receipt, a.limits.record, &a.control_bytes)
 		if read_err !=
 		   nil {audit_io(a, child(path, receipt), read_err, "control record or aggregate byte"); continue}
 		if record !=
@@ -124,9 +160,8 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 			"Rollback receipt is missing its direction record.",
 		)
 	}
-	count := strings.count(plan, "\n") - 1
-	cost := i64(count) * 8 + 1
-	if count > 0 && (!fits_plan(count, a.limits) || cost > a.nodes) {
+	steps, version, parse_err := parse_audited_plan(plan, a.limits, &a.nodes)
+	if parse_err == .Short_Buffer {
 		state_problem(
 			&a.result,
 			path,
@@ -136,9 +171,31 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 		)
 		return
 	}
-	steps, version, ok := parse_manifest(plan, a.limits)
-	if !ok {state_problem(&a.result, path, "corrupt_journal", "Invalid transaction manifest."); return}
-	a.nodes -= cost
+	if parse_err !=
+	   nil {state_problem(&a.result, path, "corrupt_journal", "Invalid transaction manifest."); return}
+	if pruning {
+		for entry in entries {
+			expected, check_err := prune_entry_expected(
+				op,
+				entry.name,
+				steps,
+				want,
+				a.limits.record,
+				&a.control_bytes,
+			)
+			if check_err !=
+			   nil {audit_io(a, child(path, entry.name), check_err, "staged receipt"); return}
+			if !expected {
+				state_problem(
+					&a.result,
+					child(path, entry.name),
+					"unknown_recovery_entry",
+					"Unexpected file in completed recovery operation.",
+				)
+				return
+			}
+		}
+	}
 	if check_live {
 		rollback := "rollback" in files
 		for step, slot in steps {
@@ -146,7 +203,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 			if step.kind == .Move_Directory {
 				check = apply_tree_move(
 					a.root,
-					&op,
+					op,
 					step,
 					rollback,
 					true,
@@ -159,7 +216,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 			} else {
 				check = apply_step(
 					a.root,
-					&op,
+					op,
 					slot,
 					step,
 					rollback,
@@ -183,7 +240,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 		}
 	}
 	if len(steps) == 1 && steps[0].kind == .Move_Directory {
-		audit_tree_images(a, &op, entries[:], steps[0], version)
+		audit_tree_images(a, op, entries[:], steps[0], version)
 		return
 	}
 	for s, slot in steps {
@@ -198,7 +255,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 					"rollback" not_in files &&
 					(s.kind == .Delete || s.kind == .Replace)
 			if !required && name not_in files do continue
-			stamp, image_err := entry_state(&op, name, a.limits.source, &a.image_bytes, version)
+			stamp, image_err := entry_state(op, name, a.limits.source, &a.image_bytes, version)
 			if image_err !=
 			   nil {audit_io(a, child(path, name), image_err, "snapshot or aggregate byte"); continue}
 			if stamp != image.stamp || required && stamp == "-" {
@@ -215,14 +272,7 @@ audit_operation :: proc(a: ^Recovery_Audit, vault: ^Directory, id: string, point
 
 inspect_recovery :: proc(root: string, l: Journal_Limits) -> State_Audit {
 	context.allocator = context.temp_allocator
-	a := Recovery_Audit {
-		root          = root,
-		limits        = l,
-		entries       = l.entries,
-		control_bytes = l.total_bytes,
-		image_bytes   = l.total_bytes,
-		nodes         = l.total_nodes,
-	}
+	a := recovery_audit(root, l)
 	path := child(root, ".kadai")
 	state, e := open_dir(path)
 	if e == os.General_Error.Not_Exist do return a.result
@@ -275,7 +325,11 @@ inspect_recovery :: proc(root: string, l: Journal_Limits) -> State_Audit {
 			continue
 		}
 		delete_key(&pending, fi.name)
-		audit_operation(&a, &vault, fi.name, pointers[:])
+		op_path := child(vault.path, fi.name)
+		op, open_err := open_dir(op_path, private_leaf = true)
+		if open_err != nil {audit_io(&a, op_path, open_err, "directory"); continue}
+		defer close_dir(&op)
+		audit_operation(&a, &op, fi.name, pointers[:])
 	}
 	for id in pending do state_problem(&a.result, child(vault_path, id), "missing_journal", "The intent points to a missing transaction directory.")
 	return a.result

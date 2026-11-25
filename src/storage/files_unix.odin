@@ -77,25 +77,43 @@ check_private_dir :: proc(fd: p.FD) -> os.Error {
 	return private_directory_acl(fd)
 }
 
-regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File, err: os.Error) {
+regular :: proc(
+	d: ^Directory,
+	name: string,
+	mutation := false,
+	writable := false,
+) -> (
+	f: ^os.File,
+	err: os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
-	fd := p.openat(dir_fd(d), cs(name), {.NOFOLLOW, .CLOEXEC, .NONBLOCK})
+	flags := p.O_Flags{.NOFOLLOW, .CLOEXEC, .NONBLOCK}
+	if writable do flags += {.RDWR}
+	fd := p.openat(dir_fd(d), cs(name), flags)
 	if fd < 0 do return nil, native_error()
 	defer if err != nil {p.close(fd)}
 	st: p.stat_t
 	if p.fstat(fd, &st) != .OK do return nil, native_error()
-	if !p.S_ISREG(st.st_mode) || mutation && st.st_nlink != 1 do return nil, .Invalid_File
+	if !p.S_ISREG(st.st_mode) || (mutation || writable) && st.st_nlink != 1 do return nil, .Invalid_File
 	return os.new_file(uintptr(fd), child(d.path, name)), nil
 }
 
 @(private)
-create_regular :: proc(d: ^Directory, name: string, created: ^bool = nil) -> (^os.File, os.Error) {
+create_regular :: proc(
+	d: ^Directory,
+	name: string,
+	created: ^bool = nil,
+	project_file := false,
+) -> (
+	^os.File,
+	os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
 	fd := p.openat(
 		dir_fd(d),
 		cs(name),
 		{.RDWR, .CREAT, .EXCL, .NOFOLLOW, .CLOEXEC},
-		transmute(p.mode_t)p._mode_t(0o600),
+		transmute(p.mode_t)p._mode_t(0o666 if project_file else 0o600),
 	)
 	if fd < 0 do return nil, native_error()
 	if created != nil do created^ = true

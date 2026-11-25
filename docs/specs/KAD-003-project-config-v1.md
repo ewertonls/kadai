@@ -13,7 +13,7 @@ Kadai is an offline task manager whose task content and status live in Markdown 
 - Git is **not** used to select a project. A `.git` marker never changes the project root. No Git executable, repository, index, ignore file, or worktree is required for ordinary operation.
 - Every collection owns its task scan, local ID namespace, durable used-ID history, native lock and recovery state. An overridden `tasks.root` selects a different collection, not a temporary mutation of the configured collection.
 - All collection roots must remain physically within the selected project. A project may contain multiple independent, temporary, per-worktree or persistent collections. Overlap between roots is allowed and has explicit risks (Section 9).
-- No Kadai file needs to be Git-tracked. Kadai never creates or modifies `.gitignore` or `.git/info/exclude`. The user decides whether to track tasks, config, history or any other file.
+- Users decide which files to track. Only `kadai init --git` edits Git ignore rules, in the selected task directory’s `.gitignore`.
 - The content of a task is governed by KAD-002. The project configuration does not introduce a second authoritative task-state store.
 
 This specification **supersedes the earlier Git-root fallback** in KAD-001. That document and the implementation roadmap are updated accordingly.
@@ -91,6 +91,7 @@ tasks:
 - `init` is optional. Without configuration, reads scan `<CWD>/tasks/` by default, and `kadai add` can create a collection and necessary internal state on demand without writing `.kadai.yaml`.
 - On first initialization, `init` persists accepted configuration flags (for example a custom `--tasks-root` or `--id-prefix`) instead of only using them for that invocation. Absolute CLI path overrides are converted into project-relative (`tasks.root`) or task-root-relative (`boards.root`) portable YAML paths before saving; absolute paths must never be written into configuration. Other default/absent fields are omitted.
 - `init` creates `tasks.root` (unless the directory already exists); it does **not** create `boards.root` in v0.1, nor empty lock/history/recovery files solely for initialization.
+- On first or repeated initialization, `--git` creates `<tasks.root>/.gitignore` with the literal line `/.kadai/` or appends that line if missing. Existing content is preserved. This option applies only to the current invocation.
 - If `.kadai.yaml` already exists, `init` validates it and may create an absent effective tasks directory. It never overwrites or reformats existing configuration, task files, or used-ID history. An explicitly supplied initialization option that conflicts with existing persisted config must fail rather than be silently ignored or saved elsewhere.
 - If a collection directory is absent, read commands treat it as an empty collection and create nothing. An existing collection path that is a non-directory, inaccessible, or otherwise unscannable is an error, not an empty collection. Commands that need to create a task may create the required directories and state securely. A missing collection directory is **not** by itself an invalid configuration.
 - Failures must not silently overwrite existing files. Atomic creation, interruption and safe filesystem behavior belong to KAD-029/KAD-030.
@@ -185,7 +186,7 @@ All internal per-collection state belongs beneath:
 
 These are **logical locations**, not frozen filenames. Caches, if added, must be rebuildable. No state file is created by read-only discovery. Generating an ID requires a durable allocation record even in an uninitialized project, per KAD-002/KAD-004. A common local coordination mechanism, if needed for overlapping roots, is specified by KAD-030 and is not a shared task database; it must not change collection identity or require a daemon.
 
-Kadai does not require, control, configure or modify Git tracking. A collection may be local, untracked, committed, per-worktree or ephemeral. Non-reuse of a CLI-issued ID is guaranteed only while the durable record containing that allocation is retained; deleting an entire collection (including its history), or independently allocating in separate clones/branches, removes that shared-history guarantee. Git merges may create collisions requiring KAD-004's explicit repair process.
+A collection may be local, untracked, committed, per-worktree or ephemeral. Non-reuse of a CLI-issued ID is guaranteed only while the durable record containing that allocation is retained; deleting an entire collection (including its history), or independently allocating in separate clones/branches, removes that shared-history guarantee. Git merges may create collisions requiring KAD-004's explicit repair process.
 
 **Overlapping collections are permitted.** For example, `tasks/` and `tasks/backend/` may be selected independently. They can contain some of the same Markdown files while keeping **different** ID histories and collection locks. Thus:
 
@@ -214,7 +215,7 @@ KAD-007/KAD-023–KAD-026/KAD-030 must cover the distinct behaviors below using 
 | `--project` selects a nonexistent directory | Error, including for `init`. |
 | Project has no `.kadai.yaml` or `tasks/` | Read is empty and side-effect-free; `add` may create the collection without writing config. |
 | First `init` with and without flags | Minimal persisted v1 config; absolute CLI root paths saved in relative form; selected tasks directory created, boards and operational files not pre-created. |
-| Repeated `init` with valid config | Non-destructive; creates missing tasks directory only; conflicting new init flags fail. |
+| Repeated `init` with valid config | Preserves config, creates a missing tasks directory, and refuses conflicting settings. |
 | Unknown or duplicate config key, malformed YAML, invalid UTF-8, unknown schema | Error; no silent fallback. |
 | Any optional `null` field, null status extension, or null list element | Fields use defaults, null status extension is omitted; null list elements are invalid. |
 | Invalid config leaf replaced by CLI flag | Skip invalid replaced leaf; reject any remaining invalid effective field or malformed structure. |
@@ -229,7 +230,7 @@ KAD-007/KAD-023–KAD-026/KAD-030 must cover the distinct behaviors below using 
 | `--exclude` over configured exclusions | CLI list replaces custom list; mandatory exclusions remain. |
 | Conflicting read-dependent operations through overlapping collections | Serialize or reject even with distinct written files; pending transactions cannot be bypassed via another root. |
 | Move collection with `.kadai/` vs incomplete migration | Whole-directory manual relocation supported; detectable missing/corrupt state is not silently reset. |
-| Git-tracking choice | No command creates/edits `.gitignore` or requires a tracked file. |
+| `init --git` on a new or existing project | Ensures `<tasks.root>/.gitignore` contains the literal `/.kadai/` line. Repeating the command preserves an existing rule and all other content. |
 | Unreadable non-excluded subtree or candidate | Incomplete inventory; no normal partial query or dependent mutation. |
 | Add/move destination excluded from discovery | Refuse instead of creating a task that disappears from the effective collection. |
 

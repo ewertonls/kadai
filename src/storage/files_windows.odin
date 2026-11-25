@@ -83,6 +83,8 @@ win_open :: proc(
 	parent: ^os.File = nil,
 	private_leaf := false,
 	created: ^bool = nil,
+	writable := false,
+	project_file := false,
 ) -> (
 	f: ^os.File,
 	err: os.Error,
@@ -91,17 +93,24 @@ win_open :: proc(
 	share := w.FILE_SHARE_READ
 	how := w.OPEN_EXISTING
 	flags := w.FILE_FLAG_OPEN_REPARSE_POINT
-	if dir {
+	if writable {
+		access |= w.GENERIC_WRITE
+	} else if dir {
 		flags |= w.FILE_FLAG_BACKUP_SEMANTICS
 		share |= w.FILE_SHARE_WRITE
 	} else {
 		share |= w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE
 	}
-	if create && !dir {access |= w.GENERIC_WRITE | w.WRITE_DAC | w.WRITE_OWNER; how = w.CREATE_NEW}
+	if create && !dir {
+		access |= w.GENERIC_WRITE
+		if !project_file do access |= w.WRITE_DAC | w.WRITE_OWNER
+		how = w.CREATE_NEW
+	}
 	sa := w.SECURITY_ATTRIBUTES {
 		nLength = size_of(w.SECURITY_ATTRIBUTES),
 	}
-	if create && (!dir || private_leaf) {sa.lpSecurityDescriptor = owner_acl(dir) or_return}
+	if create &&
+	   (!dir && !project_file || private_leaf) {sa.lpSecurityDescriptor = owner_acl(dir) or_return}
 	defer if sa.lpSecurityDescriptor != nil {w.LocalFree(sa.lpSecurityDescriptor)}
 	h: w.HANDLE
 	if parent == nil {
@@ -200,15 +209,46 @@ create_private_dir :: proc(
 	return Directory{path = path, file = f}, nil
 }
 
-regular :: proc(d: ^Directory, name: string, mutation := false) -> (^os.File, os.Error) {
+regular :: proc(
+	d: ^Directory,
+	name: string,
+	mutation := false,
+	writable := false,
+) -> (
+	^os.File,
+	os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
-	return win_open(child(d.path, name), false, false, mutation, d.file)
+	return win_open(
+		child(d.path, name),
+		false,
+		false,
+		mutation || writable,
+		d.file,
+		writable = writable,
+	)
 }
 
 @(private)
-create_regular :: proc(d: ^Directory, name: string, created: ^bool = nil) -> (^os.File, os.Error) {
+create_regular :: proc(
+	d: ^Directory,
+	name: string,
+	created: ^bool = nil,
+	project_file := false,
+) -> (
+	^os.File,
+	os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
-	return win_open(child(d.path, name), false, true, false, d.file, created = created)
+	return win_open(
+		child(d.path, name),
+		false,
+		true,
+		false,
+		d.file,
+		created = created,
+		project_file = project_file,
+	)
 }
 
 @(private)
@@ -249,15 +289,26 @@ publish :: proc(
 }
 
 @(private)
+remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
+	return remove_relative(d, name, false)
+}
+
+@(private)
+remove_empty_dir :: proc(d: ^Directory, name: string) -> os.Error {
+	return remove_relative(d, name, true)
+}
+
+@(private)
 remove_relative :: proc(d: ^Directory, name: string, directory: bool) -> os.Error {
-	if !component(name) do return .Invalid_Path
+	kind := u32(1) if directory else u32(w.FILE_NON_DIRECTORY_FILE) // FILE_DIRECTORY_FILE
+	access := w.DELETE | w.FILE_READ_ATTRIBUTES if directory else w.DELETE
 	h := relative_handle(
 		d.file,
 		name,
-		w.DELETE | w.FILE_READ_ATTRIBUTES if directory else w.DELETE,
+		access,
 		w.FILE_SHARE_READ | w.FILE_SHARE_WRITE | w.FILE_SHARE_DELETE,
 		w.FILE_OPEN,
-		1 if directory else w.FILE_NON_DIRECTORY_FILE, // FILE_DIRECTORY_FILE
+		kind,
 	) or_return
 	defer w.CloseHandle(h)
 	if directory {
@@ -269,20 +320,6 @@ remove_relative :: proc(d: ^Directory, name: string, directory: bool) -> os.Erro
 	if !w.SetFileInformationByHandle(h, .FileDispositionInfo, &remove, size_of(remove)) do return native_error()
 	return nil
 }
-
-@(private)
-remove_entry :: proc(d: ^Directory, name: string) -> os.Error {return remove_relative(
-		d,
-		name,
-		false,
-	)}
-
-@(private)
-remove_empty_dir :: proc(d: ^Directory, name: string) -> os.Error {return remove_relative(
-		d,
-		name,
-		true,
-	)}
 
 // Windows has no unprivileged equivalent of fsync on a directory handle.
 sync_dir :: proc(d: ^Directory) -> os.Error {return nil}

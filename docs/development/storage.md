@@ -6,6 +6,7 @@ On macOS and Linux, storage walks from an open root directory with `openat(O_DIR
 
 First-time publication stages a complete file in its destination directory, syncs the file, then publishes with a native no-replace rename. POSIX also syncs the parent directory. Windows syncs file contents before the handle-relative rename; `sync_dir` is a no-op. The Windows checks demonstrate process-interruption recovery, not persistence of directory entries across power loss. An occupied destination, including a link or ordinary Markdown file, prevents publication.
 
+`init --git` creates the task directory’s `.gitignore` with the project directory’s normal file permissions. When the rule is missing from an existing file, Kadai stages the complete contents, verifies the original version and access permissions, and atomically replaces it. An existing rule requires only read access.
 
 Replacement and deletion require an independent pre-write image in a private recovery directory. Kadai retains that image after rollback. A replacement and its rollback image have distinct, pre-recorded file identities. Each step checks the expected device, inode or Windows file ID, SHA-256 and security metadata before changing a name. A crash between rename and directory sync can be retried by checking the recorded post-image and syncing again.
 
@@ -13,13 +14,13 @@ On macOS, Kadai verifies ownership, permissions, BSD flags, ACLs and extended at
 
 Recovery and validation select the metadata policy recorded in each plan. Existing `kadai-transaction-v1` plans retain their original checks, including provenance on macOS. Linux and Windows continue writing v1 plans. Upgrade Kadai in every application sharing a macOS collection before validating or recovering v2 operations.
 
-On Windows, new files use a protected owner-rights DACL. Recovery directories require the protected owner-only inheritable DACL and a trusted owner. Before copying metadata, storage validates both the source security descriptor and the actual captured backup security stream. Owners must be the current process user, LocalSystem or Builtin Administrators. Conventional allow ACEs may grant access only to those principals or OWNER RIGHTS with a trusted owner; conventional deny ACEs are supported. Missing/null DACLs, untrusted owners or grants, malformed descriptors and other ACE types cause `Unsupported`. A private parent directory alone does not make a readable snapshot private.
+On Windows, new journal files use a protected owner-rights DACL. Recovery directories require the protected owner-only inheritable DACL and a trusted owner. Before copying journal metadata, storage validates both the source security descriptor and the actual captured backup security stream. Owners must be the current process user, LocalSystem or Builtin Administrators. Conventional allow ACEs may grant access only to those principals or OWNER RIGHTS with a trusted owner; conventional deny ACEs are supported. Missing/null DACLs, untrusted owners or grants, malformed descriptors and other ACE types cause `Unsupported`. A private parent directory alone does not make a readable snapshot private.
 
 Replacement copies only a compatible security stream with `BackupWrite`, then checks that both the security descriptor and backup security stream match the staged file and remain private. This supports inherited DACLs from editor saves when their grants meet the same policy, as well as Kadai-created files. Alternate streams, extended attributes, unsupported file attributes and security descriptors that cannot be reproduced cause refusal. No backup, restore or audit privilege is enabled by Kadai. File and directory-tree snapshots, recovery and recovery audit use the same file-metadata validation. Existing unsafe archives are refused or diagnosed without changing their permissions, deleting evidence or migrating journals.
 
 The [Windows 11 validation record](windows-validation.md) documents the native KAD-085 results and remaining platform limits.
 
-Transaction images and their destinations must support same-filesystem rename. Kadai refuses a change across mount points. Staging or sync failures after persistence starts can retain recovery material. Automatic pruning is deferred.
+Transaction images and their destinations must support same-filesystem rename. Kadai refuses a change across mount points. Staging or sync failures after persistence starts can retain recovery material. Cleanup is explicit. [Cleaning recovery history](cli.md#cleaning-recovery-history).
 
 
 ## Coordination and restart
@@ -33,6 +34,8 @@ Before publishing a change, storage syncs an immutable plan under `.kadai/recove
 If preparation returns an error before the first intent is published, the writer cleans up its own images and plan while holding the collection lock. IDs already reserved stay reserved. A process interruption or cleanup error can leave an incomplete preparation. Once the first intent is published, the writer retains the journal so recovery can finish or reverse the operation.
 
 `app.recover_collection` resumes or rolls back an interrupted operation under the same locks. It validates the plan and verifies each affected path before proceeding, then rechecks each step as it runs. Rollback proceeds in reverse and records its direction durably. A later edit, a recreated destination or a corrupt snapshot stops recovery. Successful completion records a synced receipt before clearing intent. An explicit rollback of a committed operation requires its ID, receipt and matching on-disk state.
+
+`recover prune` verifies the completion receipts, manifests and images of eligible operations before removing the first archive. With the writer locks held, it renames each selected archive from `.kadai/recovery/<id>/` to private `.kadai/pruning/<id>/` before deleting its files. This keeps partially deleted archives out of recovery. Cleanup retains the plan and final receipt until the images are gone so a later prune can recognize the remaining files and finish an interrupted deletion.
 
 
 A directory move uses one no-replace rename. The journal records the tree's relative paths, file identities, byte hashes and security metadata, including ordinary files and empty directories. Preparation saves individual pre-move file images. Resume and rollback verify the tree at the expected source or destination and refuse to move a tree containing a later edit. Nested repositories, operational state, excluded paths, links, special files, and trees beyond the invocation budgets are ineligible.
