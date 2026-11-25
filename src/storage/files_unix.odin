@@ -177,6 +177,39 @@ remove_empty_dir :: proc(parent: ^Directory, name: string) -> os.Error {
 	return nil
 }
 
+// Bound the number of virtual memory regions per preparation. The plan gets
+// one additional mapping so cleanup can retire it before inspecting images.
+@(private)
+MAX_PREPARATION_IMAGE_PINS :: 4096
+
+// A file-backed mapping keeps the inode alive after close, even for an empty
+// file. We never access its pages. If pinning fails, cleanup must leave the file.
+@(private)
+pin_prepared_inode :: proc(f: ^os.File, prep: ^Preparation, plan := false) -> bool {
+	if !plan && prep.skip_image_pins do return false
+	if plan || len(prep.pins) < MAX_PREPARATION_IMAGE_PINS {
+		pin := p.mmap(nil, 1, p.PROT_NONE, {.PRIVATE}, p.FD(os.fd(f)))
+		if pin != p.MAP_FAILED {
+			if _, err := append(&prep.pins, pin); err == nil do return true
+			p.munmap(pin, 1)
+		}
+	}
+	// Give back the mappings if the filesystem or process cannot retain them.
+	// A large operation can still commit. Its plan gets a separate pin attempt.
+	release_preparation_pins(prep)
+	for &image in prep.images do image.identity = {}
+	prep.plan = {}
+	prep.skip_image_pins = true
+	return false
+}
+
+@(private)
+release_preparation_pins :: proc(prep: ^Preparation) {
+	for pin in prep.pins do p.munmap(pin, 1)
+	delete(prep.pins)
+	prep.pins = nil
+}
+
 @(private)
 verify_owned_entry :: proc(
 	parent: ^Directory,

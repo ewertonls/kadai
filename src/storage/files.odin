@@ -26,9 +26,11 @@ Prepared_File :: struct {
 }
 
 Preparation :: struct {
-	images        : [dynamic]Prepared_File,
-	plan          : File_Identity,
-	metadata_issue: string,
+	images         : [dynamic]Prepared_File,
+	plan           : File_Identity,
+	pins           : [dynamic]rawptr,
+	skip_image_pins: bool,
+	metadata_issue : string,
 }
 
 @(private)
@@ -36,6 +38,22 @@ file_identity :: proc(f: ^os.File) -> (id: File_Identity, err: os.Error) {
 	info := file_info(f) or_return
 	if info.inode == 0 do return {}, .Unsupported
 	return {info.device, info.inode}, nil
+}
+
+@(private)
+prepared_file_identity :: proc(
+	f: ^os.File,
+	prep: ^Preparation,
+	plan := false,
+) -> (
+	id: File_Identity,
+	err: os.Error,
+) {
+	id = file_identity(f) or_return
+	when ODIN_OS != .Windows {
+		if !pin_prepared_inode(f, prep, plan) do return {}, nil
+	}
+	return
 }
 
 close_dir :: proc(d: ^Directory) {
@@ -143,11 +161,11 @@ create_file :: proc(
 	name: string,
 	data: []byte,
 	published: ^bool = nil,
-	published_identity: ^File_Identity = nil,
+	prepared_plan: ^Preparation = nil,
 ) -> (
 	err: os.Error,
 ) {
-	return publish_file(d, name, data, "", len(data), false, published, published_identity)
+	return publish_file(d, name, data, "", len(data), false, published, prepared_plan)
 }
 
 @(private)
@@ -159,7 +177,7 @@ publish_file :: proc(
 	limit: int,
 	inherit_permissions: bool,
 	published: ^bool,
-	published_identity: ^File_Identity = nil,
+	prepared_plan: ^Preparation = nil,
 ) -> (
 	err: os.Error,
 ) {
@@ -169,15 +187,15 @@ publish_file :: proc(
 	f, open_err := create_regular(d, tmp, &created, project_file = inherit_permissions)
 	stage_id: File_Identity
 	defer if created {
-		if published_identity != nil {
+		if prepared_plan != nil {
 			remove_owned_entry(d, tmp, stage_id, false)
 		} else {
 			remove_entry(d, tmp)
 		}
 	}
 	if open_err != nil do return open_err
-	if published_identity != nil {
-		stage_id, err = file_identity(f)
+	if prepared_plan != nil {
+		stage_id, err = prepared_file_identity(f, prepared_plan, plan = true)
 		if err != nil {os.close(f); return err}
 	}
 	if expected == "" {
@@ -191,6 +209,6 @@ publish_file :: proc(
 	publish(d, tmp, d, name, expected != "") or_return
 	created = false // The stage name is vacant after the rename.
 	if published != nil do published^ = true
-	if published_identity != nil do published_identity^ = stage_id
+	if prepared_plan != nil do prepared_plan.plan = stage_id
 	return sync_dir(d)
 }

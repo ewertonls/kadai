@@ -112,7 +112,7 @@ save_image :: proc(
 		return "", create_err
 	}
 	defer os.close(f)
-	if prep != nil do prep.images[len(prep.images) - 1].identity = file_identity(f) or_return
+	if prep != nil do prep.images[len(prep.images) - 1].identity = prepared_file_identity(f, prep) or_return
 	n := os.write(f, data) or_return
 	if n != len(data) do return "", .Short_Write
 	if original != nil {

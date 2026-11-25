@@ -363,6 +363,7 @@ commit :: proc(
 	prep := Preparation {
 		images = make([dynamic]Prepared_File, context.temp_allocator),
 	}
+	defer {when ODIN_OS != .Windows {release_preparation_pins(&prep)}}
 	dir.preparation = &prep
 	if err == nil do err = sync_dir(&vault)
 	if err == nil {
@@ -382,11 +383,11 @@ commit :: proc(
 	}
 	if issue != "" && !intent_published {
 		if cleanup_err := discard_preparation(&vault, &dir, id); cleanup_err != nil {
-			issue = fmt.tprintf(
-				"%s. Preparation cleanup failed: %s",
-				issue,
-				os.error_string(cleanup_err),
-			)
+			reason := os.error_string(cleanup_err)
+			if prep.skip_image_pins && cleanup_err == .Invalid_File {
+				reason = "could not verify file ownership after releasing preparation mappings"
+			}
+			issue = fmt.tprintf("%s. Preparation cleanup failed: %s", issue, reason)
 		} else {
 			issue = fmt.tprintf("%s. Discarded the unpublished preparation.", issue)
 		}
@@ -412,7 +413,9 @@ discard_preparation :: proc(vault, dir: ^Directory, id: string) -> (err: os.Erro
 		for image in prep.images do remove_owned_entry(dir, image.name, image.identity, false) or_return
 		sync_dir(dir) or_return
 	}
-	close_dir(dir) // The Windows directory handle does not share delete access.
+	// On POSIX the open directory pins its inode through removal. Windows
+	// requires us to close this handle because it does not share delete access.
+	when ODIN_OS == .Windows {close_dir(dir)}
 	remove_owned_entry(vault, id, dir_id, true) or_return
 	return sync_dir(vault)
 }
@@ -462,7 +465,7 @@ commit_prepared :: proc(
 	}
 	plan, ok := manifest(tx.steps, l.record)
 	if !ok || i64(len(plan)) + 4 * 97 > l.total_bytes do return "journal exceeds byte limit"
-	if err = create_file(dir, "plan", transmute([]byte)plan, published_identity = &dir.preparation.plan); err != nil do return os.error_string(err)
+	if err = create_file(dir, "plan", transmute([]byte)plan, prepared_plan = dir.preparation); err != nil do return os.error_string(err)
 	ptr := pointer(id, plan)
 	image_budget := l.total_bytes
 	if issue = run_steps(w.root, dir, tx, .Resume, l, true, &image_budget, false); issue != "" do return
@@ -471,6 +474,7 @@ commit_prepared :: proc(
 		if issue = before_intent(data); issue != "" do return
 	}
 	if err = arm(state, ptr, intent_published); err != nil do return fmt.tprintf("recording operation intent: %s", os.error_string(err))
+	when ODIN_OS != .Windows {release_preparation_pins(dir.preparation)}
 	if issue = run_steps(w.root, dir, tx, .Resume, l, false, &image_budget, false); issue != "" do return
 	return os.error_string(finish(state, dir, .Resume, ptr))
 }

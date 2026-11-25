@@ -25,25 +25,64 @@ discard_preparation_preserves_entries_with_different_identities :: proc(t: ^test
 	prep := Preparation {
 		images = make([dynamic]Prepared_File, context.temp_allocator),
 	}
+	defer {when ODIN_OS != .Windows {release_preparation_pins(&prep)}}
 	dir.preparation = &prep
-	if !testing.expect(t, create_file(&dir, "plan", {1}, published_identity = &prep.plan) == nil) do return
+	if !testing.expect(t, create_file(&dir, "plan", {1}, prepared_plan = &prep) == nil) do return
 	_, image_err := save_image(&dir, "0-next", {2}, nil, 1)
 	if !testing.expect(t, image_err == nil && len(prep.images) == 1) do return
 
-	// Supply a different recorded identity to represent an already replaced file.
 	plan := prep.plan
-	prep.plan = prep.images[0].identity
+	image := prep.images[0].identity
+	plan_path, image_path := child(dir.path, "plan"), child(dir.path, "0-next")
+	if !testing.expect(t, plan.inode != 0 && image.inode != 0) do return
+	when ODIN_OS != .Windows {testing.expect_value(t, len(prep.pins), 2)}
+	prep.plan = image
 	if !testing.expect(t, discard_preparation(&vault, &dir, id) == .Invalid_File) do return
-	data, e := os.read_entire_file(child(dir.path, "plan"), context.temp_allocator)
+	data, e := os.read_entire_file(plan_path, context.temp_allocator)
 	testing.expect(t, e == nil && len(data) == 1 && data[0] == 1)
-	testing.expect(t, os.exists(child(dir.path, "0-next")))
 
 	prep.plan = plan
-	prep.images[0].identity = plan
+	when ODIN_OS == .Windows {
+		if !testing.expect(t, os.rename(image_path, child(dir.path, "old-image")) == nil) do return
+	} else {
+		// The creator has closed its file descriptor. Its pin keeps the inode alive.
+		if !testing.expect(t, os.remove(image_path) == nil) do return
+	}
+	if !testing.expect(t, create_file(&dir, "0-next", {3}) == nil) do return
+	replacement, open_err := regular(&dir, "0-next")
+	if !testing.expect(t, open_err == nil) do return
+	replaced_id, id_err := file_identity(replacement)
+	os.close(replacement)
+	testing.expect(t, id_err == nil && replaced_id != image)
 	if !testing.expect(t, discard_preparation(&vault, &dir, id) == .Invalid_File) do return
-	testing.expect(t, !os.exists(child(dir.path, "plan")))
-	data, e = os.read_entire_file(child(dir.path, "0-next"), context.temp_allocator)
-	testing.expect(t, e == nil && len(data) == 1 && data[0] == 2)
+	testing.expect(t, !os.exists(plan_path))
+	data, e = os.read_entire_file(image_path, context.temp_allocator)
+	testing.expect(t, e == nil && len(data) == 1 && data[0] == 3)
+
+	when ODIN_OS != .Windows {
+		fallback := Preparation {
+			images = make([dynamic]Prepared_File, context.temp_allocator),
+		}
+		defer release_preparation_pins(&fallback)
+		dir.preparation = &fallback
+		_, first_err := save_image(&dir, "1-next", {4}, nil, 1)
+		if !testing.expect(t, first_err == nil && len(fallback.pins) == 1) do return
+		// A directory cannot provide a file-backed mapping.
+		if !testing.expect(t, !pin_prepared_inode(dir.file, &fallback)) do return
+		testing.expect(t, len(fallback.pins) == 0 && fallback.images[0].identity == {})
+		_, second_err := save_image(&dir, "2-next", {5}, nil, 1)
+		if !testing.expect(t, second_err == nil && len(fallback.images) == 2) do return
+		testing.expect(t, len(fallback.pins) == 0 && fallback.images[1].identity == {})
+		if !testing.expect(t, create_file(&dir, "plan", {6}, prepared_plan = &fallback) == nil) do return
+		if !testing.expect(t, fallback.plan.inode != 0 && len(fallback.pins) == 1) do return
+		testing.expect(t, discard_preparation(&vault, &dir, id) == .Invalid_File)
+		testing.expect(
+			t,
+			!os.exists(plan_path) &&
+			os.exists(child(dir.path, "1-next")) &&
+			os.exists(child(dir.path, "2-next")),
+		)
+	}
 }
 
 @(test)
