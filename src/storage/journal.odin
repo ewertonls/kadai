@@ -20,9 +20,16 @@ DEFAULT_JOURNAL_LIMITS :: Journal_Limits {
 	1_000_000,
 }
 
+Journal_Version         :: enum {
+	V1,
+	V2,
+}
+CURRENT_JOURNAL_VERSION :: Journal_Version.V2 when ODIN_OS == .Darwin else Journal_Version.V1
+
 Transaction   :: struct {
-	id   : string,
-	steps: []Step,
+	id     : string,
+	steps  : []Step,
+	version: Journal_Version,
 }
 Recovery_Mode :: enum {
 	Resume,
@@ -45,9 +52,10 @@ decode_path :: proc(value: string, directory := false) -> (path: string, valid: 
 // Flat, versioned, length-bounded ASCII records. Hex paths also support
 // whitespace/newlines. The pointer includes a checksum of the entire manifest.
 @(private)
-manifest :: proc(steps: []Step, limit: int) -> (string, bool) {
+manifest :: proc(steps: []Step, limit: int, version := CURRENT_JOURNAL_VERSION) -> (string, bool) {
 	b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&b, "kadai-transaction-v1\n")
+	header := "kadai-transaction-v1\n" if version == .V1 else "kadai-transaction-v2\n"
+	strings.write_string(&b, header)
 	for s in steps {
 		fmt.sbprintf(
 			&b,
@@ -117,15 +125,24 @@ valid_stamps :: proc(s: Step) -> bool {
 }
 
 @(private)
-parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, bool) {
+parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, Journal_Version, bool) {
 	input := src
 	line, _ := strings.split_iterator(&input, "\n")
-	if line != "kadai-transaction-v1" || !strings.has_suffix(src, "\n") do return nil, false
+	version: Journal_Version
+	switch line {
+	case "kadai-transaction-v1":
+		version = .V1
+	case "kadai-transaction-v2":
+		version = .V2
+	case:
+		return nil, {}, false
+	}
+	if !strings.has_suffix(src, "\n") do return nil, {}, false
 	steps := make([dynamic]Step, context.temp_allocator)
 	for row in strings.split_iterator(&input, "\n") {
-		if !fits_plan(len(steps) + 1, l) do return nil, false
+		if !fits_plan(len(steps) + 1, l) do return nil, {}, false
 		v := strings.split_n(row, " ", 8, context.temp_allocator)
-		if len(v) != 7 || len(v[0]) != 1 || v[0][0] < '0' || v[0][0] > '4' do return nil, false
+		if len(v) != 7 || len(v[0]) != 1 || v[0][0] < '0' || v[0][0] > '4' do return nil, {}, false
 		s := Step {
 			kind     = Change_Kind(v[0][0] - '0'),
 			before   = v[3],
@@ -133,16 +150,16 @@ parse_manifest :: proc(src: string, l: Journal_Limits) -> ([]Step, bool) {
 			backup   = v[5],
 			restored = v[6],
 		}
-		if !valid_stamps(s) do return nil, false
+		if !valid_stamps(s) do return nil, {}, false
 		directory := s.kind == .Move_Directory
 		path, ok := decode_path(v[1], directory)
 		dest, valid := decode_path(v[2], directory)
-		if !ok || !valid || path == "" || (dest != "") != (s.kind == .Move || directory) do return nil, false
-		if directory && (len(steps) != 0 || input != "" || within(path, dest) || within(dest, path)) do return nil, false
+		if !ok || !valid || path == "" || (dest != "") != (s.kind == .Move || directory) do return nil, {}, false
+		if directory && (len(steps) != 0 || input != "" || within(path, dest) || within(dest, path)) do return nil, {}, false
 		s.path, s.destination = path, dest
-		if _, err := append(&steps, s); err != nil do return nil, false
+		if _, err := append(&steps, s); err != nil do return nil, {}, false
 	}
-	return steps[:], len(steps) != 0
+	return steps[:], version, len(steps) != 0
 }
 
 @(private)
@@ -172,18 +189,11 @@ valid_token :: proc(id: string) -> bool {
 }
 
 @(private)
-op_directory :: proc(
-	root, id: string,
-	create: bool,
-	created: ^bool = nil,
-) -> (
-	dir: Directory,
-	err: os.Error,
-) {
+op_directory :: proc(root, id: string, create: bool) -> (dir: Directory, err: os.Error) {
 	if !valid_token(id) do return {}, .Invalid_Path
-	vault := open_dir(child(root, ".kadai/recovery"), create, true, created) or_return
+	vault := open_dir(child(root, ".kadai/recovery"), create, true) or_return
 	defer close_dir(&vault)
-	return open_dir(child(vault.path, id), create, true, created)
+	return open_dir(child(vault.path, id), create, true)
 }
 
 @(private)
@@ -242,6 +252,7 @@ run_steps :: proc(
 				replay,
 				limits,
 				budget,
+				version = tx.version,
 			)
 		} else {
 			err = apply_step(
@@ -254,6 +265,7 @@ run_steps :: proc(
 				dry_run,
 				budget,
 				replay,
+				version = tx.version,
 			)
 		}
 		if err != nil {
@@ -319,25 +331,118 @@ commit :: proc(
 	before_intent: proc(_: rawptr) -> string = nil,
 	data: rawptr = nil,
 	started: ^bool = nil,
+	preparation_failed: ^bool = nil,
 ) -> (
 	id, issue: string,
 ) {
 	if w.collection == nil || !domain_held(w.domain) do return "", "writer coordination required"
 	if issue = check_pending(w, w.root, l.entries); issue != "" do return
 	if issue = preflight(w.root, changes, l); issue != "" do return
+	intent_published := false
+	defer if preparation_failed != nil && issue != "" && !intent_published {
+		preparation_failed^ = true
+	}
 	state, e := open_dir(child(w.root, ".kadai"))
 	if e != nil do return "", os.error_string(e)
 	defer close_dir(&state)
+	vault, err := open_dir(
+		child(state.path, "recovery"),
+		create = true,
+		private_leaf = true,
+		created = started,
+	)
+	if err != nil do return "", os.error_string(err)
+	defer close_dir(&vault)
 	id = random_name("")
-	dir, err := op_directory(w.root, id, true, started)
-	if err != nil do return id, os.error_string(err)
+	created := false
+	dir: Directory
+	dir, err = create_private_dir(&vault, id, &created)
+	if !created do return "", os.error_string(err)
 	defer close_dir(&dir)
-	if started != nil do started^ = true // Preparing recovery snapshots for this write.
-	tx := Transaction{id, make([]Step, len(changes), context.temp_allocator)}
+	if started != nil do started^ = true
+	prep := Preparation {
+		images = make([dynamic]Prepared_File, context.temp_allocator),
+	}
+	defer {when ODIN_OS != .Windows {release_preparation_pins(&prep)}}
+	dir.preparation = &prep
+	if err == nil do err = sync_dir(&vault)
+	if err == nil {
+		issue = commit_prepared(
+			w,
+			&state,
+			&dir,
+			id,
+			changes,
+			l,
+			before_intent,
+			data,
+			&intent_published,
+		)
+	} else {
+		issue = os.error_string(err)
+	}
+	if issue != "" && !intent_published {
+		if cleanup_err := discard_preparation(&vault, &dir, id); cleanup_err != nil {
+			reason := os.error_string(cleanup_err)
+			if prep.skip_image_pins && cleanup_err == .Invalid_File {
+				reason = "could not verify file ownership after releasing preparation mappings"
+			}
+			issue = fmt.tprintf("%s. Preparation cleanup failed: %s", issue, reason)
+		} else {
+			issue = fmt.tprintf("%s. Discarded the unpublished preparation.", issue)
+		}
+	}
+	return
+}
+
+// Before removing a required image, retire its unpublished plan durably.
+// An interruption then leaves a recognizable preparation rather than a broken plan.
+@(private)
+discard_preparation :: proc(vault, dir: ^Directory, id: string) -> (err: os.Error) {
+	dir_id: File_Identity
+	if dir.file != nil {
+		dir_id = file_identity(dir.file) or_return
+		when ODIN_OS != .Windows {
+			// Unix allows a directory to be moved while this handle remains open.
+			verify_owned_entry(vault, id, dir_id, true) or_return
+		}
+		prep := dir.preparation
+		// A zero identity requires verified absence, including a publication collision.
+		remove_owned_entry(dir, "plan", prep.plan, false) or_return
+		sync_dir(dir) or_return
+		for image in prep.images do remove_owned_entry(dir, image.name, image.identity, false) or_return
+		sync_dir(dir) or_return
+	}
+	// On POSIX the open directory pins its inode through removal. Windows
+	// requires us to close this handle because it does not share delete access.
+	when ODIN_OS == .Windows {close_dir(dir)}
+	remove_owned_entry(vault, id, dir_id, true) or_return
+	return sync_dir(vault)
+}
+
+@(private)
+commit_prepared :: proc(
+	w: ^Writer,
+	state, dir: ^Directory,
+	id: string,
+	changes: []Change,
+	l: Journal_Limits,
+	before_intent: proc(_: rawptr) -> string,
+	data: rawptr,
+	intent_published: ^bool,
+) -> (
+	issue: string,
+) {
+	err: os.Error
+	tx := Transaction {
+		id,
+		make([]Step, len(changes), context.temp_allocator),
+		CURRENT_JOURNAL_VERSION,
+	}
 	for c, i in changes {
 		if c.kind == .Move_Directory {
 			tree: Tree
-			tree, err = inspect_tree(child(w.root, c.path), l, &dir, capture = true)
+			tree, err = inspect_tree(child(w.root, c.path), l, dir, capture = true)
 			if err == nil && tree.version != c.expected do err = .Invalid_File
 			tx.steps[i] = {
 				c.kind,
@@ -348,25 +453,30 @@ commit :: proc(
 				fmt.tprintf("%s.%s", tree.backup, tree.image_digest),
 				"-",
 			}
-			if err == nil do err = sync_dir(&dir)
+			if err == nil do err = sync_dir(dir)
 		} else {
-			tx.steps[i], err = prepare_step(w.root, &dir, i, c, l.source)
+			tx.steps[i], err = prepare_step(w.root, dir, i, c, l.source)
 		}
-		if err != nil do return id, fmt.tprintf("preparing %s: %s", c.path, os.error_string(err))
+		if err != nil {
+			reason := dir.preparation.metadata_issue
+			if reason == "" do reason = os.error_string(err)
+			return fmt.tprintf("preparing %s: %s", c.path, reason)
+		}
 	}
 	plan, ok := manifest(tx.steps, l.record)
-	if !ok || i64(len(plan)) + 4 * 97 > l.total_bytes do return id, "journal exceeds byte limit"
-	if err = create_file(&dir, "plan", transmute([]byte)plan); err != nil do return id, os.error_string(err)
+	if !ok || i64(len(plan)) + 4 * 97 > l.total_bytes do return "journal exceeds byte limit"
+	if err = create_file(dir, "plan", transmute([]byte)plan, prepared_plan = dir.preparation); err != nil do return os.error_string(err)
 	ptr := pointer(id, plan)
 	image_budget := l.total_bytes
-	if issue = run_steps(w.root, &dir, tx, .Resume, l, true, &image_budget, false); issue != "" do return
-	if image_budget < l.total_bytes - image_budget do return id, "verification exceeds recovery byte limit"
+	if issue = run_steps(w.root, dir, tx, .Resume, l, true, &image_budget, false); issue != "" do return
+	if image_budget < l.total_bytes - image_budget do return "verification exceeds recovery byte limit"
 	if before_intent != nil {
 		if issue = before_intent(data); issue != "" do return
 	}
-	if err = arm(&state, ptr); err != nil do return id, fmt.tprintf("recording operation intent: %s", os.error_string(err))
-	if issue = run_steps(w.root, &dir, tx, .Resume, l, false, &image_budget, false); issue != "" do return
-	return id, os.error_string(finish(&state, &dir, .Resume, ptr))
+	if err = arm(state, ptr, intent_published); err != nil do return fmt.tprintf("recording operation intent: %s", os.error_string(err))
+	when ODIN_OS != .Windows {release_preparation_pins(dir.preparation)}
+	if issue = run_steps(w.root, dir, tx, .Resume, l, false, &image_budget, false); issue != "" do return
+	return os.error_string(finish(state, dir, .Resume, ptr))
 }
 
 recover :: proc(
@@ -405,13 +515,13 @@ recover :: proc(
 	if plan_err != nil do return id, os.error_string(plan_err)
 	expected := pointer(id, plan)
 	if ptr != "" && ptr != expected do return id, "journal checksum mismatch"
-	steps, ok := parse_manifest(plan, l)
+	steps, version, ok := parse_manifest(plan, l)
 	if !ok do return id, "invalid or oversized journal"
 	image_budget := l.total_bytes
-	tx := Transaction{id, steps}
+	tx := Transaction{id, steps, version}
 	if issue = run_steps(w.root, &dir, tx, mode, l, true, &image_budget); issue != "" do return
 	apply_bytes := l.total_bytes - image_budget
-	if issue = check_recovery_effects(w.root, &dir, steps, mode, check, data, l, &image_budget); issue != "" do return
+	if issue = check_recovery_effects(w.root, &dir, steps, mode, check, data, l, &image_budget, version); issue != "" do return
 	if image_budget < apply_bytes do return id, "verification exceeds recovery byte limit"
 	if ptr == "" {
 		receipt, receipt_err := control(&dir, "committed", l.record, &budget)

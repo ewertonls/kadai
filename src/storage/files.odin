@@ -7,10 +7,53 @@ import "core:os"
 import "core:strings"
 
 Directory :: struct {
-	path   : string,
-	file   : ^os.File,
+	path       : string,
+	file       : ^os.File,
 	// Windows retains ancestor handles without sharing delete access.
-	parents: [dynamic]^os.File,
+	parents    : [dynamic]^os.File,
+	// Only a new journal tracks its files for cleanup before intent publication.
+	preparation: ^Preparation,
+}
+
+File_Identity :: struct {
+	device: u64,
+	inode : u128,
+}
+
+Prepared_File :: struct {
+	name    : string,
+	identity: File_Identity,
+}
+
+Preparation :: struct {
+	images         : [dynamic]Prepared_File,
+	plan           : File_Identity,
+	pins           : [dynamic]rawptr,
+	skip_image_pins: bool,
+	metadata_issue : string,
+}
+
+@(private)
+file_identity :: proc(f: ^os.File) -> (id: File_Identity, err: os.Error) {
+	info := file_info(f) or_return
+	if info.inode == 0 do return {}, .Unsupported
+	return {info.device, info.inode}, nil
+}
+
+@(private)
+prepared_file_identity :: proc(
+	f: ^os.File,
+	prep: ^Preparation,
+	plan := false,
+) -> (
+	id: File_Identity,
+	err: os.Error,
+) {
+	id = file_identity(f) or_return
+	when ODIN_OS != .Windows {
+		if !pin_prepared_inode(f, prep, plan) do return {}, nil
+	}
+	return
 }
 
 close_dir :: proc(d: ^Directory) {
@@ -118,10 +161,11 @@ create_file :: proc(
 	name: string,
 	data: []byte,
 	published: ^bool = nil,
+	prepared_plan: ^Preparation = nil,
 ) -> (
 	err: os.Error,
 ) {
-	return publish_file(d, name, data, "", len(data), false, published)
+	return publish_file(d, name, data, "", len(data), false, published, prepared_plan)
 }
 
 @(private)
@@ -133,13 +177,27 @@ publish_file :: proc(
 	limit: int,
 	inherit_permissions: bool,
 	published: ^bool,
+	prepared_plan: ^Preparation = nil,
 ) -> (
 	err: os.Error,
 ) {
 	if !component(name) do return .Invalid_Path
 	tmp := random_name(STAGE_PREFIX)
-	f := create_regular(d, tmp, inherit_permissions) or_return
-	defer remove_entry(d, tmp)
+	created := false
+	f, open_err := create_regular(d, tmp, &created, project_file = inherit_permissions)
+	stage_id: File_Identity
+	defer if created {
+		if prepared_plan != nil {
+			remove_owned_entry(d, tmp, stage_id, false)
+		} else {
+			remove_entry(d, tmp)
+		}
+	}
+	if open_err != nil do return open_err
+	if prepared_plan != nil {
+		stage_id, err = prepared_file_identity(f, prepared_plan, plan = true)
+		if err != nil {os.close(f); return err}
+	}
 	if expected == "" {
 		err = write_sync(f, data)
 	} else {
@@ -149,6 +207,8 @@ publish_file :: proc(
 	if err != nil do return err
 	if close_err != nil do return close_err
 	publish(d, tmp, d, name, expected != "") or_return
+	created = false // The stage name is vacant after the rename.
 	if published != nil do published^ = true
+	if prepared_plan != nil do prepared_plan.plan = stage_id
 	return sync_dir(d)
 }

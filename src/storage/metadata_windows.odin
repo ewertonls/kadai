@@ -127,6 +127,7 @@ security_text :: proc(
 metadata :: proc(
 	f: ^os.File,
 	security_image: ^[]byte = nil,
+	version := CURRENT_JOURNAL_VERSION,
 	require_private := true,
 ) -> (
 	signature: string,
@@ -194,12 +195,22 @@ metadata :: proc(
 }
 
 @(private)
-copy_metadata :: proc(src, dst: ^os.File, require_private := true) -> (err: os.Error) {
+copy_metadata :: proc(
+	src, dst: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+	require_private := true,
+	issue: ^string = nil,
+) -> (
+	err: os.Error,
+) {
 	security: []byte
-	a := metadata(src, &security, require_private) or_return
+	a := metadata(src, &security, version = version, require_private = require_private) or_return
 	write_security(dst, security, require_private) or_return
-	b := metadata(dst, require_private = require_private) or_return
-	if a != b do return .Unsupported
+	b := metadata(dst, version = version, require_private = require_private) or_return
+	if a != b {
+		if issue != nil do issue^ = METADATA_COPY_MISMATCH
+		return .Unsupported
+	}
 	return
 }
 
@@ -230,7 +241,13 @@ copy_project_metadata :: proc(src, dst: ^os.File) -> os.Error {
 }
 
 @(private)
-directory_metadata :: proc(f: ^os.File) -> (signature: string, err: os.Error) {
+directory_metadata :: proc(
+	f: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+) -> (
+	signature: string,
+	err: os.Error,
+) {
 	sd := security_text(
 		w.HANDLE(os.fd(f)),
 		w.OWNER_SECURITY_INFORMATION |

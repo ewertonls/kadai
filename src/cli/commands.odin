@@ -379,10 +379,12 @@ run_command :: proc(
 			)
 		}
 		if report.write_started {
+			effect := "Changes may remain."
+			if report.preparation_failed do effect = "Preparation stopped before changing task files."
 			return diagnose(
 				stderr,
 				.Write_Incomplete,
-				fmt.tprintf("%s did not complete. Changes may remain. %s", command.name, issue),
+				fmt.tprintf("%s did not complete. %s %s", command.name, effect, issue),
 			)
 		}
 		if lookup, failed := report.lookup_failure.?; failed {

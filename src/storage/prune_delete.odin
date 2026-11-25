@@ -71,7 +71,7 @@ clean_detached :: proc(
 			if has_plan {
 				plan := control(&op, "plan", a.limits.record, &a.control_bytes) or_return
 				if pointer(id, plan) != receipt do return .Invalid_File
-				steps := parse_audited_plan(plan, a.limits, &a.nodes) or_return
+				steps, _ := parse_audited_plan(plan, a.limits, &a.nodes) or_return
 				for fi in files {
 					expected := prune_entry_expected(
 						&op,

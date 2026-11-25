@@ -82,6 +82,7 @@ win_open :: proc(
 	dir, create, mutation: bool,
 	parent: ^os.File = nil,
 	private_leaf := false,
+	created: ^bool = nil,
 	writable := false,
 	project_file := false,
 ) -> (
@@ -128,6 +129,7 @@ win_open :: proc(
 			sa.lpSecurityDescriptor,
 		) or_return
 	}
+	if create && created != nil do created^ = true
 	defer if err != nil {w.CloseHandle(h)}
 	info: w.BY_HANDLE_FILE_INFORMATION
 	if !w.GetFileInformationByHandle(h, &info) do return nil, native_error()
@@ -160,23 +162,51 @@ open_dir :: proc(
 		d.path = child(d.path, part)
 		f, e := win_open(d.path, true, false, false, d.file)
 		if e == os.General_Error.Not_Exist && create {
-			f, e = win_open(d.path, true, true, false, d.file, private_leaf && parts == "")
-			if e == nil && created != nil do created^ = true
+			f, e = win_open(
+				d.path,
+				true,
+				true,
+				false,
+				d.file,
+				private_leaf && parts == "",
+				created,
+			)
 			if e == os.General_Error.Exist {f, e = win_open(d.path, true, false, false, d.file)}
 		}
 		if e != nil do return d, e
 		append(&d.parents, d.file)
 		d.file = f
 	}
-	if private_leaf {
-		acl := security_text(
-			w.HANDLE(os.fd(d.file)),
-			w.DACL_SECURITY_INFORMATION,
-			require_private = true,
-		) or_return
-		if acl != "D:P(A;OICI;FA;;;OW)" do return d, .Permission_Denied
-	}
+	if private_leaf do check_private_dir(d.file) or_return
 	return
+}
+
+@(private)
+check_private_dir :: proc(f: ^os.File) -> os.Error {
+	acl := security_text(
+		w.HANDLE(os.fd(f)),
+		w.DACL_SECURITY_INFORMATION,
+		require_private = true,
+	) or_return
+	if acl != "D:P(A;OICI;FA;;;OW)" do return .Permission_Denied
+	return nil
+}
+
+@(private)
+create_private_dir :: proc(
+	parent: ^Directory,
+	name: string,
+	created: ^bool,
+) -> (
+	dir: Directory,
+	err: os.Error,
+) {
+	if !component(name) do return {}, .Invalid_Path
+	path := child(parent.path, name)
+	f := win_open(path, true, true, false, parent.file, true, created) or_return
+	defer if err != nil {os.close(f)}
+	check_private_dir(f) or_return
+	return Directory{path = path, file = f}, nil
 }
 
 regular :: proc(
@@ -203,13 +233,22 @@ regular :: proc(
 create_regular :: proc(
 	d: ^Directory,
 	name: string,
+	created: ^bool = nil,
 	project_file := false,
 ) -> (
 	^os.File,
 	os.Error,
 ) {
 	if !component(name) do return nil, .Invalid_Path
-	return win_open(child(d.path, name), false, true, false, d.file, project_file = project_file)
+	return win_open(
+		child(d.path, name),
+		false,
+		true,
+		false,
+		d.file,
+		created = created,
+		project_file = project_file,
+	)
 }
 
 @(private)
@@ -260,9 +299,27 @@ remove_empty_dir :: proc(d: ^Directory, name: string) -> os.Error {
 }
 
 @(private)
-remove_relative :: proc(d: ^Directory, name: string, directory: bool) -> os.Error {
+remove_owned_entry :: proc(
+	d: ^Directory,
+	name: string,
+	expected: File_Identity,
+	directory: bool,
+) -> os.Error {
+	want := expected
+	err := remove_relative(d, name, directory, &want)
+	if err == .Not_Exist do return nil
+	return err
+}
+
+@(private)
+remove_relative :: proc(
+	d: ^Directory,
+	name: string,
+	directory: bool,
+	expected: ^File_Identity = nil,
+) -> os.Error {
 	kind := u32(1) if directory else u32(w.FILE_NON_DIRECTORY_FILE) // FILE_DIRECTORY_FILE
-	access := w.DELETE | w.FILE_READ_ATTRIBUTES if directory else w.DELETE
+	access := w.DELETE | w.FILE_READ_ATTRIBUTES if directory || expected != nil else w.DELETE
 	h := relative_handle(
 		d.file,
 		name,
@@ -272,10 +329,15 @@ remove_relative :: proc(d: ^Directory, name: string, directory: bool) -> os.Erro
 		kind,
 	) or_return
 	defer w.CloseHandle(h)
-	if directory {
+	if directory || expected != nil {
 		info: w.BY_HANDLE_FILE_INFORMATION
 		if !w.GetFileInformationByHandle(h, &info) do return native_error()
 		if info.dwFileAttributes & w.FILE_ATTRIBUTE_REPARSE_POINT != 0 do return .Invalid_File
+		if expected != nil {
+			if !directory && info.nNumberOfLinks != 1 do return .Invalid_File
+			id := windows_handle_identity(h) or_return
+			if expected.inode == 0 || id != expected^ do return .Invalid_File
+		}
 	}
 	remove: w.BOOLEAN = true
 	if !w.SetFileInformationByHandle(h, .FileDispositionInfo, &remove, size_of(remove)) do return native_error()
@@ -287,9 +349,14 @@ sync_dir :: proc(d: ^Directory) -> os.Error {return nil}
 
 @(private)
 windows_file_id :: proc(f: ^os.File, info: ^os.File_Info) -> os.Error {
-	id: w.FILE_ID_INFO
-	if !w.GetFileInformationByHandleEx(w.HANDLE(os.fd(f)), .FileIdInfo, &id, size_of(id)) do return native_error()
-	info.device = id.VolumeSerialNumber
-	info.inode = transmute(u128)id.FileId
+	id := windows_handle_identity(w.HANDLE(os.fd(f))) or_return
+	info.device, info.inode = id.device, id.inode
 	return nil
+}
+
+@(private)
+windows_handle_identity :: proc(h: w.HANDLE) -> (identity: File_Identity, err: os.Error) {
+	id: w.FILE_ID_INFO
+	if !w.GetFileInformationByHandleEx(h, .FileIdInfo, &id, size_of(id)) do return {}, native_error()
+	return {id.VolumeSerialNumber, transmute(u128)id.FileId}, nil
 }

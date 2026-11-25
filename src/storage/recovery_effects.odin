@@ -22,6 +22,7 @@ check_recovery_effects :: proc(
 	data: rawptr,
 	l: Journal_Limits,
 	budget: ^i64,
+	version: Journal_Version,
 ) -> string {
 	if check == nil do return ""
 	content_changes := false
@@ -37,7 +38,7 @@ check_recovery_effects :: proc(
 		path := child(root, s.path)
 		dir, err := open_dir(slash(os.dir(path)))
 		if err != nil do return os.error_string(err)
-		current, e := entry_state(&dir, os.base(path), l.source)
+		current, e := entry_state(&dir, os.base(path), l.source, version = version)
 		close_dir(&dir)
 		if e != nil do return os.error_string(e)
 		if current == to || mode == .Rollback && current == s.before do continue

@@ -165,6 +165,10 @@ can remove or replace files. To undo a completed removal, use
 is a usage error. Recovery verifies recorded state before modifying files. Missing
 authorization for import, deletion or recovery exits with code 2 before opening the project.
 
+When several macOS applications use the same collection, upgrade the Kadai
+binary used by each one. The updated CLI can validate and recover both v1
+and v2 journals. Earlier binaries can read only v1 journals.
+
 ### Cleaning recovery history
 
 ```sh

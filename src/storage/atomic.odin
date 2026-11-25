@@ -36,12 +36,19 @@ relative_file :: proc(path: string, directory := false) -> bool {
 }
 
 @(private)
-state :: proc(f: ^os.File, limit: int) -> (value: string, err: os.Error) {
+state :: proc(
+	f: ^os.File,
+	limit: int,
+	version := CURRENT_JOURNAL_VERSION,
+) -> (
+	value: string,
+	err: os.Error,
+) {
 	info := file_info(f) or_return
 	if info.size < 0 || info.size > i64(limit) do return "", .Short_Buffer
-	version := stream_version(f, info, limit) or_return
-	attributes := metadata(f) or_return
-	return fmt.tprintf("%s:%s", version, attributes), nil
+	identity := stream_version(f, info, limit) or_return
+	attributes := metadata(f, version = version) or_return
+	return fmt.tprintf("%s:%s", identity, attributes), nil
 }
 
 // "-" denotes verified absence. Every existing input must be a regular,
@@ -52,6 +59,7 @@ entry_state :: proc(
 	name: string,
 	limit: int,
 	budget: ^i64 = nil,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	value: string,
 	err: os.Error,
@@ -65,7 +73,7 @@ entry_state :: proc(
 		if info.size < 0 || info.size > budget^ do return "", .Short_Buffer
 		budget^ -= info.size
 	}
-	return state(f, limit)
+	return state(f, limit, version)
 }
 
 @(private)
@@ -77,6 +85,9 @@ payload_signature :: proc(stamp: string) -> string {
 	return stamp[i + 1:]
 }
 
+@(private)
+METADATA_COPY_MISMATCH :: "staged metadata differs from the source after copying"
+
 // Persist a new image exclusively. Never reopen a snapshot for writing.
 @(private)
 save_image :: proc(
@@ -85,17 +96,31 @@ save_image :: proc(
 	data: []byte,
 	original: ^os.File,
 	limit: int,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
-	version: string,
+	stamp: string,
 	err: os.Error,
 ) {
-	f := create_regular(dir, name) or_return
+	prep := dir.preparation
+	if prep != nil {
+		_ = append(&prep.images, Prepared_File{name = name}) or_return
+	}
+	created := false
+	f, create_err := create_regular(dir, name, &created)
+	if create_err != nil {
+		if !created && prep != nil do pop(&prep.images)
+		return "", create_err
+	}
 	defer os.close(f)
+	if prep != nil do prep.images[len(prep.images) - 1].identity = prepared_file_identity(f, prep) or_return
 	n := os.write(f, data) or_return
 	if n != len(data) do return "", .Short_Write
-	if original != nil do copy_metadata(original, f) or_return
+	if original != nil {
+		issue := &prep.metadata_issue if prep != nil else nil
+		copy_metadata(original, f, version, issue = issue) or_return
+	}
 	os.sync(f) or_return
-	return state(f, limit)
+	return state(f, limit, version)
 }
 
 @(private)
@@ -105,6 +130,7 @@ prepare_step :: proc(
 	slot: int,
 	c: Change,
 	limit: int,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	step: Step,
 	err: os.Error,
@@ -124,7 +150,7 @@ prepare_step :: proc(
 	dir := open_dir(slash(os.dir(path)), create = c.kind == .Create) or_return
 	defer close_dir(&dir)
 	name := os.base(path)
-	step.before = entry_state(&dir, name, limit) or_return
+	step.before = entry_state(&dir, name, limit, version = version) or_return
 	original: ^os.File
 	defer if original != nil {os.close(original)}
 	if c.kind == .Create {
@@ -133,8 +159,8 @@ prepare_step :: proc(
 		if c.expected == "" || !strings.has_prefix(step.before, fmt.tprintf("%s:", c.expected)) do return {}, .Invalid_File
 		original = regular(&dir, name, mutation = true) or_return
 		// Validate this particular open handle before accepting its bytes or metadata.
-		version := state(original, limit) or_return
-		if version != step.before do return {}, .Invalid_File
+		opened := state(original, limit, version) or_return
+		if opened != step.before do return {}, .Invalid_File
 		bytes := read_bounded(original, limit, context.allocator) or_return
 		defer delete(bytes)
 		info := file_info(original) or_return
@@ -145,6 +171,7 @@ prepare_step :: proc(
 			bytes,
 			original,
 			limit,
+			version,
 		) or_return
 		if payload_signature(step.backup) != payload_signature(step.before) do return {}, .Invalid_File
 		if c.kind == .Delete || c.kind == .Replace {
@@ -156,6 +183,7 @@ prepare_step :: proc(
 				bytes,
 				original,
 				limit,
+				version,
 			) or_return
 			if payload_signature(step.restored) != payload_signature(step.before) do return {}, .Invalid_File
 		}
@@ -167,6 +195,7 @@ prepare_step :: proc(
 			c.data,
 			original,
 			limit,
+			version,
 		) or_return
 	} else if c.kind == .Move {
 		dst_dir := open_dir(slash(os.dir(child(root, c.destination))), create = true) or_return
@@ -189,6 +218,7 @@ apply_step :: proc(
 	budget: ^i64 = nil,
 	replay := true,
 	live_budget: ^i64 = nil,
+	version := CURRENT_JOURNAL_VERSION,
 ) -> (
 	err: os.Error,
 ) {
@@ -200,7 +230,13 @@ apply_step :: proc(
 	staging_dir := file_info(images.file) or_return
 	if target_dir.device != staging_dir.device do return .Unsupported
 	if step.before != "-" {
-		backup := entry_state(images, image_name(slot, "original"), limit, budget) or_return
+		backup := entry_state(
+			images,
+			image_name(slot, "original"),
+			limit,
+			budget,
+			version,
+		) or_return
 		if backup != step.backup do return .Invalid_File
 	}
 	if step.kind == .Move {
@@ -212,8 +248,8 @@ apply_step :: proc(
 		from_dir, to_dir := &d, &to
 		old, new_name := name, os.base(dst)
 		if rollback {from_dir, to_dir = to_dir, from_dir; old, new_name = new_name, old}
-		target := entry_state(to_dir, new_name, limit, live_budget) or_return
-		source := entry_state(from_dir, old, limit, live_budget) or_return
+		target := entry_state(to_dir, new_name, limit, live_budget, version) or_return
+		source := entry_state(from_dir, old, limit, live_budget, version) or_return
 		if replay && source == "-" && target == step.before {
 			if verify_only do return
 			sync_dir(to_dir) or_return
@@ -227,7 +263,7 @@ apply_step :: proc(
 	}
 	from, to, image := step.before, step.after, image_name(slot, "next")
 	if rollback {from, to, image = step.after, step.restored, image_name(slot, "restore")}
-	current := entry_state(&d, name, limit, live_budget) or_return
+	current := entry_state(&d, name, limit, live_budget, version) or_return
 	if replay && (current == to || rollback && current == step.before) {
 		if verify_only do return
 		sync_dir(&d) or_return
@@ -238,11 +274,11 @@ apply_step :: proc(
 		if verify_only do return
 		remove_entry(&d, name) or_return
 	} else {
-		staged := entry_state(images, image, limit, budget) or_return
+		staged := entry_state(images, image, limit, budget, version) or_return
 		if staged != to do return .Invalid_File
 		if verify_only do return
 		// Re-open the target after reading the staged image, immediately before rename.
-		current = entry_state(&d, name, limit) or_return
+		current = entry_state(&d, name, limit, version = version) or_return
 		if current != from do return .Invalid_File
 		publish(images, image, &d, name, from != "-") or_return
 	}

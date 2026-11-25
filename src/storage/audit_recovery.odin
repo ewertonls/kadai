@@ -37,6 +37,24 @@ hex_digest :: proc(value: string) -> bool {
 	return len(value) == 64 && strings.trim_left(value, "0123456789abcdef") == ""
 }
 
+@(private)
+snapshot_difference :: proc(expected, actual: string) -> string {
+	if actual == "-" do return "Recovery image is missing."
+	if expected == "-" do return "Found an unexpected recovery image."
+	// Both stamps contain device.inode.content:metadata.
+	expected_payload, actual_payload := payload_signature(expected), payload_signature(actual)
+	expected_id := expected[:len(expected) - len(expected_payload)]
+	actual_id := actual[:len(actual) - len(actual_payload)]
+	changed := make([dynamic]string, 0, 3, context.temp_allocator)
+	if expected_id != actual_id do append(&changed, "identity")
+	if expected_payload[:64] != actual_payload[:64] do append(&changed, "content")
+	if expected_payload[65:] != actual_payload[65:] do append(&changed, "metadata")
+	return fmt.tprintf(
+		"Recovery image differs from the recorded %s.",
+		strings.join(changed[:], ", ", context.temp_allocator),
+	)
+}
+
 // Both intact and partially discarded journals count toward the same node budget.
 @(private)
 parse_audited_plan :: proc(
@@ -45,14 +63,15 @@ parse_audited_plan :: proc(
 	nodes_left: ^i64,
 ) -> (
 	steps: []Step,
+	version: Journal_Version,
 	err: os.Error,
 ) {
 	count := strings.count(plan, "\n") - 1
 	cost := i64(count) * 8 + 1
-	if count > 0 && (!fits_plan(count, limits) || cost > nodes_left^) do return nil, .Short_Buffer
+	if count > 0 && (!fits_plan(count, limits) || cost > nodes_left^) do return nil, {}, .Short_Buffer
 	valid: bool
-	steps, valid = parse_manifest(plan, limits)
-	if !valid do return nil, .Invalid_File
+	steps, version, valid = parse_manifest(plan, limits)
+	if !valid do return nil, {}, .Invalid_File
 	nodes_left^ -= cost
 	return
 }
@@ -141,7 +160,7 @@ audit_operation :: proc(
 			"Rollback receipt is missing its direction record.",
 		)
 	}
-	steps, parse_err := parse_audited_plan(plan, a.limits, &a.nodes)
+	steps, version, parse_err := parse_audited_plan(plan, a.limits, &a.nodes)
 	if parse_err == .Short_Buffer {
 		state_problem(
 			&a.result,
@@ -192,6 +211,7 @@ audit_operation :: proc(
 					a.limits,
 					&a.image_bytes,
 					&a.entries,
+					version,
 				)
 			} else {
 				check = apply_step(
@@ -204,6 +224,7 @@ audit_operation :: proc(
 					verify_only = true,
 					budget = &a.image_bytes,
 					live_budget = &a.image_bytes,
+					version = version,
 				)
 			}
 			if check == .Invalid_File || check == .Not_Exist {
@@ -219,7 +240,7 @@ audit_operation :: proc(
 		}
 	}
 	if len(steps) == 1 && steps[0].kind == .Move_Directory {
-		audit_tree_images(a, op, entries[:], steps[0])
+		audit_tree_images(a, op, entries[:], steps[0], version)
 		return
 	}
 	for s, slot in steps {
@@ -234,7 +255,7 @@ audit_operation :: proc(
 					"rollback" not_in files &&
 					(s.kind == .Delete || s.kind == .Replace)
 			if !required && name not_in files do continue
-			stamp, image_err := entry_state(op, name, a.limits.source, &a.image_bytes)
+			stamp, image_err := entry_state(op, name, a.limits.source, &a.image_bytes, version)
 			if image_err !=
 			   nil {audit_io(a, child(path, name), image_err, "snapshot or aggregate byte"); continue}
 			if stamp != image.stamp || required && stamp == "-" {
@@ -242,7 +263,7 @@ audit_operation :: proc(
 					&a.result,
 					child(path, name),
 					"corrupt_snapshot",
-					"Recovery image is missing or differs from its recorded identity, hash or metadata.",
+					snapshot_difference(image.stamp, stamp),
 				)
 			}
 		}
@@ -320,6 +341,7 @@ audit_tree_images :: proc(
 	op: ^Directory,
 	entries: []os.File_Info,
 	step: Step,
+	version: Journal_Version,
 ) {
 	stamps := make([dynamic]Image_Stamp, context.temp_allocator)
 	for fi in entries {
@@ -333,7 +355,7 @@ audit_tree_images :: proc(
 			)
 			continue
 		}
-		stamp, e := entry_state(op, fi.name, a.limits.source, &a.image_bytes)
+		stamp, e := entry_state(op, fi.name, a.limits.source, &a.image_bytes, version)
 		if e != nil {audit_io(a, child(op.path, fi.name), e, "snapshot or aggregate byte"); return}
 		if _, alloc_err := append(&stamps, Image_Stamp{fi.name, stamp});
 		   alloc_err != nil {audit_io(a, op.path, alloc_err, "snapshot"); return}
@@ -357,7 +379,7 @@ audit_tree_images :: proc(
 	for rel in ([2]string{step.path, step.destination}) {
 		l := a.limits
 		l.entries = a.entries
-		tree, e := inspect_tree(child(a.root, rel), l, budget = &a.image_bytes)
+		tree, e := inspect_tree(child(a.root, rel), l, budget = &a.image_bytes, version = version)
 		a.entries -= len(tree.entries)
 		if e == os.General_Error.Not_Exist do continue
 		if e != nil {audit_io(a, rel, e, "legacy tree verification"); return}
