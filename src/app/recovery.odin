@@ -1,10 +1,47 @@
 package app
 
 import "core:fmt"
+import "core:os"
 import "core:strings"
+import "core:time"
 import "kadai:document"
 import "kadai:project"
 import "kadai:storage"
+
+prune_recovery :: proc(
+	cwd: string,
+	options: Project_Options,
+	older_than: int,
+	dry_run: bool,
+	limits := project.DEFAULT_SCAN_LIMITS,
+	requested: []string = nil,
+) -> (
+	ids: []string,
+	issue: string,
+) {
+	if older_than < 0 || !project.valid_scan_limits(limits) do return nil, "invalid recovery prune options"
+	w, err := storage.begin_writer()
+	if err != nil do return nil, fmt.tprintf("writer lock: %s", os.error_string(err))
+	defer storage.end_writer(&w)
+	cfg, problem := project.resolve(cwd, options, limits.yaml)
+	if problem != "" do return nil, problem
+
+	// Use a wider cutoff so even very large retention periods preserve newer receipts.
+	cutoff := i128(max(i64))
+	if older_than > 0 {
+		cutoff =
+			i128(time.to_unix_nanoseconds(time.now())) - i128(older_than) * i128(24 * time.Hour)
+	}
+	return storage.prune(
+		&w,
+		cfg.tasks,
+		cutoff,
+		dry_run,
+		journal_limits(limits),
+		project.write_progress(options),
+		requested,
+	)
+}
 
 @(private)
 check_recovery_membership :: proc(effects: []storage.Recovery_Effect, data: rawptr) -> string {

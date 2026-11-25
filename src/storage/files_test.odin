@@ -15,6 +15,21 @@ occupied_destinations_and_unsafe_links :: proc(t: ^testing.T) {
 	defer close_dir(&d)
 	testing.expect(t, create_file(&d, "source.md", {1, 2}) == nil)
 	testing.expect(t, create_file(&d, "source.md", {3}) != nil)
+	source := child(path, "source.md")
+	original, open_err := regular(&d, "source.md")
+	if !testing.expect(t, open_err == nil) do return
+	info, stat_err := file_info(original)
+	os.close(original)
+	if !testing.expect(t, stat_err == nil) do return
+	version := file_version(info, {1, 2})
+	if !testing.expect(t, os.write_entire_file(source, []byte{1, 3}) == nil) do return
+	started := false
+	testing.expect(
+		t,
+		write_project_file(&d, "source.md", version, {1, 2, 4}, 32, &started) ==
+			os.General_Error.Invalid_File &&
+		!started,
+	)
 	testing.expect(t, os.link(child(path, "source.md"), child(path, "other.md")) == nil)
 	f, bad := regular(&d, "source.md", mutation = true)
 	if f != nil do os.close(f)
@@ -26,5 +41,5 @@ occupied_destinations_and_unsafe_links :: proc(t: ^testing.T) {
 		testing.expect(t, refused != nil)
 	}
 	data, _ := os.read_entire_file(child(path, "source.md"), context.temp_allocator)
-	testing.expect(t, len(data) == 2 && data[0] == 1)
+	testing.expect(t, len(data) == 2 && data[0] == 1 && data[1] == 3)
 }

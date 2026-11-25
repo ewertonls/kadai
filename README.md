@@ -60,7 +60,7 @@ odin test tests -all-packages -collection:kadai=src -collection:third_party=thir
 - **Kanban is optional.** Create multiple boards, include only selected tasks, and remove cards without deleting their tasks. Boards are Markdown files too.
 - **Built for agents.** A scriptable CLI with machine-readable output lets AI coding agents discover, create, update, and relate tasks without needing an MCP server.
 - **Local and offline.** No account, remote service or authoritative task-state DB. Markdown owns task state; each task collection keeps a durable used-ID record so CLI-generated IDs are not reused after task deletion while its history is retained. Optional indexes remain rebuildable.
-- **Version control is optional.** Track tasks and history in Git if useful, or keep collections untracked, per-worktree or ephemeral. Kadai does not manage `.gitignore`.
+- **Version control is optional.** Track tasks and history in Git if useful, or keep collections untracked, per-worktree or ephemeral.
 
 ## Proposed file layout
 
@@ -151,7 +151,7 @@ Task frontmatter v1 is specified in [KAD-002](docs/specs/KAD-002-frontmatter-v1.
 
 ## CLI-first workflow
 
-The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create collection-local history under `<tasks.root>/.kadai/` without creating `.kadai.yaml`. Kadai never modifies `.gitignore`.
+The CLI is the primary interface for developers and coding agents. Direct Markdown editing and unconfigured read/write workflows remain supported. `kadai init` is optional; `kadai add` writes `status: todo` by default. Writes may create collection-local history under `<tasks.root>/.kadai/` without creating `.kadai.yaml`. To ignore that directory in Git, run `kadai init --git`. It creates `<tasks.root>/.gitignore` or appends the missing `/.kadai/` rule to the existing file.
 
 Run `kadai` for a short description of each command. Use `kadai help add` or `kadai add --help` for usage, examples and flags. Flags can appear anywhere after the command and before `--`. Both `--project DIR` and `--project=DIR` select a project. Use `--` before a positional argument that starts with a hyphen, as in `kadai add -- -draft`.
 
@@ -184,6 +184,8 @@ Use `kadai log add 0001 "Parser handles empty files"` to append a timestamped Ma
 `kadai import notes.md --yes` creates a new `todo` task with the entire file as its body and leaves `notes.md` in place. Use `--title` to override the filename-derived title or `--path` to choose an unused destination. [Importing Markdown](docs/development/cli.md#importing-markdown).
 
 `remove ID --yes` deletes an unreferenced task. Preview detachment with `remove ID --detach --dry-run`, then use `remove ID --detach --plan TOKEN` to apply that exact plan. Removal returns an operation ID for `recover rollback OPERATION --yes`. For an interrupted operation in the same collection, use `recover resume --yes` or `recover rollback --yes`. These commands run without prompts. [Noninteractive use](docs/development/cli.md#noninteractive-use).
+
+Use `kadai recover prune --dry-run` to list completed recovery archives at least 30 days old. Run `kadai recover prune --yes` to delete them and give up rollback for those operations. Set a different retention period with `--older-than DAYS`, or pass operation IDs to prune a smaller batch. [Cleaning recovery history](docs/development/cli.md#cleaning-recovery-history).
 
 Use `kadai parent add CHILD PARENT` to set a parent and `kadai parent remove CHILD` to clear it. `kadai tree` shows the hierarchy and identifies broken parent links and cycles.
 

@@ -180,11 +180,24 @@ write_log_text :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {
 	return nil
 }
 
+Prune_Result :: struct {
+	dry_run   : bool,
+	operations: []string,
+}
+
+write_prune_text :: proc(w: io.Writer, result: Prune_Result) -> io.Error {
+	if len(result.operations) == 0 do return write_parts(w, "No recovery operations to prune.\n")
+	prefix := "Would prune " if result.dry_run else "Pruned "
+	for id in result.operations do write_parts(w, prefix, id, "\n") or_return
+	return nil
+}
+
 write_task_text :: proc {
 	write_ready_text,
 	write_tree_text,
 	write_dependency_text,
 	write_log_text,
+	write_prune_text,
 }
 
 task_text_result :: proc(value: $T) -> (string, string, Exit_Code) {

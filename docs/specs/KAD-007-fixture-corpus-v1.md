@@ -43,7 +43,7 @@ Reject absolute/NUL-containing setup destinations and traversal outside the sand
 
 Native capability tests declare `requires`. Missing capability yields `unsupported_host` with a reason, not a pass. A product bug or an unavailable test adapter is not an unsupported host. Release checks must actually exercise supported platform-specific safety mechanisms on a capable host; do not obtain a green result by skipping all of them.
 
-**Raw-byte checkout:** the Kadai repository's `.gitattributes` disables text conversion only for literal fixture inputs and golden files. This preserves LF, CRLF, BOM and mixed endings in development checkouts. It does not let the Kadai product modify a user's `.gitignore`, `.gitattributes` or tracking policy. KAD-004 separately documents raw-byte requirements for user-versioned ID markers.
+**Raw-byte checkout:** the Kadai repository's `.gitattributes` disables text conversion only for literal fixture inputs and golden files. This preserves LF, CRLF, BOM and mixed endings in development checkouts. KAD-004 separately documents raw-byte requirements for user-versioned ID markers.
 
 ## 3. Manifest v1
 
@@ -109,7 +109,7 @@ KAD-007 records the corpus, its necessary corrections and the agent policy. Inde
 
 A documented choice not to implement a redundant catalog entry is not a missing product requirement when another test covers the same risk. An unimplemented unique safety requirement remains pending; never mark it passed or silently skipped. Keep that distinction in task/release reports instead of using fixture count as progress.
 
-No Kadai command creates or edits a user's Git tracking policy. Development-repository attributes protecting fixture bytes are separate. No parser, writer, heavy generator execution, native recovery or cross-platform runtime behavior is claimed complete by this specification.
+KAD-003 defines the optional `init --git` behavior for user projects. No parser, writer, heavy generator execution, native recovery or cross-platform runtime behavior is claimed complete by this specification.
 
 ## 7. Agent rule: minimum necessary tests
 

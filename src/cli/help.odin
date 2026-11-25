@@ -21,11 +21,11 @@ Command :: struct {
 COMMANDS := [?]Command {
 	{
 		"init",
-		Project_Flags,
+		Init_Flags,
 		"Create the project configuration and task directory.",
 		"Run in the project directory or select an existing directory with --project.",
-		{""},
-		{"kadai init --id-prefix KAD"},
+		{"[--git]"},
+		{"kadai init --git", "kadai init --id-prefix KAD"},
 	},
 	{
 		"add",
@@ -170,10 +170,18 @@ COMMANDS := [?]Command {
 	{
 		"recover",
 		Recover_Flags,
-		"Resume an interrupted write or roll back an operation.",
-		"Omit the operation ID to select the pending write.\nTo undo a completed removal, pass the operation ID printed by remove.",
-		{"resume [OPERATION] --yes", "rollback [OPERATION] --yes"},
-		{"kadai recover resume --yes"},
+		"Resume, roll back or prune recovery operations.",
+		"Resume and rollback select the pending write when the operation ID is omitted.\nTo undo a completed removal, pass the operation ID printed by remove.\nPrune accepts operation IDs to limit the batch. Deletion permanently discards their rollback data.",
+		{
+			"resume [OPERATION] --yes",
+			"rollback [OPERATION] --yes",
+			"prune [OPERATION ...] (--dry-run | --yes) [--older-than DAYS]",
+		},
+		{
+			"kadai recover resume --yes",
+			"kadai recover prune --dry-run",
+			"kadai recover prune --older-than 90 --yes",
+		},
 	},
 	{
 		"help",

@@ -125,7 +125,7 @@ windows_captured_security_is_checked_before_write :: proc(t: ^testing.T) {
 		(^u32le)(&stream[0])^ = 3
 		(^u64le)(&stream[8])^ = u64le(n)
 		copy(stream[20:], ([^]byte)(sd)[:n])
-		testing.expect(t, write_private_security(f, stream) == .Unsupported, sddl)
+		testing.expect(t, write_security(f, stream, require_private = true) == .Unsupported, sddl)
 		after, after_err := metadata(f)
 		testing.expect(t, after_err == nil && after == before, sddl)
 	}
@@ -135,8 +135,51 @@ windows_captured_security_is_checked_before_write :: proc(t: ^testing.T) {
 	n: u32
 	if !testing.expect(t, bool(ConvertStringSecurityDescriptorToSecurityDescriptorW(wide("O:SYD:P(D;;FW;;;WD)(A;ID;FR;;;SY)(A;;FA;;;BA)(A;;FA;;;OW)"), 1, &safe, &n))) do return
 	defer w.LocalFree(safe)
-	testing.expect(t, private_security(([^]byte)(safe)[:n]) == nil)
-	testing.expect(t, private_security(([^]byte)(safe)[:n - 1]) == .Unsupported)
+	testing.expect(t, check_security(([^]byte)(safe)[:n], true) == nil)
+	testing.expect(t, check_security(([^]byte)(safe)[:n - 1], true) == .Unsupported)
+}
+
+@(test)
+windows_project_file_inherits_and_preserves_shared_dacl :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-project-acl-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	root, path_err := physical(tmp, .Directory)
+	if !testing.expect(t, path_err == nil) do return
+	if !test_file_dacl(t, root, "D:P(A;OICI;FA;;;OW)(A;OICI;FR;;;WD)") do return
+	d, open_err := open_dir(root)
+	if !testing.expect(t, open_err == nil) do return
+	defer close_dir(&d)
+	if !testing.expect(t, os.write_entire_file(child(root, "ordinary.txt"), "x") == nil) do return
+	sibling, sibling_err := regular(&d, "ordinary.txt")
+	if !testing.expect(t, sibling_err == nil) do return
+	inherited, acl_err := security_text(w.HANDLE(os.fd(sibling)), w.DACL_SECURITY_INFORMATION)
+	os.close(sibling)
+	if !testing.expect(t, acl_err == nil) do return
+	if !testing.expect(t, write_project_file(&d, ".gitignore", "", {1}, 100) == nil) do return
+	first, first_err := regular(&d, ".gitignore")
+	if !testing.expect(t, first_err == nil) do return
+	initial_acl, initial_err := security_text(w.HANDLE(os.fd(first)), w.DACL_SECURITY_INFORMATION)
+	info, stat_err := file_info(first)
+	os.close(first)
+	if !testing.expect(t, initial_err == nil && stat_err == nil && initial_acl == inherited) do return
+
+	path := child(root, ".gitignore")
+	if !test_file_dacl(t, path, "D:P(A;;FA;;;OW)(A;;FR;;;WD)") do return
+	// A completed backup can leave the existing file's archive bit clear.
+	if !testing.expect(t, bool(w.SetFileAttributesW(wide(path), w.FILE_ATTRIBUTE_NORMAL))) do return
+	before, before_open := regular(&d, ".gitignore")
+	if !testing.expect(t, before_open == nil) do return
+	explicit_acl, read_err := security_text(w.HANDLE(os.fd(before)), w.DACL_SECURITY_INFORMATION)
+	os.close(before)
+	if !testing.expect(t, read_err == nil) do return
+	e := write_project_file(&d, ".gitignore", file_version(info, {1}), {1, 2}, 100)
+	if !testing.expect(t, e == nil, os.error_string(e)) do return
+	after, after_open := regular(&d, ".gitignore")
+	if !testing.expect(t, after_open == nil) do return
+	defer os.close(after)
+	preserved, after_err := security_text(w.HANDLE(os.fd(after)), w.DACL_SECURITY_INFORMATION)
+	testing.expect(t, after_err == nil && preserved == explicit_acl)
 }
 
 @(test)

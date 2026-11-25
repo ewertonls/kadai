@@ -11,6 +11,44 @@ when ODIN_OS == .Darwin {
 	foreign lib {fsetxattr :: proc(fd: p.FD, name: cstring, value: rawptr, size: uint, pos: u32, options: i32) -> i32 ---}
 }
 
+@(test)
+project_files_inherit_permissions_and_replace_atomically :: proc(t: ^testing.T) {
+	tmp, e := os.mkdir_temp("", "kadai-project-file-", context.temp_allocator)
+	if !testing.expect(t, e == nil) do return
+	defer os.remove_all(tmp)
+	root, path_err := physical(tmp, .Directory)
+	if !testing.expect(t, path_err == nil) do return
+	dir, open_err := open_dir(root)
+	if !testing.expect(t, open_err == nil) do return
+	defer close_dir(&dir)
+	reference := child(root, "ordinary")
+	if !testing.expect(t, os.write_entire_file(reference, "", os.Permissions_Default_File) == nil) do return
+	ordinary, stat_err := os.stat(reference, context.temp_allocator)
+	if !testing.expect(t, stat_err == nil) do return
+	if !testing.expect(t, write_project_file(&dir, ".gitignore", "", {1}, 32) == nil) do return
+	old, read_err := regular(&dir, ".gitignore")
+	if !testing.expect(t, read_err == nil) do return
+	defer os.close(old)
+	info, info_err := file_info(old)
+	if !testing.expect(t, info_err == nil && info.mode == ordinary.mode) do return
+	set_test_security_metadata(t, old)
+	before, before_err := project_metadata(old)
+	if !testing.expect(t, before_err == nil) do return
+	version := file_version(info, {1})
+	err := write_project_file(&dir, ".gitignore", version, {1, 2}, 32)
+	if !testing.expect(t, err == nil, os.error_string(err)) do return
+	// Readers that already opened the file still see the complete old version.
+	original, old_err := read_bounded(old, 32)
+	testing.expect(t, old_err == nil && len(original) == 1 && original[0] == 1)
+	next, next_err := regular(&dir, ".gitignore")
+	if !testing.expect(t, next_err == nil) do return
+	defer os.close(next)
+	updated, update_err := read_bounded(next, 32)
+	testing.expect(t, update_err == nil && len(updated) == 2 && updated[1] == 2)
+	after, after_err := project_metadata(next)
+	testing.expect(t, after_err == nil && after == before)
+}
+
 @(private)
 set_test_security_metadata :: proc(t: ^testing.T, f: ^os.File) {
 	value: byte = 42
