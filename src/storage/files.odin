@@ -7,12 +7,35 @@ import "core:os"
 import "core:strings"
 
 Directory :: struct {
-	path           : string,
-	file           : ^os.File,
+	path       : string,
+	file       : ^os.File,
 	// Windows retains ancestor handles without sharing delete access.
-	parents        : [dynamic]^os.File,
-	// Only a new journal records image names, for cleanup before intent publication.
-	prepared_images: ^[dynamic]string,
+	parents    : [dynamic]^os.File,
+	// Only a new journal tracks its files for cleanup before intent publication.
+	preparation: ^Preparation,
+}
+
+File_Identity :: struct {
+	device: u64,
+	inode : u128,
+}
+
+Prepared_File :: struct {
+	name    : string,
+	identity: File_Identity,
+}
+
+Preparation :: struct {
+	images        : [dynamic]Prepared_File,
+	plan          : File_Identity,
+	metadata_issue: string,
+}
+
+@(private)
+file_identity :: proc(f: ^os.File) -> (id: File_Identity, err: os.Error) {
+	info := file_info(f) or_return
+	if info.inode == 0 do return {}, .Unsupported
+	return {info.device, info.inode}, nil
 }
 
 close_dir :: proc(d: ^Directory) {
@@ -120,10 +143,11 @@ create_file :: proc(
 	name: string,
 	data: []byte,
 	published: ^bool = nil,
+	published_identity: ^File_Identity = nil,
 ) -> (
 	err: os.Error,
 ) {
-	return publish_file(d, name, data, "", len(data), false, published)
+	return publish_file(d, name, data, "", len(data), false, published, published_identity)
 }
 
 @(private)
@@ -135,6 +159,7 @@ publish_file :: proc(
 	limit: int,
 	inherit_permissions: bool,
 	published: ^bool,
+	published_identity: ^File_Identity = nil,
 ) -> (
 	err: os.Error,
 ) {
@@ -142,8 +167,19 @@ publish_file :: proc(
 	tmp := random_name(STAGE_PREFIX)
 	created := false
 	f, open_err := create_regular(d, tmp, &created, project_file = inherit_permissions)
-	defer if created {remove_entry(d, tmp)}
+	stage_id: File_Identity
+	defer if created {
+		if published_identity != nil {
+			remove_owned_entry(d, tmp, stage_id, false)
+		} else {
+			remove_entry(d, tmp)
+		}
+	}
 	if open_err != nil do return open_err
+	if published_identity != nil {
+		stage_id, err = file_identity(f)
+		if err != nil {os.close(f); return err}
+	}
 	if expected == "" {
 		err = write_sync(f, data)
 	} else {
@@ -155,5 +191,6 @@ publish_file :: proc(
 	publish(d, tmp, d, name, expected != "") or_return
 	created = false // The stage name is vacant after the rename.
 	if published != nil do published^ = true
+	if published_identity != nil do published_identity^ = stage_id
 	return sync_dir(d)
 }

@@ -9,6 +9,40 @@ import p "core:sys/posix"
 import "core:testing"
 
 @(test)
+metadata_copy_reports_syscall_and_verification_failures :: proc(t: ^testing.T) {
+	src, src_err := os.create_temp_file("", "kadai-metadata-source-")
+	if !testing.expect(t, src_err == nil) do return
+	defer os.close(src)
+	defer os.remove(os.name(src))
+	dst, dst_err := os.create_temp_file("", "kadai-metadata-copy-")
+	if !testing.expect(t, dst_err == nil) do return
+	defer os.close(dst)
+	defer os.remove(os.name(dst))
+
+	// A pipe cannot supply the filesystem metadata expected by fcopyfile.
+	r, w, pipe_err := os.pipe()
+	if !testing.expect(t, pipe_err == nil) do return
+	defer os.close(r)
+	defer os.close(w)
+	issue: string
+	copy_err := copy_metadata(r, dst, issue = &issue)
+	code, native := os.is_platform_error(copy_err)
+	if !testing.expect(t, native && code > 0, os.error_string(copy_err)) do return
+	testing.expect(
+		t,
+		strings.contains(issue, fmt.tprintf("fcopyfile failed with errno %d", code)),
+		issue,
+	)
+
+	issue = ""
+	if !testing.expect(t, copy_metadata(src, dst, issue = &issue) == nil && issue == "") do return
+	value: byte = 42
+	if !testing.expect_value(t, fsetxattr(p.FD(os.fd(dst)), "user.kadai.test", &value, 1, 0, 0), 0) do return
+	testing.expect(t, verify_copied_metadata(src, dst, .V2, &issue) == .Unsupported)
+	testing.expect(t, strings.contains(issue, "staged metadata differs from the source"), issue)
+}
+
+@(test)
 metadata_v2_excludes_only_macos_provenance :: proc(t: ^testing.T) {
 	f, err := os.create_temp_file("", "kadai-provenance-")
 	if !testing.expect(t, err == nil) do return

@@ -7,6 +7,46 @@ import "core:strings"
 import "core:testing"
 
 @(test)
+discard_preparation_preserves_entries_with_different_identities :: proc(t: ^testing.T) {
+	tmp, tmp_err := os.mkdir_temp("", "kadai-discard-", context.temp_allocator)
+	if !testing.expect(t, tmp_err == nil) do return
+	defer os.remove_all(tmp)
+	root, root_err := physical(tmp, .Directory)
+	if !testing.expect(t, root_err == nil) do return
+	vault, vault_err := open_dir(root)
+	if !testing.expect(t, vault_err == nil) do return
+	defer close_dir(&vault)
+	id := random_name("")
+	created := false
+	dir, dir_err := create_private_dir(&vault, id, &created)
+	if !testing.expect(t, dir_err == nil) do return
+	defer close_dir(&dir)
+
+	prep := Preparation {
+		images = make([dynamic]Prepared_File, context.temp_allocator),
+	}
+	dir.preparation = &prep
+	if !testing.expect(t, create_file(&dir, "plan", {1}, published_identity = &prep.plan) == nil) do return
+	_, image_err := save_image(&dir, "0-next", {2}, nil, 1)
+	if !testing.expect(t, image_err == nil && len(prep.images) == 1) do return
+
+	// Supply a different recorded identity to represent an already replaced file.
+	plan := prep.plan
+	prep.plan = prep.images[0].identity
+	if !testing.expect(t, discard_preparation(&vault, &dir, id) == .Invalid_File) do return
+	data, e := os.read_entire_file(child(dir.path, "plan"), context.temp_allocator)
+	testing.expect(t, e == nil && len(data) == 1 && data[0] == 1)
+	testing.expect(t, os.exists(child(dir.path, "0-next")))
+
+	prep.plan = plan
+	prep.images[0].identity = plan
+	if !testing.expect(t, discard_preparation(&vault, &dir, id) == .Invalid_File) do return
+	testing.expect(t, !os.exists(child(dir.path, "plan")))
+	data, e = os.read_entire_file(child(dir.path, "0-next"), context.temp_allocator)
+	testing.expect(t, e == nil && len(data) == 1 && data[0] == 2)
+}
+
+@(test)
 preparation_cleanup_stops_at_first_published_intent :: proc(t: ^testing.T) {
 	tmp, err := os.mkdir_temp("", "kadai-preparation-", context.temp_allocator)
 	if !testing.expect(t, err == nil) do return

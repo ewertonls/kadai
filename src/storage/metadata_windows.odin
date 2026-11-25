@@ -199,6 +199,7 @@ copy_metadata :: proc(
 	src, dst: ^os.File,
 	version := CURRENT_JOURNAL_VERSION,
 	require_private := true,
+	issue: ^string = nil,
 ) -> (
 	err: os.Error,
 ) {
@@ -206,7 +207,10 @@ copy_metadata :: proc(
 	a := metadata(src, &security, version = version, require_private = require_private) or_return
 	write_security(dst, security, require_private) or_return
 	b := metadata(dst, version = version, require_private = require_private) or_return
-	if a != b do return .Unsupported
+	if a != b {
+		if issue != nil do issue^ = METADATA_COPY_MISMATCH
+		return .Unsupported
+	}
 	return
 }
 

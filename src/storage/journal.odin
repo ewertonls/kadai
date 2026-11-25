@@ -354,14 +354,16 @@ commit :: proc(
 	if err != nil do return "", os.error_string(err)
 	defer close_dir(&vault)
 	id = random_name("")
-	created, plan_published: bool
+	created := false
 	dir: Directory
 	dir, err = create_private_dir(&vault, id, &created)
 	if !created do return "", os.error_string(err)
 	defer close_dir(&dir)
 	if started != nil do started^ = true
-	images := make([dynamic]string, context.temp_allocator)
-	dir.prepared_images = &images
+	prep := Preparation {
+		images = make([dynamic]Prepared_File, context.temp_allocator),
+	}
+	dir.preparation = &prep
 	if err == nil do err = sync_dir(&vault)
 	if err == nil {
 		issue = commit_prepared(
@@ -373,15 +375,13 @@ commit :: proc(
 			l,
 			before_intent,
 			data,
-			&plan_published,
 			&intent_published,
 		)
 	} else {
 		issue = os.error_string(err)
 	}
 	if issue != "" && !intent_published {
-		if cleanup_err := discard_preparation(&vault, &dir, id, images[:], plan_published);
-		   cleanup_err != nil {
+		if cleanup_err := discard_preparation(&vault, &dir, id); cleanup_err != nil {
 			issue = fmt.tprintf(
 				"%s. Preparation cleanup failed: %s",
 				issue,
@@ -394,22 +394,26 @@ commit :: proc(
 	return
 }
 
-// The writer owns this newly created directory until the first intent is published.
-// Remove only the files it created. rmdir refuses any unexpected remaining entry.
+// Before removing a required image, retire its unpublished plan durably.
+// An interruption then leaves a recognizable preparation rather than a broken plan.
 @(private)
-discard_preparation :: proc(
-	vault, dir: ^Directory,
-	id: string,
-	images: []string,
-	plan_published: bool,
-) -> (
-	err: os.Error,
-) {
-	for name in images do remove_entry(dir, name) or_return
-	if plan_published do remove_entry(dir, "plan") or_return
-	if dir.file != nil do sync_dir(dir) or_return
+discard_preparation :: proc(vault, dir: ^Directory, id: string) -> (err: os.Error) {
+	dir_id: File_Identity
+	if dir.file != nil {
+		dir_id = file_identity(dir.file) or_return
+		when ODIN_OS != .Windows {
+			// Unix allows a directory to be moved while this handle remains open.
+			verify_owned_entry(vault, id, dir_id, true) or_return
+		}
+		prep := dir.preparation
+		// A zero identity requires verified absence, including a publication collision.
+		remove_owned_entry(dir, "plan", prep.plan, false) or_return
+		sync_dir(dir) or_return
+		for image in prep.images do remove_owned_entry(dir, image.name, image.identity, false) or_return
+		sync_dir(dir) or_return
+	}
 	close_dir(dir) // The Windows directory handle does not share delete access.
-	remove_empty_dir(vault, id) or_return
+	remove_owned_entry(vault, id, dir_id, true) or_return
 	return sync_dir(vault)
 }
 
@@ -422,7 +426,7 @@ commit_prepared :: proc(
 	l: Journal_Limits,
 	before_intent: proc(_: rawptr) -> string,
 	data: rawptr,
-	plan_published, intent_published: ^bool,
+	intent_published: ^bool,
 ) -> (
 	issue: string,
 ) {
@@ -450,11 +454,15 @@ commit_prepared :: proc(
 		} else {
 			tx.steps[i], err = prepare_step(w.root, dir, i, c, l.source)
 		}
-		if err != nil do return fmt.tprintf("preparing %s: %s", c.path, os.error_string(err))
+		if err != nil {
+			reason := dir.preparation.metadata_issue
+			if reason == "" do reason = os.error_string(err)
+			return fmt.tprintf("preparing %s: %s", c.path, reason)
+		}
 	}
 	plan, ok := manifest(tx.steps, l.record)
 	if !ok || i64(len(plan)) + 4 * 97 > l.total_bytes do return "journal exceeds byte limit"
-	if err = create_file(dir, "plan", transmute([]byte)plan, plan_published); err != nil do return os.error_string(err)
+	if err = create_file(dir, "plan", transmute([]byte)plan, published_identity = &dir.preparation.plan); err != nil do return os.error_string(err)
 	ptr := pointer(id, plan)
 	image_budget := l.total_bytes
 	if issue = run_steps(w.root, dir, tx, .Resume, l, true, &image_budget, false); issue != "" do return

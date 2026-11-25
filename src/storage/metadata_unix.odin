@@ -135,10 +135,21 @@ append_metadata_attributes :: proc(
 }
 
 @(private)
-copy_metadata :: proc(src, dst: ^os.File, version := CURRENT_JOURNAL_VERSION) -> (err: os.Error) {
+copy_metadata :: proc(
+	src, dst: ^os.File,
+	version := CURRENT_JOURNAL_VERSION,
+	issue: ^string = nil,
+) -> (
+	err: os.Error,
+) {
 	a, b := p.FD(os.fd(src)), p.FD(os.fd(dst))
 	when ODIN_OS == .Darwin {
-		if fcopyfile(a, b, nil, 7) != 0 do return native_error()
+		if fcopyfile(a, b, nil, 7) != 0 {
+			code := p.errno()
+			err = native_error()
+			if issue != nil do issue^ = fmt.tprintf("fcopyfile failed with errno %d (%s)", i32(code), os.error_string(err))
+			return
+		}
 	} else {
 		s, d: p.stat_t
 		if p.fstat(a, &s) != .OK || p.fstat(b, &d) != .OK do return native_error()
@@ -154,9 +165,23 @@ copy_metadata :: proc(src, dst: ^os.File, version := CURRENT_JOURNAL_VERSION) ->
 			if res != 0 do return native_error()
 		}
 	}
+	return verify_copied_metadata(src, dst, version, issue)
+}
+
+@(private)
+verify_copied_metadata :: proc(
+	src, dst: ^os.File,
+	version: Journal_Version,
+	issue: ^string,
+) -> (
+	err: os.Error,
+) {
 	original := metadata(src, version) or_return
 	copied := metadata(dst, version) or_return
-	if original != copied do return .Unsupported
+	if original != copied {
+		if issue != nil do issue^ = METADATA_COPY_MISMATCH
+		return .Unsupported
+	}
 	return
 }
 

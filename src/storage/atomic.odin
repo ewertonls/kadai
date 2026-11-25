@@ -85,6 +85,9 @@ payload_signature :: proc(stamp: string) -> string {
 	return stamp[i + 1:]
 }
 
+@(private)
+METADATA_COPY_MISMATCH :: "staged metadata differs from the source after copying"
+
 // Persist a new image exclusively. Never reopen a snapshot for writing.
 @(private)
 save_image :: proc(
@@ -98,19 +101,24 @@ save_image :: proc(
 	stamp: string,
 	err: os.Error,
 ) {
-	if dir.prepared_images != nil {
-		_ = append(dir.prepared_images, name) or_return
+	prep := dir.preparation
+	if prep != nil {
+		_ = append(&prep.images, Prepared_File{name = name}) or_return
 	}
 	created := false
 	f, create_err := create_regular(dir, name, &created)
 	if create_err != nil {
-		if !created && dir.prepared_images != nil do pop(dir.prepared_images)
+		if !created && prep != nil do pop(&prep.images)
 		return "", create_err
 	}
 	defer os.close(f)
+	if prep != nil do prep.images[len(prep.images) - 1].identity = file_identity(f) or_return
 	n := os.write(f, data) or_return
 	if n != len(data) do return "", .Short_Write
-	if original != nil do copy_metadata(original, f, version) or_return
+	if original != nil {
+		issue := &prep.metadata_issue if prep != nil else nil
+		copy_metadata(original, f, version, issue = issue) or_return
+	}
 	os.sync(f) or_return
 	return state(f, limit, version)
 }

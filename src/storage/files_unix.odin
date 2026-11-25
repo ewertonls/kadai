@@ -177,4 +177,37 @@ remove_empty_dir :: proc(parent: ^Directory, name: string) -> os.Error {
 	return nil
 }
 
+@(private)
+verify_owned_entry :: proc(
+	parent: ^Directory,
+	name: string,
+	expected: File_Identity,
+	directory: bool,
+) -> os.Error {
+	if !component(name) do return .Invalid_Path
+	st: p.stat_t
+	if p.fstatat(dir_fd(parent), cs(name), &st, {.SYMLINK_NOFOLLOW}) != .OK do return native_error()
+	actual := File_Identity{u64(st.st_dev), u128(st.st_ino)}
+	if expected.inode == 0 || actual != expected do return .Invalid_File
+	if directory {
+		if !p.S_ISDIR(st.st_mode) do return .Invalid_File
+	} else if !p.S_ISREG(st.st_mode) || st.st_nlink != 1 {return .Invalid_File}
+	return nil
+}
+
+@(private)
+remove_owned_entry :: proc(
+	parent: ^Directory,
+	name: string,
+	expected: File_Identity,
+	directory: bool,
+) -> os.Error {
+	e := verify_owned_entry(parent, name, expected, directory)
+	if e == .Not_Exist do return nil
+	if e != nil do return e
+	flags := p.AT_Flags{.REMOVEDIR} if directory else p.AT_Flags{}
+	if p.unlinkat(dir_fd(parent), cs(name), flags) != .OK && p.errno() != .ENOENT do return native_error()
+	return nil
+}
+
 sync_dir :: proc(d: ^Directory) -> os.Error {return os.sync(d.file)}
