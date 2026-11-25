@@ -62,7 +62,7 @@ Versioned layout, relative to the effective collection root:
 - `kadai init` does not create operational history files. An uninitialized, no-config project gets this directory when the first write needs to record an ID.
 - Only these markers are authoritative for allocation history; any in-memory index is disposable. Directory presence is not a task database. A missing entirely new history directory is allowed, but cannot prove that old history was never deleted. Detectably inconsistent existing state fails closed; lost markers that leave no evidence cannot be reconstructed with certainty from live tasks.
 
-Users choose whether to track any `.kadai/` state in Git. Kadai never manages `.gitignore` or requires Git tracking. Moving a collection without its `.kadai/` history weakens non-reuse guarantees, as documented by KAD-003.
+Users choose whether to track any `.kadai/` state in Git. `kadai init --git` adds the ignore rule for the entire state directory, including the used-ID markers. Moving a collection without its `.kadai/` history weakens non-reuse guarantees, as documented by KAD-003.
 
 **Byte-preserving version control:** LF is normative for marker format v1. CRLF-converted markers are diagnosed as noncanonical/corrupt, never silently normalized or discarded. Users who version markers must prevent checkout conversion for that subtree, for example with a user-owned `.gitattributes` rule `<tasks-root>/.kadai/used-ids/v1/** -text` adjusted to their root, or preserve raw bytes by another workflow. Kadai does not create/edit that rule. Correct the checkout conversion and restore verified original marker bytes explicitly; do not reset allocation history as a workaround.
 

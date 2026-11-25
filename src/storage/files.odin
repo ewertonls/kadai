@@ -38,6 +38,9 @@ read_file :: proc(path: string, mutation := false) -> (f: ^os.File, err: os.Erro
 	return regular(&d, os.base(path), mutation)
 }
 
+@(private)
+STAGE_PREFIX :: ".kadai-stage-"
+
 random_name :: proc(prefix: string) -> string {
 	raw: [16]byte
 	crypto.rand_bytes(raw[:])
@@ -51,6 +54,64 @@ write_sync :: proc(f: ^os.File, data: []byte) -> (err: os.Error) {
 	return os.sync(f)
 }
 
+@(private)
+checked_project_source :: proc(
+	d: ^Directory,
+	name, expected: string,
+	limit: int,
+) -> (
+	f: ^os.File,
+	err: os.Error,
+) {
+	source := regular(d, name, writable = true) or_return
+	defer if err != nil {os.close(source)}
+	info := file_info(source) or_return
+	version := stream_version(source, info, limit) or_return
+	if version != expected do return nil, .Invalid_File
+	return source, nil
+}
+
+// A project directory can have an inheritable ACL. Apply the source's
+// verified permissions to the empty stage before it holds any user data.
+@(private)
+stage_project_replacement :: proc(
+	d: ^Directory,
+	name, expected: string,
+	staged: ^os.File,
+	data: []byte,
+	limit: int,
+) -> (
+	err: os.Error,
+) {
+	{
+		src := checked_project_source(d, name, expected, limit) or_return
+		defer os.close(src)
+		copy_project_metadata(src, staged) or_return
+	}
+	write_sync(staged, data) or_return
+	current := checked_project_source(d, name, expected, limit) or_return
+	defer os.close(current)
+	original := project_metadata(current) or_return
+	copied := project_metadata(staged) or_return
+	if original != copied do return .Invalid_File
+	return
+}
+
+// The writer domain covers planning and publication. A short write or sync
+// failure during staging leaves an existing project file untouched.
+write_project_file :: proc(
+	d: ^Directory,
+	name, expected: string,
+	data: []byte,
+	limit: int,
+	started: ^bool = nil,
+) -> (
+	err: os.Error,
+) {
+	if len(data) > limit do return .Short_Buffer
+	return publish_file(d, name, data, expected, limit, expected == "", started)
+}
+
 // Publish a complete file without replacing any destination entry.
 create_file :: proc(
 	d: ^Directory,
@@ -60,15 +121,34 @@ create_file :: proc(
 ) -> (
 	err: os.Error,
 ) {
+	return publish_file(d, name, data, "", len(data), false, published)
+}
+
+@(private)
+publish_file :: proc(
+	d: ^Directory,
+	name: string,
+	data: []byte,
+	expected: string,
+	limit: int,
+	inherit_permissions: bool,
+	published: ^bool,
+) -> (
+	err: os.Error,
+) {
 	if !component(name) do return .Invalid_Path
-	tmp := random_name(".kadai-stage-")
-	f := create_regular(d, tmp) or_return
+	tmp := random_name(STAGE_PREFIX)
+	f := create_regular(d, tmp, inherit_permissions) or_return
 	defer remove_entry(d, tmp)
-	err = write_sync(f, data)
+	if expected == "" {
+		err = write_sync(f, data)
+	} else {
+		err = stage_project_replacement(d, name, expected, f, data, limit)
+	}
 	close_err := os.close(f)
 	if err != nil do return err
 	if close_err != nil do return close_err
-	publish(d, tmp, d, name, false) or_return
+	publish(d, tmp, d, name, expected != "") or_return
 	if published != nil do published^ = true
 	return sync_dir(d)
 }

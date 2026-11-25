@@ -3,6 +3,8 @@ package cli
 
 import "core:flags"
 import "core:reflect"
+import "core:strconv"
+import "core:strings"
 import "kadai:app"
 
 // core:flags reads top-level fields only, including for help. Each schema lists
@@ -18,6 +20,20 @@ Project_Flags :: struct {
 	limit         : [dynamic]string `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
 	json          : bool `usage:"Write the command result as JSON."`,
 	overflow      : [dynamic]string `args:"hidden"`,
+}
+
+Init_Flags :: struct {
+	project       : string `usage:"Select the project directory."`,
+	tasks_root    : string `usage:"Select the task collection root."`,
+	boards_root   : string `usage:"Select the boards directory under the task root."`,
+	id_prefix     : string `usage:"Set the prefix for generated task IDs."`,
+	timezone      : string `usage:"Set the project time zone."`,
+	exclude       : [dynamic]string `usage:"Replace configured exclusions. Repeat for each glob."`,
+	clear_excludes: bool `usage:"Clear configured exclusions."`,
+	limit         : [dynamic]string `usage:"Override a resource budget: NAME=INTEGER. Repeat for different budgets."`,
+	json          : bool `usage:"Write the command result as JSON."`,
+	overflow      : [dynamic]string `args:"hidden"`,
+	git           : bool `usage:"Add /.kadai/ to .gitignore in the task collection root if missing."`,
 }
 
 List_Flags :: struct {
@@ -160,6 +176,8 @@ Recover_Flags :: struct {
 	json          : bool `usage:"Write the command result as JSON."`,
 	overflow      : [dynamic]string `args:"hidden"`,
 	yes           : bool `usage:"Authorize applying the selected recovery operation."`,
+	dry_run       : bool `usage:"Preview which completed recovery operations prune would delete."`,
+	older_than    : string `usage:"Prune operations completed at least this many days ago (default 30, 0 for all ages)."`,
 }
 
 Arguments :: struct {
@@ -170,6 +188,8 @@ Arguments :: struct {
 	words                                                    : []string,
 	body_file, destination, plan, editor, title              : string,
 	status                                                   : Maybe(string),
+	older_than                                               : int,
+	git                                                      : bool,
 	stdin, force, directory, detach, dry_run, json, yes, long: bool,
 }
 
@@ -206,7 +226,9 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 		a.stdin = options.stdin
 	}
 
-	when T == List_Flags {
+	when T == Init_Flags {
+		a.git = options.git
+	} else when T == List_Flags {
 		if options.long && options.json do return a, flags.Validation_Error{"choose either --long or --json"}
 		a.long = options.long
 		a.list_filter = {
@@ -245,6 +267,25 @@ parse_options :: proc($T: typeid, args: []string) -> (a: Arguments, err: flags.E
 		a.detach = options.detach
 		a.dry_run = options.dry_run
 		a.plan = options.plan
+	} else when T == Recover_Flags {
+		if (options.dry_run || options.older_than != "") &&
+		   (len(a.words) == 0 || a.words[0] != "prune") {
+			return a, flags.Validation_Error {
+				"--dry-run and --older-than apply only to recover prune",
+			}
+		}
+		a.dry_run = options.dry_run
+		a.older_than = 30
+		if options.older_than != "" {
+			value := options.older_than
+			days, ok := strconv.parse_int(value, 10)
+			if !ok || strings.trim_left(value, "0123456789") != "" {
+				return a, flags.Validation_Error {
+					"--older-than expects a nonnegative decimal number of days",
+				}
+			}
+			a.older_than = days
+		}
 	}
 	return
 }

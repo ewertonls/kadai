@@ -55,6 +55,7 @@ json_projection :: proc {
 	json_dependencies,
 	json_validation,
 	json_preview,
+	json_prune,
 	json_summary,
 	json_receipt,
 }
@@ -100,6 +101,10 @@ json_summary :: proc(task: app.Task_Summary) -> json.Object {
 
 json_receipt :: proc(operation: string) -> json.Object {
 	return {"ok" = true, "operation" = optional_string(operation)}
+}
+
+json_prune :: proc(result: Prune_Result) -> json.Object {
+	return {"dry_run" = result.dry_run, "operations" = json_strings(result.operations)}
 }
 
 write_log_json :: proc(w: io.Writer, entries: []app.Log_Entry) -> io.Error {

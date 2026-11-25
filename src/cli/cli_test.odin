@@ -10,6 +10,7 @@ import "core:slice"
 import "core:strings"
 import "core:testing"
 import "kadai:app"
+import "kadai:storage"
 
 @(private)
 CLI_Output :: struct {
@@ -64,6 +65,7 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"import", "missing.md"}, 2, "requires --yes"},
 		{{"import", "one.md", "two.md", "--yes"}, 2, "one Markdown source file"},
 		{{"list", "--force"}, 2, "force"},
+		{{"show", "0001", "--git"}, 2, "git"},
 		{{"list", "--where", "status=todo OR"}, 2, "--where"},
 		{{"list", "--where", "id=A XOR id=B"}, 2, "AND or OR"},
 		{{"list", "--where", "title=notes"}, 2, "unknown --where field"},
@@ -113,6 +115,13 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		{{"ready", "0001", "0002"}, 2, "optional task ID"},
 		{{"validate", "extra"}, 2, "no positional arguments"},
 		{{"recover", "invalid"}, 2, "unknown recovery mode"},
+		{{"recover", "prune"}, 2, "--dry-run or --yes"},
+		{{"recover", "prune", "--dry-run", "--yes"}, 2, "--dry-run or --yes"},
+		{{"recover", "prune", "id", "--yes"}, 1, "invalid recovery operation ID"},
+		{{"recover", "prune", "--dry-run", "--older-than=-1"}, 2, "--older-than"},
+		{{"recover", "prune", "--yes", "--older-than", ""}, 2, "older-than"},
+		{{"recover", "resume", "--yes", "--older-than=0"}, 2, "only to recover prune"},
+		{{"recover", "rollback", "--yes", "--dry-run"}, 2, "only to recover prune"},
 	}
 	for c in cases {
 		output := invoke_cli(t, c.args, c.code)
@@ -123,6 +132,107 @@ dispatch_arguments :: proc(t: ^testing.T) {
 		testing.expect(t, strings.contains(result, c.contains), result)
 		testing.expect_value(t, other, "")
 	}
+}
+
+@(test)
+init_git_writes_to_the_selected_task_root :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-cli-init-git-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	_ = invoke_cli(t, {"init", "--git", "--tasks-root", "backlog", "--project", tmp})
+	rules, read_err := os.read_entire_file(
+		fmt.tprintf("%s/backlog/.gitignore", tmp),
+		context.temp_allocator,
+	)
+	if !testing.expect(t, read_err == nil) do return
+	testing.expect_value(t, string(rules), "/.kadai/\n")
+	testing.expect(t, !os.exists(fmt.tprintf("%s/.gitignore", tmp)))
+	testing.expect(t, !os.exists(fmt.tprintf("%s/backlog/.gitattributes", tmp)))
+}
+
+// Previewing and pruning the same journals should return the same IDs in order.
+@(test)
+recover_prune_previews_and_applies_the_selected_age :: proc(t: ^testing.T) {
+	tmp, err := os.mkdir_temp("", "kadai-prune-cli-", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	defer os.remove_all(tmp)
+	reader: strings.Reader
+	input := strings.to_reader(&reader, strings.repeat("x", 1200, context.temp_allocator))
+	_ = invoke_cli(t, {"add", "Keep this task", "--stdin", "--project", tmp}, stdin = input)
+	original, stat_err := os.stat(fmt.tprintf("%s/tasks/0001.md", tmp), context.temp_allocator)
+	if !testing.expect(t, stat_err == nil) do return
+	edit := invoke_cli(t, {"set", "0001", "priority", "high", "--json", "--project", tmp})
+	edit_id := parse_result(t, edit.stdout).(json.Object)["operation"].(string)
+	root := fmt.tprintf("%s/tasks/.kadai/recovery", tmp)
+
+	defaults := invoke_cli(t, {"recover", "prune", "--dry-run", "--project", tmp})
+	testing.expect_value(t, defaults.stdout, "No recovery operations to prune.\n")
+	preview := invoke_cli(
+		t,
+		{"recover", "prune", "--older-than=0", "--dry-run", "--project", tmp, "--json"},
+	)
+	result := parse_result(t, preview.stdout).(json.Object)
+	testing.expect_value(t, result["dry_run"].(bool), true)
+	ops := result["operations"].(json.Array)
+	if !testing.expect_value(t, len(ops), 2) do return
+	first, second := ops[0].(string), ops[1].(string)
+	testing.expect(t, first < second && (first == edit_id || second == edit_id))
+	for id in ([2]string{first, second}) do testing.expect(t, os.exists(fmt.tprintf("%s/%s/committed", root, id)))
+
+	// A one-operation batch fits even when the complete history exceeds the budget.
+	_ = invoke_cli(
+		t,
+		{
+			"recover",
+			"prune",
+			"--dry-run",
+			"--older-than=0",
+			"--limit",
+			"scan_yaml_nodes=9",
+			"--project",
+			tmp,
+		},
+		1,
+	)
+	batch := invoke_cli(
+		t,
+		{
+			"recover",
+			"prune",
+			second,
+			"--dry-run",
+			"--older-than=0",
+			"--limit",
+			"scan_yaml_nodes=9",
+			"--project",
+			tmp,
+		},
+	)
+	testing.expect_value(t, batch.stdout, fmt.tprintf("Would prune %s\n", second))
+
+	// Resume after detaching the creation archive. Its control records must
+	// leave the full image budget for the two copies of the original task.
+	state, path_err := storage.physical(fmt.tprintf("%s/tasks/.kadai", tmp), .Directory)
+	if !testing.expect(t, path_err == nil) do return
+	pruning, open_err := storage.open_dir(
+		storage.child(state, "pruning"),
+		create = true,
+		private_leaf = true,
+	)
+	if !testing.expect(t, open_err == nil) do return
+	create_id := second if first == edit_id else first
+	detached := storage.child(pruning.path, create_id)
+	storage.close_dir(&pruning)
+	if !testing.expect(t, os.rename(storage.child(root, create_id), detached) == nil) do return
+	limit := fmt.tprintf("--limit=scan_yaml_bytes=%d", 2 * original.size)
+	applied := invoke_cli(
+		t,
+		{"recover", "--yes", "prune", "--older-than", "0", "--project", tmp, limit},
+	)
+	testing.expect_value(t, applied.stdout, fmt.tprintf("Pruned %s\nPruned %s\n", first, second))
+	testing.expect(t, !os.exists(detached))
+	for id in ([2]string{first, second}) do testing.expect(t, !os.exists(fmt.tprintf("%s/%s", root, id)))
+	testing.expect(t, os.exists(fmt.tprintf("%s/tasks/0001.md", tmp)))
 }
 
 @(test)

@@ -23,7 +23,7 @@ All commands below accept the common project and resource options.
 
 | Command | Operands and command-specific options |
 | --- | --- |
-| `init` | No operands. Explicitly create minimal config and the effective task directory. Initialization is optional. |
+| `init [--git]` | Create minimal config and the effective task directory. With `--git`, create or update the task directory’s `.gitignore` to include `/.kadai/`. |
 | `add TITLE` | `--status STATUS`, `--path FILE`, and one of `--body-file FILE` or `--stdin`. Default status is `todo`; default body is empty; default filename is `<ID>.md`. Prints the allocated ID. |
 | `import SOURCE.md --yes` | Copy one ordinary Markdown file into a new `todo` task and print its ID. Use `--title TITLE` to override the filename-derived title and `--path FILE` to choose an unused destination. |
 | `list` | Lists tasks matching `--status STATUS`, `--directory DIR`, `--tag TAG`, `--parent ID` and `--where EXPR`. Use `--sort KEY` and `--order asc\|desc` to select the row order. `--long` adds priority and due date to text output. |
@@ -48,6 +48,7 @@ All commands below accept the common project and resource options.
 | `validate` | No operands. Read-only validation of config, tasks, relationships and internal state. |
 | `recover resume [OPERATION] --yes` | Resume the pending operation or the selected operation. |
 | `recover rollback [OPERATION] --yes` | Roll back the pending operation or the selected operation. |
+| `recover prune [OPERATION ...] (--dry-run \| --yes) [--older-than DAYS]` | List or delete completed recovery archives for the selected collection. Defaults to 30 days. |
 
 Task IDs are looked up case-insensitively. Relationship commands use IDs, not
 paths. Directory placement does not assign parents. Status overrides never
@@ -157,12 +158,43 @@ The dry run is read-only, even with `--yes`. A supplied token must still
 match when the writer rechecks the plan, including when `--yes` is present.
 Omit `--detach` from both commands to keep references protected.
 
-Both recovery modes require `--yes` because replaying or reversing a journal
+`recover resume` and `recover rollback` require `--yes` because replaying or reversing a journal
 can remove or replace files. To undo a completed removal, use
 `kadai recover rollback OPERATION --yes` with the operation ID returned by
 `remove`. Omit the ID to select the pending operation. An explicitly empty ID
 is a usage error. Recovery verifies recorded state before modifying files. Missing
 authorization for import, deletion or recovery exits with code 2 before opening the project.
+
+### Cleaning recovery history
+
+```sh
+kadai recover prune --dry-run --older-than 30
+kadai recover prune --yes --older-than 30
+```
+
+Both invocations select operations whose completion receipt is at least the
+specified number of 24-hour periods old. Kadai uses the modification time of the
+rollback receipt for rolled-back operations and the commit receipt otherwise.
+Use `--older-than 0` to select all ages. The preview lists operation IDs in
+ascending order. Applying checks eligibility again under the writer lock.
+
+For a large collection, pass one or more operation IDs to check only that
+batch. The IDs are the directory names under `<tasks.root>/.kadai/recovery/`.
+The same retention period and resource limits apply.
+
+```sh
+kadai recover prune "$operation_id" --dry-run
+kadai recover prune "$operation_id" --yes
+```
+
+Repeating a batch skips IDs already removed.
+
+Pruning permanently removes the selected archives and their rollback copies.
+Task files and used-ID history stay in place. An operation without a completion
+receipt is retained. A pending operation in this or an overlapping collection,
+an invalid candidate archive, or an incomplete check stops the command.
+If cleanup is interrupted, run `recover prune` again. The preview includes
+selected archives already detached for deletion, regardless of their age.
 
 ### Choosing an editor
 
@@ -306,7 +338,8 @@ Consumers should look up object fields by name.
 | `dep graph` | Subject summary in `task`, the chosen `direction` (`prerequisites` or `dependents`), and an ordered `edges` array. Each edge contains string IDs `prerequisite` and `dependent`, plus the same `resolution` values as `dep show`. An isolated task has an empty array. |
 | `validate` | Counts `errors` and `warnings`, booleans `scan_complete`, `history_complete` and `recovery_complete`, and a `findings` array. A completed report is available on stdout even when findings produce a nonzero exit. |
 | `remove --dry-run` | A `plan` token and an `edits` array with `id`, `path`, `field` and a half-open byte `span` (`start`, `end`) in the original file. |
-| `init`, `set`, `unset`, `status`, `log add`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |
+| `recover prune` | A boolean `dry_run` and an `operations` array of selected operation IDs in ascending order. |
+| `init`, `set`, `unset`, `status`, `log add`, `edit`, `move`, `remove`, `parent add/remove`, `dep add/remove`, `recover resume/rollback` | An acknowledgement with `ok: true` and `operation` containing the journal ID when available, otherwise JSON null. Pass the ID from `remove` to `recover rollback`. |
 
 A validation finding carries `severity` (`error` or `warning`), `code`, `message`,
 and nullable `path`, `id`, `field` and `target_id`. A known `location` contains
@@ -382,6 +415,9 @@ Overrides do not bypass malformed config or unsupported schemas. See
 Project overrides apply only to this invocation, except that first-time `init`
 persists its effective settings using portable relative paths. Repeated `init`
 validates existing config and refuses conflicting settings without rewriting it.
+You can run `kadai init --git` on an existing project. It appends the literal
+`/.kadai/` line only if missing, preserving existing rules. A Git repository
+is optional for this command.
 
 ## Resource overrides
 
@@ -406,7 +442,8 @@ Invalid limits fail before project/config/task or body-file access. Limits apply
 to the whole invocation: config, discovery, body input, locked mutation planning,
 post-patch checks and the corresponding history/recovery budgets. Collection
 totals exclude the standalone config parse. `init` checks both existing and
-newly generated config against the same YAML limits.
+newly generated config against the same YAML limits. With `init --git`,
+`task_source_bytes` also bounds the existing and resulting task-root `.gitignore`.
 
 Limits are never saved to `.kadai.yaml`, including by `init`, and never change
 collection identity. Increasing a budget does not relax safe-editing rules.

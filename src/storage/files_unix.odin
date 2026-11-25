@@ -74,25 +74,42 @@ open_dir :: proc(
 @(private)
 dir_fd :: proc(d: ^Directory) -> p.FD {return p.FD(os.fd(d.file))}
 
-regular :: proc(d: ^Directory, name: string, mutation := false) -> (f: ^os.File, err: os.Error) {
+regular :: proc(
+	d: ^Directory,
+	name: string,
+	mutation := false,
+	writable := false,
+) -> (
+	f: ^os.File,
+	err: os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
-	fd := p.openat(dir_fd(d), cs(name), {.NOFOLLOW, .CLOEXEC, .NONBLOCK})
+	flags := p.O_Flags{.NOFOLLOW, .CLOEXEC, .NONBLOCK}
+	if writable do flags += {.RDWR}
+	fd := p.openat(dir_fd(d), cs(name), flags)
 	if fd < 0 do return nil, native_error()
 	defer if err != nil {p.close(fd)}
 	st: p.stat_t
 	if p.fstat(fd, &st) != .OK do return nil, native_error()
-	if !p.S_ISREG(st.st_mode) || mutation && st.st_nlink != 1 do return nil, .Invalid_File
+	if !p.S_ISREG(st.st_mode) || (mutation || writable) && st.st_nlink != 1 do return nil, .Invalid_File
 	return os.new_file(uintptr(fd), child(d.path, name)), nil
 }
 
 @(private)
-create_regular :: proc(d: ^Directory, name: string) -> (^os.File, os.Error) {
+create_regular :: proc(
+	d: ^Directory,
+	name: string,
+	project_file := false,
+) -> (
+	^os.File,
+	os.Error,
+) {
 	if !component(name) do return nil, .Invalid_Path
 	fd := p.openat(
 		dir_fd(d),
 		cs(name),
 		{.RDWR, .CREAT, .EXCL, .NOFOLLOW, .CLOEXEC},
-		transmute(p.mode_t)p._mode_t(0o600),
+		transmute(p.mode_t)p._mode_t(0o666 if project_file else 0o600),
 	)
 	if fd < 0 do return nil, native_error()
 	return os.new_file(uintptr(fd), child(d.path, name)), nil
@@ -124,6 +141,13 @@ publish :: proc(
 remove_entry :: proc(d: ^Directory, name: string) -> os.Error {
 	if !component(name) do return .Invalid_Path
 	if p.unlinkat(dir_fd(d), cs(name), {}) != .OK do return native_error()
+	return nil
+}
+
+@(private)
+remove_empty_dir :: proc(d: ^Directory, name: string) -> os.Error {
+	if !component(name) do return .Invalid_Path
+	if p.unlinkat(dir_fd(d), cs(name), {.REMOVEDIR}) != .OK do return native_error()
 	return nil
 }
 

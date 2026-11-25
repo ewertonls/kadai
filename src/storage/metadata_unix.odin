@@ -138,3 +138,6 @@ copy_metadata :: proc(src, dst: ^os.File) -> (err: os.Error) {
 }
 
 directory_metadata :: metadata
+
+project_metadata      :: metadata
+copy_project_metadata :: copy_metadata

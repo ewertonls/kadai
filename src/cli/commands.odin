@@ -42,7 +42,7 @@ execute :: proc(
 	switch command {
 	case "init":
 		if len(a.words) != 0 do return "", "init takes no positional arguments", .Usage
-		_, issue = app.initialize(cwd, a.project, a.limits)
+		_, issue = app.initialize(cwd, a.project, a.limits, git = a.git)
 	case "validate":
 		if len(a.words) != 0 do return "", "validate takes no positional arguments", .Usage
 		report, problem := app.validate_project(cwd, a.project, a.limits)
@@ -96,7 +96,23 @@ execute :: proc(
 		operation, issue = app.remove_task(cwd, a.project, remove, a.limits)
 		output = fmt.tprintf("%s\n", operation)
 	case "recover":
-		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume or rollback and an optional operation ID", .Usage
+		if len(a.words) > 0 && a.words[0] == "prune" {
+			if a.dry_run == a.yes do return "", "recover prune requires exactly one of --dry-run or --yes", .Usage
+			ids, problem := app.prune_recovery(
+				cwd,
+				a.project,
+				a.older_than,
+				a.dry_run,
+				a.limits,
+				a.words[1:],
+			)
+			if problem != "" do return "", problem, .Failure
+			if !a.dry_run && len(ids) > 0 do completed^ = "recover prune completed"
+			result := Prune_Result{a.dry_run, ids}
+			if a.json do return json_result(result)
+			return task_text_result(result)
+		}
+		if len(a.words) < 1 || len(a.words) > 2 do return "", "recover requires resume, rollback or prune", .Usage
 		id := ""
 		if len(a.words) == 2 {
 			id = a.words[1]
@@ -290,6 +306,8 @@ run_command :: proc(
 	switch command.flag_type {
 	case Project_Flags:
 		a, parse_err = parse_options(Project_Flags, args)
+	case Init_Flags:
+		a, parse_err = parse_options(Init_Flags, args)
 	case List_Flags:
 		a, parse_err = parse_options(List_Flags, args)
 	case Add_Flags:
